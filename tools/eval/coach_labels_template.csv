@@ -1,0 +1,12 @@
+coach_id,participant_id,condition,exercise_id,set_index,rep_n,video_t_s,counted,faults,note
+C1,P07,ai,squat,1,1,12.4,1,,
+C1,P07,ai,squat,1,2,16.0,1,depth,hơi nông
+C1,P07,ai,squat,1,3,19.8,0,,nửa rep chưa xuống đủ
+C1,P07,ai,squat,1,4,23.5,1,depth;heel,kiễng gót ở đáy
+C1,P07,ai,push_up,1,1,9.2,1,,
+C1,P07,ai,push_up,1,2,13.6,1,sag,võng lưng khi đẩy lên
+C1,P07,control,glute_bridge,1,1,8.5,1,hip_extension,nâng hông chưa hết biên độ
+C1,P07,control,glute_bridge,1,2,12.1,1,,
+C1,P07,ai,plank,1,1,15.2,1,,giữ đủ 15s chuẩn
+C1,P07,ai,plank,1,2,35.8,1,Back,hông chùng >45% thời gian giữ
+C1,P07,ai,plank,1,3,48.0,0,,hạ gối ở giây thứ 8 chưa đủ 15s

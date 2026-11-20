@@ -1,0 +1,1153 @@
+// Mock data for the Library / Khám phá sheet.
+//
+// v2 (current): unified [LibraryCardData] lists, one per rail, plus the
+// catalog data + filters. This is the SCALABLE shape — adding a new
+// rail means adding a new `List<LibraryCardData>`, no widget changes.
+//
+// v1 (legacy): ProgramMock / IntentCollectionMock / CollectionExerciseMock
+// kept below so old widget files (ai_spotlight, programs_rail,
+// intent_collection) still compile while they're orphaned. They can be
+// deleted later.
+
+import 'package:flutter/material.dart';
+
+import 'vika_albums.dart';
+import '../models/kept_exercises.dart';
+import '../services/catalog/catalog_source.dart';
+import '../widgets/ivory/atoms.dart';
+import '../widgets/library/library_card.dart';
+import '../widgets/library/library_filter_chips.dart';
+import '../widgets/library/library_stat_band.dart';
+
+// ═══════════════════════════════════════════════════════════════
+// V2 — unified scalable data
+// ═══════════════════════════════════════════════════════════════
+
+final List<LibraryFilter> libraryFilters = [
+  LibraryFilter(
+    id: 'all',
+    label: 'Tất cả',
+    count: libraryAlbumCards.length + libraryMockAllExercises.length,
+  ),
+  LibraryFilter(id: 'album', label: 'Bộ tập', count: libraryAlbumCards.length),
+  LibraryFilter(
+    id: 'exercise',
+    label: 'Bài tập',
+    count: libraryMockAllExercises.length,
+  ),
+  LibraryFilter(
+    id: 'ai',
+    label: 'Có camera AI',
+    count: libraryMockAllExercises.where((r) => r.ai).length,
+  ),
+  LibraryFilter(
+    id: 'yoga',
+    label: 'Yoga',
+    count: libraryMockAllExercises.where((r) => r.yoga).length,
+  ),
+];
+
+/// Legacy buckets kept empty so old orphaned widgets compile without
+/// rendering fabricated programs / collections / weekly-new rails.
+const List<LibraryCardData> libraryProgramCards = [];
+const List<LibraryCardData> libraryCollectionCards = [];
+const List<LibraryCardData> libraryWhatsNewCards = [];
+
+/// Curated back-to-back albums. Source of truth lives in vika_albums.dart.
+final List<LibraryCardData> libraryAlbumCards = vikaAlbumCards;
+
+/// Featured exercises with camera-AI form coaching.
+// NOTE: no hardcoded `duration:` here — `LibraryCardData.displayDuration`
+// pulls the live per-set target from each exercise's ExerciseDefinition so
+// the card and the exercise intro never disagree.
+const List<LibraryCardData> _allLibraryAiExerciseCards = [
+  LibraryCardData(
+    kind: LibraryCardKind.exercise,
+    title: 'Squat',
+    detail: 'Chân · hông',
+    icon: Icons.accessibility_new_rounded,
+    hasAi: true,
+    exerciseName: 'squat',
+  ),
+  LibraryCardData(
+    kind: LibraryCardKind.exercise,
+    title: 'Chống đẩy',
+    detail: 'Ngực · vai',
+    icon: Icons.fitness_center_rounded,
+    hasAi: true,
+    exerciseName: 'push_up',
+  ),
+  LibraryCardData(
+    kind: LibraryCardKind.exercise,
+    title: 'Plank',
+    detail: 'Cốt lõi',
+    icon: Icons.horizontal_rule_rounded,
+    hasAi: true,
+    exerciseName: 'plank',
+  ),
+  LibraryCardData(
+    kind: LibraryCardKind.exercise,
+    title: 'Chùng chân',
+    detail: 'Chân · mông',
+    icon: Icons.directions_walk_rounded,
+    hasAi: true,
+    exerciseName: 'lunge',
+  ),
+  LibraryCardData(
+    kind: LibraryCardKind.exercise,
+    title: 'Cầu mông',
+    detail: 'Mông · lưng',
+    icon: Icons.height_rounded,
+    hasAi: true,
+    exerciseName: 'glute_bridge',
+  ),
+];
+
+// ═══════════════════════════════════════════════════════════════
+final List<LibraryCardData> libraryAiExerciseCards = [
+  for (final card in _allLibraryAiExerciseCards)
+    if (card.exerciseName == null || isKeptExercise(card.exerciseName!)) card,
+];
+
+// CATALOG — vertical list at the bottom of the sheet
+// ═══════════════════════════════════════════════════════════════
+
+@immutable
+class AllExerciseRowMock {
+  const AllExerciseRowMock({
+    required this.idx,
+    required String name,
+    required this.cat,
+    required this.diff,
+    required this.glyph,
+    required this.group,
+    this.ai = false,
+    this.yoga = false,
+    this.definitionName,
+  }) : _name = name;
+  final int idx;
+
+  /// Curated pre-load fallback name. NOT authoritative — the display [name]
+  /// getter prefers the bundled catalog ([CatalogSource]), the single source
+  /// of truth for exercise names.
+  final String _name;
+
+  /// Display name. Resolves from the catalog by [definitionName]; falls back
+  /// to [_name] only before the catalog loads or for ids it doesn't carry.
+  String get name {
+    final id = definitionName;
+    if (id != null) {
+      final vn = CatalogSource.instance.lookup(id)?.vietnameseName;
+      if (vn != null && vn.isNotEmpty) return vn;
+    }
+    return _name;
+  }
+
+  final String cat;
+  final String diff;
+  final PoseGlyphType glyph;
+  final bool ai;
+  final bool yoga;
+  final String? definitionName;
+  String? get thumbnailAsset => libraryExerciseThumbnailAssets[definitionName];
+
+  /// [cat] is the editorial muscle-group label only; the per-set volume is
+  /// appended live from the bundled catalog ([CatalogSource]) so the catalog
+  /// list never drifts from the exercise intro. Falls back to bare [cat] when
+  /// no catalog entry resolves (or before the catalog has loaded).
+  String get displayCat {
+    final name = definitionName;
+    if (name != null) {
+      final info = CatalogSource.instance.lookup(name);
+      if (info != null) return '$cat · ${info.volumeLabel}';
+    }
+    return cat;
+  }
+
+  /// Group label used by the grouped catalog. e.g. 'CHÂN · MÔNG',
+  /// 'CỐT LÕI', 'YOGA'. Curators can mint new groups freely — the
+  /// catalog widget renders whatever shows up.
+  final String group;
+
+  AllExerciseRowMock withIdx(int nextIdx) => AllExerciseRowMock(
+        idx: nextIdx,
+        name: _name,
+        cat: cat,
+        diff: diff,
+        glyph: glyph,
+        group: group,
+        ai: ai,
+        yoga: yoga,
+        definitionName: definitionName,
+      );
+}
+
+/// Canonical group order in the catalog. Groups appearing in
+/// [libraryMockAllExercises] but missing here are appended in
+/// first-seen order.
+const List<String> libraryCatalogGroupOrder = [
+  'CHÂN · MÔNG',
+  'CỐT LÕI',
+  'NGỰC · VAI',
+  'CARDIO',
+  'YOGA',
+];
+
+/// Returns the catalog's muscle groups present in [rows], ordered by
+/// [libraryCatalogGroupOrder] first, then any unrecognized groups in
+/// first-seen order. Shared by the inline entry and the dedicated
+/// catalog screen so both agree on tab/chip order.
+List<String> orderedCatalogGroups(List<AllExerciseRowMock> rows) {
+  final seen = <String>{};
+  final ordered = <String>[];
+  for (final g in libraryCatalogGroupOrder) {
+    if (rows.any((r) => r.group == g)) {
+      ordered.add(g);
+      seen.add(g);
+    }
+  }
+  for (final r in rows) {
+    if (!seen.contains(r.group)) {
+      ordered.add(r.group);
+      seen.add(r.group);
+    }
+  }
+  return ordered;
+}
+
+/// Editorial masthead copy per catalog group. This is the scale seam: adding a
+/// new group = add rows (with that `group`) + one entry here. The catalog
+/// renders every group with the same `ExerciseGallerySection` — no widget
+/// changes. Unknown groups fall back to the raw group string + empty subtitle.
+class LibraryGroupEditorial {
+  const LibraryGroupEditorial({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+  });
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+}
+
+const Map<String, LibraryGroupEditorial> libraryGroupEditorial = {
+  'CHÂN · MÔNG': LibraryGroupEditorial(
+    eyebrow: 'NHÓM CƠ',
+    title: 'Chân & Mông',
+    subtitle: 'Gốc rễ của mọi chuyển động mạnh mẽ.',
+  ),
+  'CỐT LÕI': LibraryGroupEditorial(
+    eyebrow: 'NHÓM CƠ',
+    title: 'Cốt lõi',
+    subtitle: 'Trung tâm giữ thăng bằng và truyền lực.',
+  ),
+  'NGỰC · VAI': LibraryGroupEditorial(
+    eyebrow: 'NHÓM CƠ',
+    title: 'Ngực & Vai',
+    subtitle: 'Thân trên săn chắc, tư thế vững vàng.',
+  ),
+  'CARDIO': LibraryGroupEditorial(
+    eyebrow: 'TIM MẠCH',
+    title: 'Cardio',
+    subtitle: 'Nhịp tim lên, sức bền theo sau.',
+  ),
+  'YOGA': LibraryGroupEditorial(
+    eyebrow: 'YOGA & PHỤC HỒI',
+    title: 'Yoga',
+    subtitle: 'Dẻo dai, tĩnh tại và phục hồi.',
+  ),
+};
+
+/// Maps an engine/catalog exercise id (as used by the Plan ledger and the
+/// recommendation engine, e.g. 'squat_bw') onto a catalog thumbnail key (the
+/// keys of [libraryExerciseThumbnailAssets], e.g. 'squat'). Only ids that
+/// differ from the catalog key need an entry; matching ids resolve directly.
+const Map<String, String> _exerciseThumbnailAliases = {
+  // Plan / engine catalog ids.
+  'squat_bw': 'squat',
+  'glute_bridge_bw': 'glute_bridge',
+  'mcgill_curl_up': 'mcgill_curlup',
+  'warrior_i': 'warrior_one',
+  // ExerciseDefinition ids whose (normalized) name differs from the art key.
+  'curl_up': 'mcgill_curlup',
+  'wall_push_up': 'wall_pushup',
+  'v_up': 'vup',
+  'sit_up': 'situp',
+  'bow': 'bow_pose',
+  'butterfly_stretch': 'butterfly',
+  'side_plank_with_hip_dip': 'side_plank_dip',
+};
+
+/// Resolves a thumbnail asset for an exercise id coming from any source: the
+/// Library catalog (`definitionName`), the Plan/engine catalog (`exerciseId`),
+/// or an [ExerciseDefinition.id] (which can carry stray double/trailing
+/// underscores, e.g. `cobra_`, `bird__dog`). Returns null when no art exists —
+/// callers show a glyph/icon fallback.
+String? exerciseThumbnailForId(String? id) {
+  if (id == null || id.isEmpty) return null;
+  String? hit(String key) =>
+      libraryExerciseThumbnailAssets[key] ??
+      libraryExerciseThumbnailAssets[_exerciseThumbnailAliases[key] ?? ''];
+
+  final direct = hit(id);
+  if (direct != null) return direct;
+
+  // Normalize: collapse repeated underscores + trim a trailing/leading one,
+  // then retry (handles 'cobra_' → 'cobra', 'bird__dog' → 'bird_dog', …).
+  final norm =
+      id.replaceAll(RegExp(r'_+'), '_').replaceAll(RegExp(r'^_|_$'), '');
+  return norm == id ? null : hit(norm);
+}
+
+const Map<String, String> libraryExerciseThumbnailAssets = {
+  'squat': 'assets/habt/squat.png',
+  'lunge': 'assets/habt/lunge.png',
+  'glute_bridge': 'assets/habt/glute_bridge.png',
+  'walking_lunge': 'assets/habt/walking_lunge.png',
+  'cossack_squat': 'assets/habt/cossack_squat.png',
+  'jump_squat': 'assets/habt/jump_squat.png',
+  'bird_dog': 'assets/habt/bird_ dog.png',
+  'dead_bug': 'assets/habt/dead_bug.png',
+  'mcgill_curlup': 'assets/habt/mcgill_curlup.png',
+  'plank': 'assets/habt/plank.png',
+  'high_plank': 'assets/habt/high_plank.png',
+  'bear_plank': 'assets/habt/bear_plank.png',
+  'situp': 'assets/habt/sit_up.png',
+  'leg_raises': 'assets/habt/leg_raises.png',
+  'reverse_crunch': 'assets/habt/reverse_crunch.png',
+  'vup': 'assets/habt/v_up.png',
+  'russian_twist': 'assets/habt/Russian_twist.png',
+  'side_plank_dip': 'assets/habt/side_plank.png',
+  'plank_shoulder_tap': 'assets/habt/plank_shoulder _tap.png',
+  'plank_up_down': 'assets/habt/plank_up_down.png',
+  'standing_knee_to_elbow': 'assets/habt/standing_knee_to_elbow.png',
+  'superman': 'assets/habt/superman.png',
+  'push_up': 'assets/habt/push_up.png',
+  'wall_pushup': 'assets/habt/wall_push_up.png',
+  'tricep_dip': 'assets/habt/trace_dip.png',
+  'jumping_jack': 'assets/habt/jumping_jack.png',
+  'mountain_climber': 'assets/habt/mountain_climber.png',
+  'step_back_burpee': 'assets/habt/step_back_burpee.png',
+  'warrior_one': 'assets/habt/warrior_1.png',
+  'cobra': 'assets/habt/cobra.png',
+  'butterfly': 'assets/habt/butterfly_pose.png',
+  'seated_forward_fold': 'assets/habt/seated_forward_fold.png',
+  'sphinx': 'assets/habt/sphinx_pose.png',
+  'bow_pose': 'assets/habt/bow_pose.png',
+};
+
+const List<AllExerciseRowMock> _allLibraryMockExercises = [
+  AllExerciseRowMock(
+    idx: 1,
+    name: 'Squat',
+    cat: 'Chân · Mông',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.squat,
+    definitionName: 'squat',
+    group: 'CHÂN · MÔNG',
+  ),
+  AllExerciseRowMock(
+    idx: 2,
+    name: 'Chùng chân',
+    cat: 'Đùi · Mông',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.lunge,
+    definitionName: 'lunge',
+    group: 'CHÂN · MÔNG',
+  ),
+  AllExerciseRowMock(
+    idx: 3,
+    name: 'Cầu mông',
+    cat: 'Mông · Lưng dưới',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'glute_bridge',
+    group: 'CHÂN · MÔNG',
+  ),
+  AllExerciseRowMock(
+    idx: 4,
+    name: 'Lunge bước đi',
+    cat: 'Chân · Thăng bằng',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.lunge,
+    definitionName: 'walking_lunge',
+    group: 'CHÂN · MÔNG',
+  ),
+  AllExerciseRowMock(
+    idx: 5,
+    name: 'Squat Cossack',
+    cat: 'Chân · Hông',
+    diff: 'TB–Khó',
+    ai: true,
+    glyph: PoseGlyphType.squat,
+    definitionName: 'cossack_squat',
+    group: 'CHÂN · MÔNG',
+  ),
+  AllExerciseRowMock(
+    idx: 6,
+    name: 'Squat bật nhảy',
+    cat: 'Chân · Sức bật',
+    diff: 'TB–Khó',
+    ai: true,
+    glyph: PoseGlyphType.squat,
+    definitionName: 'jump_squat',
+    group: 'CHÂN · MÔNG',
+  ),
+  AllExerciseRowMock(
+    idx: 7,
+    name: 'Bird Dog',
+    cat: 'Core · Lưng',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'bird_dog',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 8,
+    name: 'Dead Bug',
+    cat: 'Core ổn định',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'dead_bug',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 9,
+    name: 'Gập bụng McGill',
+    cat: 'Core McGill',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'mcgill_curlup',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 10,
+    name: 'Plank thấp',
+    cat: 'Core',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'plank',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 11,
+    name: 'Plank cao',
+    cat: 'Core · Vai',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'high_plank',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 12,
+    name: 'Plank gấu',
+    cat: 'Core · Vai',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'bear_plank',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 13,
+    name: 'Gập bụng',
+    cat: 'Core',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'situp',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 14,
+    name: 'Nâng chân',
+    cat: 'Core dưới',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'leg_raises',
+    group: 'CỐT LÕI',
+  ),
+  // AllExerciseRowMock(
+  //   idx: 15,
+  //   name: 'Gập bụng ngược',
+  //   cat: 'Core dưới',
+  //   diff: 'Trung bình',
+  //   ai: true,
+  //   glyph: PoseGlyphType.plank,
+  //   definitionName: 'reverse_crunch',
+  //   group: 'CỐT LÕI',
+  // ),
+  AllExerciseRowMock(
+    idx: 16,
+    name: 'Gập bụng chữ V',
+    cat: 'Core',
+    diff: 'TB–Khó',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'vup',
+    group: 'CỐT LÕI',
+  ),
+  // AllExerciseRowMock(
+  //   idx: 17,
+  //   name: 'Xoay người kiểu Nga',
+  //   cat: 'Core xoay',
+  //   diff: 'Trung bình',
+  //   ai: true,
+  //   glyph: PoseGlyphType.plank,
+  //   definitionName: 'russian_twist',
+  //   group: 'CỐT LÕI',
+  // ),
+  AllExerciseRowMock(
+    idx: 18,
+    name: 'Plank nghiêng hạ hông',
+    cat: 'Core bên',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'side_plank_dip',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 19,
+    name: 'Plank chạm vai',
+    cat: 'Core · Vai',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'plank_shoulder_tap',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 20,
+    name: 'Plank lên xuống',
+    cat: 'Core · Tay sau',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'plank_up_down',
+    group: 'CỐT LÕI',
+  ),
+  // AllExerciseRowMock(
+  //   idx: 21,
+  //   name: 'Đứng chạm gối khuỷu tay',
+  //   cat: 'Core · Cardio nhẹ',
+  //   diff: 'Dễ–TB',
+  //   ai: true,
+  //   glyph: PoseGlyphType.plank,
+  //   definitionName: 'standing_knee_to_elbow',
+  //   group: 'CỐT LÕI',
+  // ),
+  AllExerciseRowMock(
+    idx: 22,
+    name: 'Superman',
+    cat: 'Lưng sau',
+    diff: 'Dễ–TB',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'superman',
+    group: 'CỐT LÕI',
+  ),
+  AllExerciseRowMock(
+    idx: 23,
+    name: 'Chống đẩy',
+    cat: 'Ngực · Vai',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.wallPushUp,
+    definitionName: 'push_up',
+    group: 'NGỰC · VAI',
+  ),
+  AllExerciseRowMock(
+    idx: 24,
+    name: 'Chống đẩy tường',
+    cat: 'Ngực · Vai',
+    diff: 'Dễ',
+    ai: true,
+    glyph: PoseGlyphType.wallPushUp,
+    definitionName: 'wall_pushup',
+    group: 'NGỰC · VAI',
+  ),
+  AllExerciseRowMock(
+    idx: 25,
+    name: 'Dip cơ tam đầu',
+    cat: 'Tay sau · Ngực',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'tricep_dip',
+    group: 'NGỰC · VAI',
+  ),
+  AllExerciseRowMock(
+    idx: 26,
+    name: 'Nhảy dang tay chân',
+    cat: 'Cardio',
+    diff: 'Dễ',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'jumping_jack',
+    group: 'CARDIO',
+  ),
+  AllExerciseRowMock(
+    idx: 27,
+    name: 'Leo núi',
+    cat: 'Cardio · Core',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'mountain_climber',
+    group: 'CARDIO',
+  ),
+  AllExerciseRowMock(
+    idx: 28,
+    name: 'Burpee bước lùi',
+    cat: 'Cardio · Toàn thân',
+    diff: 'TB–Khó',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'step_back_burpee',
+    group: 'CARDIO',
+  ),
+  AllExerciseRowMock(
+    idx: 29,
+    name: 'Tư thế chiến binh I',
+    cat: 'Yoga',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.lunge,
+    definitionName: 'warrior_one',
+    yoga: true,
+    group: 'YOGA',
+  ),
+  AllExerciseRowMock(
+    idx: 30,
+    name: 'Tư thế rắn hổ mang',
+    cat: 'Yoga',
+    diff: 'Người mới',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'cobra',
+    yoga: true,
+    group: 'YOGA',
+  ),
+  AllExerciseRowMock(
+    idx: 31,
+    name: 'Tư thế bướm',
+    cat: 'Yoga · Mở hông',
+    diff: 'Người mới',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'butterfly',
+    yoga: true,
+    group: 'YOGA',
+  ),
+  AllExerciseRowMock(
+    idx: 32,
+    name: 'Gập người ngồi',
+    cat: 'Yoga · Gân kheo',
+    diff: 'Người mới',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'seated_forward_fold',
+    yoga: true,
+    group: 'YOGA',
+  ),
+  AllExerciseRowMock(
+    idx: 33,
+    name: 'Tư thế nhân sư',
+    cat: 'Yoga · Lưng nhẹ',
+    diff: 'Người mới',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'sphinx',
+    yoga: true,
+    group: 'YOGA',
+  ),
+  AllExerciseRowMock(
+    idx: 34,
+    name: 'Tư thế cánh cung',
+    cat: 'Yoga · Lưng sau',
+    diff: 'Trung bình',
+    ai: true,
+    glyph: PoseGlyphType.plank,
+    definitionName: 'bow_pose',
+    yoga: true,
+    group: 'YOGA',
+  ),
+];
+
+// ═══════════════════════════════════════════════════════════════
+final List<AllExerciseRowMock> libraryMockAllExercises = () {
+  final kept = [
+    for (final row in _allLibraryMockExercises)
+      if (row.definitionName != null && isKeptExercise(row.definitionName!))
+        row,
+  ];
+  return List<AllExerciseRowMock>.unmodifiable([
+    for (var i = 0; i < kept.length; i++) kept[i].withIdx(i + 1),
+  ]);
+}();
+
+// LEGACY v1 — kept so orphaned old widgets still compile. Delete
+// after dropping ai_spotlight / programs_rail / intent_collection.
+// ═══════════════════════════════════════════════════════════════
+
+@immutable
+class ProgramMock {
+  const ProgramMock({
+    required this.idx,
+    required this.name,
+    required this.dur,
+    required this.sessions,
+    required this.diff,
+    required this.tagline,
+    this.tag,
+    this.tone = ProgramTone.cream,
+  });
+  final String idx;
+  final String name;
+  final String dur;
+  final String sessions;
+  final String diff;
+  final String tagline;
+  final String? tag;
+  final ProgramTone tone;
+}
+
+enum ProgramTone { current, dark, cream }
+
+@immutable
+class CollectionExerciseMock {
+  const CollectionExerciseMock({
+    required this.name,
+    required this.glyph,
+    required this.meta,
+    this.ai = false,
+    this.yoga = false,
+  });
+  final String name;
+  final PoseGlyphType glyph;
+  final String meta;
+  final bool ai;
+  final bool yoga;
+}
+
+@immutable
+class IntentCollectionMock {
+  const IntentCollectionMock({
+    required this.idx,
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+    required this.hero,
+    required this.small,
+  });
+  final String idx;
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+  final CollectionExerciseMock hero;
+  final List<CollectionExerciseMock> small;
+}
+
+const List<ProgramMock> libraryMockPrograms = [];
+const List<IntentCollectionMock> libraryMockCollections = [];
+const List<({String id, String label, int count})> libraryMockFilters = [];
+
+// ═══════════════════════════════════════════════════════════════
+// SCALABLE PAGE COMPOSITION — data-driven section list
+// ═══════════════════════════════════════════════════════════════
+//
+// The Library screen renders by iterating over [librarySections]. Each
+// entry is one [LibrarySection] subclass — Featured / Rail / List /
+// StatBand / Catalog. Adding new content (a new series, a new goal
+// category, a new featured promo) means ADDING TO THE LIST — no
+// changes to widget code or screen code required.
+//
+// Each section declares which filter kinds reveal it via
+// [filterKinds]. When the user picks "Tất cả" everything shows; when
+// they pick a specific filter, only sections whose filterKinds contain
+// the selected id show.
+//
+// Stats inside the StatBand DERIVE from data, so adding new content
+// auto-updates the stats without manual editing.
+
+sealed class LibrarySection {
+  const LibrarySection({this.filterKinds = const []});
+
+  /// Filter IDs that reveal this section. Empty = always visible. The
+  /// 'all' filter selection always shows everything regardless.
+  final List<String> filterKinds;
+
+  bool visibleFor(String selectedFilterId) {
+    if (filterKinds.isEmpty) return true;
+    if (selectedFilterId == 'all') return true;
+    return filterKinds.contains(selectedFilterId);
+  }
+}
+
+/// Magazine-cover featured card — one big editorial moment.
+@immutable
+class LibrarySectionFeatured extends LibrarySection {
+  const LibrarySectionFeatured({
+    required this.eyebrow,
+    required this.indexLabel,
+    required this.titleLine1,
+    required this.titleLine2,
+    required this.statChips,
+    required this.description,
+    required this.ctaLabel,
+    required this.ctaTarget,
+    this.watermarkNumeral,
+    super.filterKinds,
+  });
+
+  final String eyebrow;
+  final String indexLabel;
+  final String titleLine1;
+  final String titleLine2;
+  final List<String> statChips;
+  final String description;
+  final String ctaLabel;
+  final LibraryCardData ctaTarget;
+  final String? watermarkNumeral;
+}
+
+/// Data-only payload for one slide of the featured carousel. The screen
+/// turns this into a `LibraryFeaturedSlide` with the resolved onTap.
+@immutable
+class LibraryFeaturedSlideData {
+  const LibraryFeaturedSlideData({
+    required this.eyebrow,
+    required this.titleLine1,
+    required this.titleLine2,
+    required this.statChips,
+    required this.description,
+    required this.ctaLabel,
+    required this.ctaTarget,
+    this.watermarkNumeral,
+  });
+
+  final String eyebrow;
+  final String titleLine1;
+  final String titleLine2;
+  final List<String> statChips;
+  final String description;
+  final String ctaLabel;
+  final LibraryCardData ctaTarget;
+  final String? watermarkNumeral;
+}
+
+/// Swipeable carousel of editorial featured covers. Curators rotate
+/// 3–5 picks; pagination dots track active slide.
+@immutable
+class LibrarySectionFeaturedCarousel extends LibrarySection {
+  const LibrarySectionFeaturedCarousel({
+    required this.slides,
+    super.filterKinds,
+  });
+  final List<LibraryFeaturedSlideData> slides;
+}
+
+/// One cell in the "Duyệt nhanh" facet tile grid. Tapping deep-links to
+/// a `LibraryBrowseScreen` with the matching content list.
+@immutable
+class BrowseTileData {
+  const BrowseTileData({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.count,
+    this.eyebrow,
+    this.breakdown,
+  });
+  final String id;
+  final String label;
+  final IconData icon;
+  final int count;
+  final String? eyebrow;
+
+  /// Editorial type-breakdown line, e.g. "12 BÀI · 2 LT". Optional; if
+  /// omitted, the tile uses [count] as a single italic numeral.
+  final String? breakdown;
+}
+
+/// The 2×3 facet grid section ("Duyệt nhanh"). Sits below the carousel
+/// and absorbs scale — taps deep-link, the home stays fixed-size.
+@immutable
+class LibrarySectionTileGrid extends LibrarySection {
+  const LibrarySectionTileGrid({
+    required this.eyebrow,
+    required this.tiles,
+    this.meta,
+    this.intro,
+    super.filterKinds,
+  });
+  final String eyebrow;
+  final String? meta;
+  final String? intro;
+  final List<BrowseTileData> tiles;
+}
+
+/// Horizontal rail of multi-episode "album / series" cards (3:4 portrait
+/// with overlaid title). A distinct tier from programs and collections.
+@immutable
+class LibrarySectionAlbumRail extends LibrarySection {
+  const LibrarySectionAlbumRail({
+    required this.eyebrow,
+    required this.cards,
+    this.meta,
+    this.intro,
+    super.filterKinds,
+  });
+  final String eyebrow;
+  final String? meta;
+  final String? intro;
+  final List<LibraryCardData> cards;
+}
+
+/// Horizontal-scroll row of [LibraryCard]s.
+@immutable
+class LibrarySectionRail extends LibrarySection {
+  const LibrarySectionRail({
+    required this.eyebrow,
+    required this.cards,
+    this.meta,
+    this.intro,
+    this.showIndices = false,
+    super.filterKinds,
+  });
+
+  final String eyebrow;
+  final String? meta;
+
+  /// Optional italic one-liner that sits below the section rule —
+  /// editorial framing that tells the reader *why* this section exists.
+  final String? intro;
+
+  final List<LibraryCardData> cards;
+  final bool showIndices;
+}
+
+/// Vertical magazine list — varies the page's visual rhythm.
+@immutable
+class LibrarySectionList extends LibrarySection {
+  const LibrarySectionList({
+    required this.eyebrow,
+    required this.cards,
+    required this.descriptions,
+    this.meta,
+    this.intro,
+    super.filterKinds,
+  });
+
+  final String eyebrow;
+  final String? meta;
+  final String? intro;
+  final List<LibraryCardData> cards;
+
+  /// Parallel-indexed with [cards]; one description per card.
+  final List<String> descriptions;
+}
+
+/// Editorial stat divider between major sections.
+@immutable
+class LibrarySectionStatBand extends LibrarySection {
+  const LibrarySectionStatBand({
+    required this.stats,
+    super.filterKinds,
+  });
+
+  final List<LibraryStat> stats;
+}
+
+/// Bottom catalog list — the "completionist" tail (uses the existing
+/// AllExercisesGrid behind the scenes).
+@immutable
+class LibrarySectionCatalog extends LibrarySection {
+  const LibrarySectionCatalog({
+    required this.eyebrow,
+    required this.rows,
+    this.meta,
+    super.filterKinds,
+  });
+
+  final String eyebrow;
+  final String? meta;
+  final List<AllExerciseRowMock> rows;
+}
+
+// ─────────────────────────────────────────────────────────────
+// The page composition. Add a new section here to extend the page.
+// ─────────────────────────────────────────────────────────────
+
+LibraryCardData _albumCard(String id) {
+  final album = vikaAlbumById(id);
+  if (album == null) {
+    throw StateError('Unknown Vika album id: $id');
+  }
+  return album.toCardData();
+}
+
+/// Curated exercise ids for the "Lưng & phục hồi" facet tile, filtered at read
+/// time through [libraryMockAllExercises].
+const List<String> libraryBackFacetExerciseIds = [
+  'bird_dog',
+  'dead_bug',
+  'glute_bridge',
+  'superman',
+  'sphinx',
+  'cobra',
+  'bow_pose',
+];
+
+final List<LibrarySection> librarySections = [
+  LibrarySectionFeaturedCarousel(
+    slides: [
+      LibraryFeaturedSlideData(
+        eyebrow: 'BỘ TẬP · PHỤC HỒI',
+        titleLine1: 'Lưng khỏe',
+        titleLine2: 'mỗi ngày.',
+        statChips: [
+          '${vikaAlbumById('back')?.exerciseIds.length ?? 5} bài',
+          '~8 phút',
+          'Có AI',
+        ],
+        description: 'Cho lưng sau giờ ngồi lâu. Tập liền mạch theo thứ tự.',
+        ctaLabel: 'Tập bộ này',
+        watermarkNumeral: '01',
+        ctaTarget: _albumCard('back'),
+      ),
+      LibraryFeaturedSlideData(
+        eyebrow: 'ĐIỂM BẮT ĐẦU',
+        titleLine1: 'Người mới',
+        titleLine2: 'bắt đầu.',
+        statChips: [
+          '${vikaAlbumById('beginner')?.exerciseIds.length ?? 4} bài',
+          '~6 phút',
+          'Có AI',
+        ],
+        description:
+            'Cơ bản, nhịp chậm. Ưu tiên form đúng trước khi tăng độ khó.',
+        ctaLabel: 'Bắt đầu tập',
+        watermarkNumeral: '02',
+        ctaTarget: _albumCard('beginner'),
+      ),
+      LibraryFeaturedSlideData(
+        eyebrow: 'GIỜ LÀM · 5 PHÚT',
+        titleLine1: 'Reset',
+        titleLine2: 'bàn.',
+        statChips: [
+          '5 phút',
+          '${vikaAlbumById('desk')?.exerciseIds.length ?? 3} bài',
+          'Có AI',
+        ],
+        description:
+            'Các động tác nhanh giữa giờ làm. Không cần thay đồ, không cần mat.',
+        ctaLabel: 'Tập ngay',
+        watermarkNumeral: '03',
+        ctaTarget: _albumCard('desk'),
+      ),
+    ],
+    filterKinds: ['all'],
+  ),
+  LibrarySectionTileGrid(
+    eyebrow: 'DUYỆT NHANH',
+    meta: '6 phân loại',
+    intro: 'Chọn theo phần thân hoặc cảm giác. Tất cả đều là bài có thể mở.',
+    tiles: [
+      BrowseTileData(
+        id: 'lower',
+        label: 'Chân · Mông',
+        eyebrow: 'PHẦN THÂN',
+        icon: Icons.directions_walk_rounded,
+        count: libraryMockAllExercises.where((r) => r.group == 'CHÂN · MÔNG').length,
+        breakdown:
+            '${libraryMockAllExercises.where((r) => r.group == 'CHÂN · MÔNG').length} BÀI · 1 BỘ',
+      ),
+      BrowseTileData(
+        id: 'core',
+        label: 'Cốt lõi',
+        eyebrow: 'PHẦN THÂN',
+        icon: Icons.horizontal_rule_rounded,
+        count: libraryMockAllExercises
+            .where((r) => r.group == 'CỐT LÕI')
+            .length,
+        breakdown:
+            '${libraryMockAllExercises.where((r) => r.group == 'CỐT LÕI').length} BÀI · 1 BỘ',
+      ),
+      BrowseTileData(
+        id: 'back',
+        label: 'Lưng & phục hồi',
+        eyebrow: 'PHỤC HỒI',
+        icon: Icons.healing_rounded,
+        count: libraryMockAllExercises
+            .where((r) => libraryBackFacetExerciseIds.contains(r.definitionName))
+            .length,
+        breakdown:
+            '${libraryMockAllExercises.where((r) => libraryBackFacetExerciseIds.contains(r.definitionName)).length} BÀI · 1 BỘ',
+      ),
+      BrowseTileData(
+        id: 'yoga',
+        label: 'Yoga',
+        eyebrow: 'THƯ GIÃN',
+        icon: Icons.self_improvement_rounded,
+        count: libraryMockAllExercises.where((r) => r.yoga).length,
+        breakdown:
+            '${libraryMockAllExercises.where((r) => r.yoga).length} BÀI · 2 BỘ',
+      ),
+      BrowseTileData(
+        id: 'ai',
+        label: 'Có camera AI',
+        eyebrow: 'TƯ THẾ',
+        icon: Icons.center_focus_strong_rounded,
+        count: libraryMockAllExercises.where((r) => r.ai).length,
+        breakdown:
+            '${libraryMockAllExercises.where((r) => r.ai).length} BÀI · ${libraryAlbumCards.length} BỘ',
+      ),
+      BrowseTileData(
+        id: 'short',
+        label: 'Nhanh ≤ vài phút',
+        eyebrow: 'GIỜ LÀM',
+        icon: Icons.access_time_rounded,
+        count: 3,
+        breakdown: '3 BỘ · NGẮN',
+      ),
+    ],
+    filterKinds: ['all'],
+  ),
+  LibrarySectionAlbumRail(
+    eyebrow: 'BỘ TẬP',
+    meta: '${libraryAlbumCards.length} BỘ',
+    intro:
+        'Tuyển tập các bài tập liền mạch. Chạm một lần, Vika chạy từng bài theo thứ tự.',
+    cards: libraryAlbumCards,
+    filterKinds: const ['album'],
+  ),
+  LibrarySectionStatBand(
+    stats: [
+      LibraryStat(value: '${libraryMockAllExercises.length}', label: 'Bài tập'),
+      LibraryStat(
+        value: '${libraryMockAllExercises.where((row) => row.ai).length}',
+        label: 'Có AI',
+      ),
+      LibraryStat(value: '${libraryAlbumCards.length}', label: 'Bộ tập'),
+    ],
+    filterKinds: const ['all'],
+  ),
+  LibrarySectionCatalog(
+    eyebrow: 'KHO BÀI TẬP',
+    meta: '${libraryMockAllExercises.length} BÀI',
+    rows: libraryMockAllExercises,
+    // No filterKinds → always visible (the completionist tail).
+  ),
+];

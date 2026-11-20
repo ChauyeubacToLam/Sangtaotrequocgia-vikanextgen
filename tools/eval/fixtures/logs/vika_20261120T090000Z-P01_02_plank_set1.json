@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "kind": "exercise_set",
+  "session_id": "20261120T090000Z-P01",
+  "participant_id": "P01",
+  "condition": "ai",
+  "app_version": "1.0.3+155",
+  "platform": "ios",
+  "os_version": "17.4",
+  "exercise_id": "plank",
+  "set_index": 1,
+  "started_at_utc": "2026-11-20T09:03:00.000Z",
+  "sync_beep_t_ms": 3000,
+  "unknown_top_level_field": "ignored_safely",
+  "frames": {
+    "total": 1512,
+    "with_pose": 1450,
+    "duration_ms": 63000,
+    "mean_fps": 24.0,
+    "min_fps_1s": 14,
+    "max_gap_ms": 180
+  },
+  "events": [
+    {"t_ms": 0, "type": "unseen_start", "phase": "setup", "reason": "turnSide"},
+    {"t_ms": 3000, "type": "unseen_end"},
+    {"t_ms": 3000, "type": "activated"},
+    {"t_ms": 18000, "type": "rep", "n": 1, "correct": false, "faults": ["Back"], "data": {"hold_time": 15.0}},
+    {"t_ms": 18300, "type": "cue", "key": "plank.trunk_sag", "played": true, "fault": "Back"},
+    {"t_ms": 25000, "type": "future_unknown_event", "payload": 42},
+    {"t_ms": 38000, "type": "rep", "n": 2, "correct": false, "faults": ["Back"], "data": {"hold_time": 15.0}},
+    {"t_ms": 38300, "type": "cue", "key": "plank.trunk_sag", "played": true, "fault": "Back"},
+    {"t_ms": 42000, "type": "unseen_start", "phase": "active", "reason": "lighting"},
+    {"t_ms": 45000, "type": "unseen_end"},
+    {"t_ms": 58000, "type": "rep", "n": 3, "correct": false, "faults": ["Back", "Neck"], "data": {"hold_time": 15.0}},
+    {"t_ms": 63000, "type": "set_complete"}
+  ],
+  "set_log": {},
+  "summary": {
+    "reps": 3,
+    "good_reps": 0,
+    "active_ms": 60000,
+    "unseen_ms": 3000,
+    "paused_ms": 0
+  }
+}

@@ -1,0 +1,76 @@
+import 'exercise_definition.dart';
+
+ExerciseDefinition? lookupExerciseDefinition(String query) {
+  final normalizedQuery = normalizeExerciseKey(_exerciseAlias(query));
+
+  for (final definition in exerciseDefinitions) {
+    if (normalizeExerciseKey(definition.id) == normalizedQuery ||
+        normalizeExerciseKey(definition.name) == normalizedQuery) {
+      return definition;
+    }
+  }
+
+  return null;
+}
+
+String _exerciseAlias(String value) {
+  return switch (normalizeExerciseKey(value)) {
+    'airsquat' => 'squat',
+    'squats' => 'squat',
+    'squatbw' => 'squat',
+    'bodyweightsquat' => 'squat',
+    'bodyweightsquattobox' => 'squat',
+    'chairsquat' => 'squat',
+    'wallsquat' => 'squat',
+    'squatexercise' => 'squat',
+    'pushup' => 'push_up',
+    'pushups' => 'push_up',
+    'pushupbw' => 'push_up',
+    'wallpushup' => 'wall_push_up',
+    'wallpushups' => 'wall_push_up',
+    'wallpushupbw' => 'wall_push_up',
+    'pushupwall' => 'wall_push_up',
+    'inclinepushup' => 'push_up',
+    'pushupexercise' => 'push_up',
+    'glutebridge' => 'glute_bridge',
+    'glutebridges' => 'glute_bridge',
+    'glutebridgebw' => 'glute_bridge',
+    'floorglutebridge' => 'glute_bridge',
+    'hipbridge' => 'glute_bridge',
+    'bridge' => 'glute_bridge',
+    'forearmplank' => 'plank',
+    'frontplank' => 'plank',
+    'plankshorthold' => 'plank',
+    'plankhold' => 'plank',
+    'reverse_lunge' => 'lunge',
+    'reverselunge' => 'lunge',
+    'split_squat' => 'lunge',
+    'splitsquat' => 'lunge',
+    'lunges' => 'lunge',
+    'jumpingjack' => 'jumping_jack',
+    'jumpingjacks' => 'jumping_jack',
+    'jumpingjackexercise' => 'jumping_jack',
+    'mcgillcurlup' => 'curl_up',
+    'mcgillcurlups' => 'curl_up',
+    'mcgillcurlupbw' => 'curl_up',
+    'curlup' => 'curl_up',
+    'warriori' => 'warrior_one',
+    'warriorone' => 'warrior_one',
+    'warrior1' => 'warrior_one',
+    // Catalog-id -> Dart def-id bridges (resolve by ID, not display name).
+    'butterfly' => 'butterfly__stretch',
+    'tricepdip' => 'tricep__dip_(_floor)',
+    'sideplankdip' => 'side__plank_with__hip__dip',
+    'bowpose' => 'bow_',
+    // Dart class-name / report-builder / ExerciseBase.exerciseName bridges.
+    'legraise' => 'leg__raises',
+    'sphinxstretch' => 'sphinx_',
+    'suryanamaskarexercise' => 'surya_namaskar',
+    'nhydng' => 'jumping_jack',
+    _ => value,
+  };
+}
+
+String normalizeExerciseKey(String value) {
+  return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+}

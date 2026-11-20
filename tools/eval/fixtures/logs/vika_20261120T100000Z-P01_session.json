@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "session",
+  "session_id": "20261120T100000Z-P01",
+  "participant_id": "P01",
+  "condition": "control",
+  "started_at_utc": "2026-11-20T10:00:00.000Z",
+  "ended_at_utc": "2026-11-20T10:08:00.000Z",
+  "satisfaction": 3,
+  "files": [
+    "vika_20261120T100000Z-P01_01_squat_set1.json"
+  ]
+}

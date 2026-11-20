@@ -1,0 +1,154 @@
+name: vika
+description: Vika - AI fitness coaching for Vietnamese home exercisers
+publish_to: 'none'
+version: 1.0.3+155
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 1. The Eyes (Camera)
+  camera: ^0.12.0
+  native_device_orientation: ^2.1.0
+
+  # 2. The Brain (AI Pose Detection)
+  google_mlkit_pose_detection: ^0.14.1
+
+  # 3. The Permissions (Ask user to use camera)
+  permission_handler: ^12.0.1
+
+  # 4. Icons
+  cupertino_icons: ^1.0.2
+  http: ^1.6.0
+  audioplayers: ^6.6.0
+
+  #6. For storing onboarding completion status
+  shared_preferences: ^2.2.0
+  google_fonts: ^6.2.1
+  supabase_flutter: ^2.0.0
+  google_sign_in: ^6.0.0
+  flutter_facebook_auth: ^7.0.0
+  sign_in_with_apple: ^6.0.0
+  crypto: ^3.0.7
+  url_launcher: ^6.3.0
+  image_picker: ^1.1.2
+  path_provider: 2.1.5
+  share_plus: ^10.1.4
+  flutter_svg: ^2.3.0
+  video_player: ^2.9.5
+  posthog_flutter: ^5.28.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+
+flutter:
+  config:
+    enable-swift-package-manager: false
+  uses-material-design: true
+  assets:
+    - assets/data/exercise_catalog.json
+    - assets/audio/
+    - assets/audio/common/
+    - assets/audio/bird_dog/
+    - assets/audio/plank/
+    - assets/audio/lunge/
+    - assets/audio/jumping_jack/
+    - assets/audio/push_up/
+    - assets/audio/glute_bridge/
+    - assets/audio/curl_up/
+    - assets/audio/mc_gill_curl_up/
+    - assets/audio/warrior_one/
+    - assets/audio/v_up/
+    - assets/audio/dead_bug/
+    - assets/audio/plank_up_down/
+    - assets/audio/bear_plank/
+    - assets/audio/sit_up/
+    - assets/audio/high_plank/
+    - assets/audio/mountain_climber/
+    - assets/audio/superman/
+    - assets/audio/plank_shoulder_tap/
+    - assets/audio/leg_raises/
+    - assets/audio/reverse_crunch/
+    - assets/audio/bow_pose/
+    - assets/audio/butterfly_stretch/
+    - assets/audio/cobra/
+    - assets/audio/cossack_squat/
+    - assets/audio/jump_squat/
+    - assets/audio/russian_twist/
+    - assets/audio/seated_forward_fold/
+    - assets/audio/side_plank_dip/
+    - assets/audio/sphinx/
+    - assets/audio/standing_kte/
+    - assets/audio/step_back_burpee/
+    - assets/audio/tricep_dip/
+    - assets/audio/walking_lunge/
+    - assets/audio/surya_namaskar/
+    - assets/audio/wall_push_up/
+    - assets/audio/downward_dog/
+    - assets/audio/ashtanga_namaskara/
+    - assets/audio/low_lunge/
+    - assets/audio/prayer_pose/
+    - assets/audio/raised_arms/
+    - assets/brands/
+    - assets/audio/squat/
+    - assets/branding/
+    - assets/images/
+    - assets/habt/
+    - assets/env/
+    - assets/video/
+#    - assets/images/onboarding/
+
+  # ─── Fonts ───
+  # Vika uses Be Vietnam Pro as a single family for the whole main app
+  # (display + body + labels). Designed in Hanoi by Lâm Bảo for proper
+  # Vietnamese diacritic stacks at every weight/style.
+  #
+  # *** ACTION REQUIRED: drop the 8 .ttf files below into
+  #     assets/fonts/be_vietnam_pro/, then UNCOMMENT the `fonts:` block
+  #     to register them with Flutter. Until you do, all
+  #     `TextStyle(fontFamily: 'BeVietnamPro', …)` references silently
+  #     fall back to the iOS/Android system sans-serif (San Francisco /
+  #     Roboto), which DOES render Vietnamese diacritics correctly but
+  #     loses the Be Vietnam Pro character.
+  #
+  # Free download: https://fonts.google.com/specimen/Be+Vietnam+Pro
+  #   BeVietnamPro-Regular.ttf       BeVietnamPro-Italic.ttf       (400)
+  #   BeVietnamPro-Medium.ttf        BeVietnamPro-MediumItalic.ttf (500)
+  #   BeVietnamPro-Bold.ttf          BeVietnamPro-BoldItalic.ttf   (700)
+  #   BeVietnamPro-ExtraBold.ttf     BeVietnamPro-ExtraBoldItalic.ttf (800)
+  #
+  fonts:
+    - family: BeVietnamPro
+      fonts:
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-Italic.ttf
+          weight: 400
+          style: italic
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-MediumItalic.ttf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-SemiBoldItalic.ttf
+          weight: 600
+          style: italic
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-BoldItalic.ttf
+          weight: 700
+          style: italic
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-ExtraBoldItalic.ttf
+          weight: 800
+          style: italic

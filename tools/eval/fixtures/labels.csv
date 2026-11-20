@@ -1,0 +1,16 @@
+coach_id,participant_id,condition,exercise_id,set_index,rep_n,video_t_s,counted,faults,note
+C1,P01,ai,squat,1,1,4.1,1,,
+C1,P01,ai,squat,1,2,8.1,1,depth,
+C1,P01,ai,squat,1,3,10.0,0,,nửa rep
+C1,P01,ai,squat,1,4,12.1,1,,
+C1,P01,ai,squat,1,5,16.1,1,,
+C1,P01,ai,plank,1,1,15.2,1,Back,
+C1,P01,ai,plank,1,2,35.1,1,Back,
+C1,P01,ai,plank,1,3,55.2,1,Back,
+C2,P01,ai,plank,1,1,15.3,1,Back,
+C2,P01,ai,plank,1,2,35.2,1,Back,
+C2,P01,ai,plank,1,3,55.1,1,Back;Knees,
+C1,P01,control,squat,1,1,4.0,1,depth,
+C1,P01,control,squat,1,2,8.0,1,depth,
+C1,P01,control,squat,1,3,12.0,1,trunk,app bỏ sót
+C1,P01,control,squat,1,4,16.1,1,,

@@ -1,0 +1,97 @@
+// PeriodTabs — segmented pill control for week / phase / program on the
+// Progress screen. Active pill is ink with cream text; inactive pills are
+// transparent ink-soft text.
+//
+// Mirrors `ProgressTimeTabs` in vika-main-app-ivory-v1.jsx.
+
+import 'package:flutter/material.dart';
+
+import '../../theme/app_colors.dart';
+
+/// Program-relative scope for the Progress feeds. [week] = the active plan
+/// week, [phase] = every week sharing the active week's phase, [program] = the
+/// whole plan. (Renamed from the old calendar `month` window.)
+enum PeriodTab { week, phase, program }
+
+/// Direction of the Progress-tab ĐIỂM FORM trend over the selected window,
+/// classified from the Theil-Sen slope of the session form scores. Drives the
+/// gauge's trend chip (arrow + short word). [none] = below the 3-session
+/// baseline, where the chip is hidden. Shared here (alongside [PeriodTab]) so
+/// the service that derives it and the widgets that render it agree on one type.
+enum FormTrendDirection { up, flat, down, none }
+
+class PeriodTabs extends StatelessWidget {
+  const PeriodTabs({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final PeriodTab value;
+  final ValueChanged<PeriodTab> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = VikaColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: c.bgRaised,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: c.border),
+      ),
+      child: Row(
+        children: [
+          for (final t in PeriodTab.values)
+            Expanded(
+                child: _Pill(
+                    tab: t, active: t == value, onTap: () => onChanged(t))),
+        ],
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.tab, required this.active, required this.onTap});
+
+  final PeriodTab tab;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = VikaColors.of(context);
+    final label = switch (tab) {
+      PeriodTab.week => 'Tuần này',
+      PeriodTab.phase => 'Giai đoạn',
+      PeriodTab.program => 'Cả lộ trình',
+    };
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? c.ink : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'BeVietnamPro',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.1,
+              color: active ? c.invInk : c.inkSoft,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

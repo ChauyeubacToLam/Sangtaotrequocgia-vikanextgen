@@ -1,0 +1,482 @@
+// ignore_for_file: curly_braces_in_flow_control_structures, non_constant_identifier_names, constant_identifier_names
+
+import 'dart:math' as math;
+
+import 'package:vika/utils/debouncer.dart';
+
+import '../../utils/pose_math_helpers.dart';
+import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import '../../utils/exercise_logger.dart';
+import '../../voice/policy_voice_coach.dart';
+import '../../voice/voice_coach.dart';
+import '../../voice/voice_content.dart';
+import '../../voice/voice_policy.dart';
+import '../../voice/voice_sink.dart';
+
+import '../exercise_base.dart';
+import 'metrics/jumping_jack_metric_base.dart';
+import 'metrics/arm_extension_metric.dart';
+import 'metrics/leg_spread_metric.dart';
+import 'metrics/tempo_metric.dart';
+
+// --- Config ---
+
+class JumpingJackConfig {
+  // All normalized to shoulder width for body-size independence
+  static const double OPEN_ANKLE_SPREAD_THRESHOLD = 1.0;
+  static const double CLOSED_ANKLE_SPREAD_THRESHOLD = 0.65;
+  static const double OPEN_ARM_ELEVATION_MIN = 90.0;
+  static const double CLOSED_ARM_ELEVATION_MAX = 110.0;
+}
+
+enum JJState { closed, open }
+
+// --- Jumping Jack (front-view exercise) ---
+
+class JumpingJack extends ExerciseBase {
+  static const List<String> _voiceFaultIds = [
+    'arms',
+    'legs',
+    'tempo_fast',
+  ];
+
+  @override
+  Set<VikaImageOrientation> get supportedOrientations =>
+      const <VikaImageOrientation>{
+        VikaImageOrientation.portrait,
+      };
+
+  final int maxRep;
+
+  JumpingJack({required this.maxRep}) : super(targetReps: maxRep);
+
+  JJState jjState = JJState.closed;
+  JJState previousJJState = JJState.closed;
+  bool lastRepWasClean = true;
+  String? lastRepTopVoiceMessage;
+
+  final ArmExtensionMetric armExtensionMetric = ArmExtensionMetric();
+  final LegSpreadMetric legSpreadMetric = LegSpreadMetric();
+  final TempoMetric tempoMetric = TempoMetric();
+
+  final Debouncer _openDebouncer = Debouncer(requiredFrames: 2);
+  final Debouncer _closedDebouncer = Debouncer(requiredFrames: 2);
+
+  late final List<JJMetricBase> _metrics = [
+    armExtensionMetric,
+    legSpreadMetric,
+    tempoMetric,
+  ];
+
+  // Shoulder width as scale factor for front view
+  double? _shoulderWidth;
+
+  // --- UI Bridge ---
+
+  @override
+  String get exerciseName => 'Nhảy Dạng';
+
+  @override
+  List<FaultRecord> get liveFaults =>
+      [for (final metric in _metrics) ...metric.faults];
+
+  @override
+  ExerciseVoiceCoach createVoiceCoach() {
+    // TODO(voice): fast-movement policy variant — see tier3 note 1
+    return PolicyVoiceCoach(
+      script: VoiceScript.from(
+        VoiceDefaults.repBased,
+        slug: 'jumping_jack',
+        faultIds: _voiceFaultIds,
+        softCuePools: const {
+          'tempo_fast': ['jumping_jack.tempo_fast_soft'],
+        },
+        // Hesitation encouragement, not "push harder"; valid for controlled work too.
+        effortPhaseKeys: const {'open'},
+        hustlePool: const ['common.push'],
+        hustleFinalPool: const ['common.one_more_rep'],
+      ),
+      targetReps: targetReps,
+      coach: VoiceCoach(
+        sink: AssetVoiceSink(),
+        policy: VoicePolicy(),
+      ),
+    );
+  }
+
+  @override
+  String get currentPhaseKey => jjState.toString().split('.').last;
+
+  @override
+  String get currentPhaseLabel {
+    switch (jjState) {
+      case JJState.closed:
+        return 'Đóng';
+      case JJState.open:
+        return 'Mở';
+    }
+  }
+
+  // --- Start Position ---
+
+  @override
+  bool isInStartPosition(Map<PoseLandmarkType, PoseLandmark> landmarks) {
+    final leftShoulder = landmarks[PoseLandmarkType.leftShoulder];
+    final rightShoulder = landmarks[PoseLandmarkType.rightShoulder];
+    final leftHip = landmarks[PoseLandmarkType.leftHip];
+    final rightHip = landmarks[PoseLandmarkType.rightHip];
+    final leftKnee = landmarks[PoseLandmarkType.leftKnee];
+    final rightKnee = landmarks[PoseLandmarkType.rightKnee];
+    final leftAnkle = landmarks[PoseLandmarkType.leftAnkle];
+    final rightAnkle = landmarks[PoseLandmarkType.rightAnkle];
+
+    if (leftShoulder == null ||
+        rightShoulder == null ||
+        leftHip == null ||
+        rightHip == null ||
+        leftKnee == null ||
+        rightKnee == null ||
+        leftAnkle == null ||
+        rightAnkle == null) {
+      return false;
+    }
+
+    final shoulder = PoseLandmark(
+      type: PoseLandmarkType.leftShoulder,
+      x: (leftShoulder.x + rightShoulder.x) / 2,
+      y: (leftShoulder.y + rightShoulder.y) / 2,
+      z: (leftShoulder.z + rightShoulder.z) / 2,
+      likelihood: math.min(leftShoulder.likelihood, rightShoulder.likelihood),
+    );
+    final hip = PoseLandmark(
+      type: PoseLandmarkType.leftHip,
+      x: (leftHip.x + rightHip.x) / 2,
+      y: (leftHip.y + rightHip.y) / 2,
+      z: (leftHip.z + rightHip.z) / 2,
+      likelihood: math.min(leftHip.likelihood, rightHip.likelihood),
+    );
+    final knee = PoseLandmark(
+      type: PoseLandmarkType.leftKnee,
+      x: (leftKnee.x + rightKnee.x) / 2,
+      y: (leftKnee.y + rightKnee.y) / 2,
+      z: (leftKnee.z + rightKnee.z) / 2,
+      likelihood: math.min(leftKnee.likelihood, rightKnee.likelihood),
+    );
+    final ankle = PoseLandmark(
+      type: PoseLandmarkType.leftAnkle,
+      x: (leftAnkle.x + rightAnkle.x) / 2,
+      y: (leftAnkle.y + rightAnkle.y) / 2,
+      z: (leftAnkle.z + rightAnkle.z) / 2,
+      likelihood: math.min(leftAnkle.likelihood, rightAnkle.likelihood),
+    );
+
+    // Trunk must be roughly vertical
+    double trunkClockAngle =
+        calculateVerticalAngle(pivot: hip, point: shoulder);
+    double deviationFromVertical = trunkClockAngle;
+    if (deviationFromVertical > 180)
+      deviationFromVertical = 360 - deviationFromVertical;
+    if (deviationFromVertical > 25.0) return false;
+
+    // Legs must be straight (knee angle > 155°)
+    double kneeAngle = calculateAngleNormalized(
+      firstPoint: hip,
+      midPoint: knee,
+      lastPoint: ankle,
+    );
+    if (kneeAngle < 155.0) return false;
+
+    return true;
+  }
+
+  // --- Stop Condition ---
+
+  @override
+  bool requestStop() => repCount >= maxRep;
+
+  @override
+  void onSetComplete() {
+    logger.pushKey("arm_fails_count", armExtensionMetric.faultsCount);
+    logger.pushKey("leg_fails_count", legSpreadMetric.faultsCount);
+    logger.pushKey("tempo_fails_count", tempoMetric.faultsCount);
+
+    logger.pushAverage("rep_duration", "avg_rep_duration");
+    logger.pushGoodRepCount();
+    logger.pushKey("max_rep", maxRep);
+  }
+
+  // --- Safety Checks (requires front view) ---
+
+  @override
+  GuidanceSignal? checkSafety(Map<PoseLandmarkType, PoseLandmark> landmarks) {
+    if (cameraFacing == CameraFacing.left ||
+        cameraFacing == CameraFacing.right) {
+      return const GuidanceSignal.faceCamera();
+    }
+
+    final leftShoulder = landmarks[PoseLandmarkType.leftShoulder];
+    final rightShoulder = landmarks[PoseLandmarkType.rightShoulder];
+    final leftElbow = landmarks[PoseLandmarkType.leftElbow];
+    final rightElbow = landmarks[PoseLandmarkType.rightElbow];
+    final leftWrist = landmarks[PoseLandmarkType.leftWrist];
+    final rightWrist = landmarks[PoseLandmarkType.rightWrist];
+    final leftHip = landmarks[PoseLandmarkType.leftHip];
+    final rightHip = landmarks[PoseLandmarkType.rightHip];
+    final leftAnkle = landmarks[PoseLandmarkType.leftAnkle];
+    final rightAnkle = landmarks[PoseLandmarkType.rightAnkle];
+
+    if (leftShoulder == null ||
+        rightShoulder == null ||
+        leftElbow == null ||
+        rightElbow == null ||
+        leftWrist == null ||
+        rightWrist == null ||
+        leftHip == null ||
+        rightHip == null ||
+        leftAnkle == null ||
+        rightAnkle == null) {
+      return const GuidanceSignal.bodyInFrame();
+    }
+
+    if (!ExerciseBase.isLandmarkConfident(leftShoulder) ||
+        !ExerciseBase.isLandmarkConfident(rightShoulder) ||
+        !ExerciseBase.isLandmarkConfident(leftWrist) ||
+        !ExerciseBase.isLandmarkConfident(rightWrist) ||
+        !ExerciseBase.isLandmarkConfident(leftAnkle) ||
+        !ExerciseBase.isLandmarkConfident(rightAnkle)) {
+      return const GuidanceSignal.lighting();
+    }
+
+    return null;
+  }
+
+  // --- Main Loop (called every frame when activated, front view) ---
+
+  @override
+  void checkingPose(Map<PoseLandmarkType, PoseLandmark> smoothedLandmarks) {
+    // 1. Get all bilateral landmarks
+    final leftShoulder = smoothedLandmarks[PoseLandmarkType.leftShoulder];
+    final rightShoulder = smoothedLandmarks[PoseLandmarkType.rightShoulder];
+    final leftElbow = smoothedLandmarks[PoseLandmarkType.leftElbow];
+    final rightElbow = smoothedLandmarks[PoseLandmarkType.rightElbow];
+    final leftWrist = smoothedLandmarks[PoseLandmarkType.leftWrist];
+    final rightWrist = smoothedLandmarks[PoseLandmarkType.rightWrist];
+    final leftHip = smoothedLandmarks[PoseLandmarkType.leftHip];
+    final rightHip = smoothedLandmarks[PoseLandmarkType.rightHip];
+    final leftAnkle = smoothedLandmarks[PoseLandmarkType.leftAnkle];
+    final rightAnkle = smoothedLandmarks[PoseLandmarkType.rightAnkle];
+    final nose = smoothedLandmarks[PoseLandmarkType.nose];
+
+    if (leftShoulder == null ||
+        rightShoulder == null ||
+        leftElbow == null ||
+        rightElbow == null ||
+        leftWrist == null ||
+        rightWrist == null ||
+        leftHip == null ||
+        rightHip == null ||
+        leftAnkle == null ||
+        rightAnkle == null ||
+        nose == null) return;
+
+    _shoulderWidth = calculateDistance(leftShoulder, rightShoulder);
+    scaleFactor = _shoulderWidth ?? 1.0;
+    if (_shoulderWidth == null || _shoulderWidth! <= 1.0) return;
+
+    // 2. Calculate geometry
+    final leftArmAngle = calculateAngleNormalized(
+        firstPoint: leftShoulder, midPoint: leftElbow, lastPoint: leftWrist);
+    final rightArmAngle = calculateAngleNormalized(
+        firstPoint: rightShoulder, midPoint: rightElbow, lastPoint: rightWrist);
+
+    final leftArmElevation = calculateAngleNormalized(
+        firstPoint: leftHip, midPoint: leftShoulder, lastPoint: leftWrist);
+    final rightArmElevation = calculateAngleNormalized(
+        firstPoint: rightHip, midPoint: rightShoulder, lastPoint: rightWrist);
+
+    final ankleDistance = calculateDistance(leftAnkle, rightAnkle);
+    final ankleSpreadNorm = ankleDistance / _shoulderWidth!;
+
+    final wristAboveHead = leftWrist.y < nose.y && rightWrist.y < nose.y;
+    final wristBelowShoulders =
+        leftWrist.y > leftShoulder.y && rightWrist.y > rightShoulder.y;
+
+    final avgArmElevation = (leftArmElevation + rightArmElevation) / 2.0;
+    final meetsOpenGate =
+        ankleSpreadNorm > JumpingJackConfig.OPEN_ANKLE_SPREAD_THRESHOLD &&
+            avgArmElevation > JumpingJackConfig.OPEN_ARM_ELEVATION_MIN &&
+            wristAboveHead;
+
+    int now = frameTimestampMs;
+
+    // 3. Build RepContext
+    final ctx = RepContext(
+      leftArmAngle: leftArmAngle,
+      rightArmAngle: rightArmAngle,
+      leftArmElevation: leftArmElevation,
+      rightArmElevation: rightArmElevation,
+      ankleSpreadNorm: ankleSpreadNorm,
+      wristAboveHead: wristAboveHead,
+      wristBelowShoulders: wristBelowShoulders,
+      meetsOpenGate: meetsOpenGate,
+      jjState: jjState,
+      frameTimestamp: now,
+      scaleFactor: scaleFactor,
+      resultIssues: resultIssues,
+    );
+
+    final debugEnabled = isDebugModeActive;
+    // 4. Debug data
+    debugData['jjState'] = jjState.toString().split('.').last;
+    debugData['ankleSpread'] = ankleSpreadNorm.toStringAsFixed(2);
+    debugData['leftElev'] = leftArmElevation.toStringAsFixed(1);
+    debugData['rightElev'] = rightArmElevation.toStringAsFixed(1);
+    debugData['wristAbove'] = wristAboveHead.toString();
+    debugData['correctForm'] = correctForm.toString();
+
+    // 5. Rep completion (return to closed)
+    if (jjState == JJState.closed && previousJJState == JJState.open) {
+      repCount += 1;
+      previousJJState = jjState;
+
+      legSpreadMetric.evaluateRep(ctx);
+      tempoMetric.evaluateRep(ctx, now);
+
+      final allFaults = <FaultRecord>[];
+      for (final metric in _metrics) {
+        allFaults.addAll(metric.faults);
+      }
+
+      correctForm = !allFaults.any((f) => f.affectsForm);
+      lastRepWasClean = correctForm;
+      lastRepTopVoiceMessage = _topVoiceMessage(allFaults);
+      resultIssues.feedback['Result'] = correctForm ? 'Tốt lắm!' : 'Chỉnh tư thế';
+
+      final faultMap = <String, Map<String, String>>{};
+      for (final fault in allFaults) {
+        if (!faultMap.containsKey(fault.phase)) {
+          faultMap[fault.phase] = {};
+        }
+        faultMap[fault.phase]![fault.type] = fault.message;
+      }
+      setFeedback.add({correctForm: faultMap});
+
+      if (debugEnabled) {
+        for (final metric in _metrics) {
+          debugData.addAll(metric.debugData);
+        }
+      }
+
+      if (tempoMetric.lastRepDuration != null) {
+        resultIssues.feedback['Tempo'] =
+            '${tempoMetric.lastRepDuration!.toStringAsFixed(1)}s';
+      }
+
+      final faultAffectsForm = <String, bool>{};
+      final faultPriorities = <String, int>{};
+      for (final fault in allFaults) {
+        faultAffectsForm[fault.type] =
+            (faultAffectsForm[fault.type] ?? false) || fault.affectsForm;
+        final previousPriority = faultPriorities[fault.type];
+        if (previousPriority == null || fault.priority < previousPriority) {
+          faultPriorities[fault.type] = fault.priority;
+        }
+      }
+
+      logger.addRepLog(RepLog(
+        correctForm: correctForm,
+        repNumber: repCount,
+        data: {
+          "rep_duration": tempoMetric.lastRepDuration ?? 0.0,
+          "fault_types": allFaults.map((f) => f.type).toSet().toList(),
+          "fault_affects_form": faultAffectsForm,
+          "fault_priorities": faultPriorities,
+        },
+      ));
+
+      correctForm = true;
+      for (final metric in _metrics) {
+        metric.resetAndCountFault();
+      }
+      return;
+    }
+
+    // 6. Update state machine
+    _updateJJState(meetsOpenGate, ankleSpreadNorm, avgArmElevation,
+        wristBelowShoulders, now);
+
+    // 7. Run all metrics
+    for (final metric in _metrics) {
+      metric.update(ctx);
+    }
+
+    // 8. Merge metric debug data
+    if (debugEnabled) {
+      for (final metric in _metrics) {
+        debugData.addAll(metric.debugData);
+      }
+    }
+
+    if (jjState == JJState.closed) {
+      resultIssues.setPhaseStatus('closed', 'Vào');
+    } else if (jjState == JJState.open) {
+      resultIssues.setPhaseStatus('open', 'Mở rộng!');
+    }
+  }
+
+  // --- State Machine (2-state, fast transitions) ---
+
+  void _updateJJState(bool isOpenCandidate, double ankleSpreadNorm,
+      double avgArmElevation, bool wristBelowShoulders, int timestampMs) {
+    final isClosedCandidate =
+        ankleSpreadNorm < JumpingJackConfig.CLOSED_ANKLE_SPREAD_THRESHOLD &&
+            avgArmElevation < JumpingJackConfig.CLOSED_ARM_ELEVATION_MAX &&
+            wristBelowShoulders;
+
+    final debouncedOpen = _openDebouncer.update(isOpenCandidate);
+    final debouncedClosed = _closedDebouncer.update(isClosedCandidate);
+
+    if (debouncedOpen && jjState == JJState.closed) {
+      _transitionState(JJState.open, timestampMs);
+    } else if (debouncedClosed && jjState == JJState.open) {
+      _transitionState(JJState.closed, timestampMs);
+    }
+  }
+
+  String? _topVoiceMessage(List<FaultRecord> faults) {
+    if (faults.any((fault) => fault.type == 'arms')) {
+      return 'Vươn tay cao hơn';
+    }
+    if (faults.any((fault) => fault.type == 'legs')) {
+      return 'Mở chân rộng hơn';
+    }
+
+    String? tempoFault;
+    for (final fault in faults) {
+      if (fault.type == 'tempo_fast') {
+        tempoFault = fault.message;
+        break;
+      }
+    }
+    if (tempoFault == null) {
+      return null;
+    }
+    if (tempoFault.contains('Quá nhanh')) {
+      return 'Chậm lại, giữ tư thế';
+    }
+    return 'Nhanh hơn một chút';
+  }
+
+  void _transitionState(JJState newState, int timestampMs) {
+    previousJJState = jjState;
+    jjState = newState;
+
+    if (newState == JJState.open && previousJJState == JJState.closed) {
+      resultIssues.phaseStatus.clear();
+    }
+
+    for (final metric in _metrics) {
+      metric.onStateTransition(previousJJState, newState, timestampMs);
+    }
+  }
+}

@@ -1,0 +1,100 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+claude/
+.claude/
+.claude/worktrees/
+.docs/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+.appdata/
+.dart-home/
+/build/
+/coverage/
+.packages
+.metadata
+analyze_output.txt
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/app/build/
+/android/build/
+
+# Android local properties (contains SDK path specific to your machine)
+/android/local.properties
+
+# iOS generated files
+/ios/Flutter/flutter_export_environment.sh
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Flutter.podspec
+
+# Agent memory: shared notes are committed; private-* notes stay local (personal/sensitive)
+docs/agent-memory/private-*.md
+
+# Scratch: throwaway work orders / Codex handoff specs — never committed
+docs/scratch/
+
+# Environment & secrets (if you add any later)
+.env
+.env.*
+assets/env/*.env
+!assets/env/*.env.example
+*.keystore
+*.jks
+secrets.json
+
+# FVM Version Cache
+.fvm/
+.fvm/flutter_sdk
+
+# Android signing keys 
+android/key.properties
+android/app/vika-release.keystore
+nul
+
+# Raw source videos; compressed mp4 assets live under assets/video/.
+assets/video bấm 5s/
+
+# Legacy voice files staged for Google Drive backup (not tracked)
+archive_voice/
+
+# Supabase CLI link cache (per machine; never commit a project ref)
+supabase/.temp/

@@ -1,0 +1,196 @@
+/* =========================================================================
+   Metric 2: Cervical Spine (Head/Neck) Alignment
+   Priority: IMPORTANT
+   
+   Measures ear→shoulder→hip angle. Detects:
+   - Head DROP (looking down too far / chin to chest)
+   - Head LIFT (looking up / neck extension)
+   
+   Vietnamese context:
+   - IT professionals with severe forward head posture (CVA ~32°)
+   - Planking with head dropped strains cervical spine
+   - Tucking chin to neutral increases abdominal activation
+   
+   Angle interpretation (ear→shoulder→hip, built in plank.dart):
+   - 180° = head perfectly in line with trunk
+   - < 180° = head dropped (ear below the hip→shoulder line extended)
+   - > 180° = head lifted (ear above that line)
+   The label comes from image Y, so it is the same in both camera facings.
+
+   Thresholds:
+     Drop Error:    deviation > 30° → Đừng cúi đầu!
+     Drop Warning:  deviation 16°–30° → Đầu hơi cúi
+     Good:          deviation ≤ 16° → Đầu tốt
+     Lift Warning:  deviation 16°–30° → Đầu hơi ngẩng
+     Lift Error:    deviation > 30° → Đừng ngẩng đầu!
+   ========================================================================= */
+
+import 'plank_metric_base.dart';
+import '../../../utils/debouncer.dart';
+
+class HeadNeckConfig {
+  /// 180° = head perfectly in line with trunk
+  static const double NEUTRAL = 180.0;
+
+  /// Deviation thresholds from neutral
+  static const double WARNING_DEVIATION = 16.0;
+  static const double ERROR_DEVIATION = 30.0;
+
+  /// Fault percentage threshold
+  static const double FAULT_PERCENT_THRESHOLD = 0.45;
+}
+
+class HeadNeckMetric extends PlankMetricBase {
+  @override
+  String get name => 'HeadNeck';
+
+  final List<FaultRecord> _faults = [];
+  final Map<String, dynamic> _debugData = {};
+
+  // Separate debouncers for drop and lift
+  final Debouncer _dropDebouncer = Debouncer(requiredFrames: 8);
+  final Debouncer _liftDebouncer = Debouncer(requiredFrames: 8);
+
+  // Fault time tracking
+  int _totalFrames = 0;
+  int _faultFrames = 0;
+  bool _isFaultingNow = false;
+
+  // Prevent instruction spam — one per direction per hold
+  bool _dropInstructionSet = false;
+  bool _liftInstructionSet = false;
+
+  @override
+  List<FaultRecord> get faults => _faults;
+  @override
+  bool get isFaultingNow => _isFaultingNow;
+
+  @override
+  Map<String, dynamic> get debugData => _debugData;
+
+  double get faultPercentage =>
+      _totalFrames > 0 ? _faultFrames / _totalFrames : 0.0;
+
+  @override
+  void update(RepContext ctx) {
+    _totalFrames++;
+    _isFaultingNow = false;
+
+    final angle = ctx.neckAngle;
+    final deviation = (HeadNeckConfig.NEUTRAL - angle).abs();
+    bool isFault = false;
+
+    // Signed deviation: positive = dropped, negative = lifted
+    final signedDeviation = HeadNeckConfig.NEUTRAL - angle;
+
+    _debugData['neckAngle'] = angle.toStringAsFixed(1);
+    _debugData['neckDeviation'] =
+        '${signedDeviation >= 0 ? "Drop" : "Lift"} ${deviation.toStringAsFixed(1)}°';
+    _debugData['neckFault%'] = '${(faultPercentage * 100).toStringAsFixed(0)}%';
+
+    // --- Drop detection (head dropping toward floor) ---
+    bool isDropError =
+        signedDeviation > 0 && deviation > HeadNeckConfig.ERROR_DEVIATION;
+    bool isDropWarning = signedDeviation > 0 &&
+        deviation > HeadNeckConfig.WARNING_DEVIATION &&
+        deviation <= HeadNeckConfig.ERROR_DEVIATION;
+
+    // --- Lift detection (head lifting / looking up) ---
+    bool isLiftError =
+        signedDeviation < 0 && deviation > HeadNeckConfig.ERROR_DEVIATION;
+    bool isLiftWarning = signedDeviation < 0 &&
+        deviation > HeadNeckConfig.WARNING_DEVIATION &&
+        deviation <= HeadNeckConfig.ERROR_DEVIATION;
+
+    // --- Debounced drop ---
+    if (_dropDebouncer.update(isDropError || isDropWarning)) {
+      isFault = true;
+      if (isDropError) {
+        ctx.resultIssues.feedback['Neck'] = 'Đừng cúi đầu!';
+        if (!_dropInstructionSet) {
+          // Legacy UI instruction copy: Đầu cúi quá — nhìn xuống sàn nhẹ thôi!
+          _dropInstructionSet = true;
+        }
+        _logFault('Cúi đầu quá mức');
+      } else {
+        ctx.resultIssues.feedback['Neck'] = 'Đầu hơi cúi';
+        if (!_dropInstructionSet) {
+          // Legacy UI instruction copy: Đầu hơi cúi — giữ thẳng hàng với lưng!
+          _dropInstructionSet = true;
+        }
+        _logFault('Đầu hơi cúi');
+      }
+    }
+    // --- Debounced lift ---
+    else if (_liftDebouncer.update(isLiftError || isLiftWarning)) {
+      isFault = true;
+      if (isLiftError) {
+        ctx.resultIssues.feedback['Neck'] = 'Đừng ngẩng đầu!';
+        if (!_liftInstructionSet) {
+          // Legacy UI instruction copy: Ngẩng đầu quá — nhìn xuống sàn!
+          _liftInstructionSet = true;
+        }
+        _logFault('Ngẩng đầu quá mức');
+      } else {
+        ctx.resultIssues.feedback['Neck'] = 'Đầu hơi ngẩng';
+        if (!_liftInstructionSet) {
+          // Legacy UI instruction copy: Đầu hơi ngẩng — nhìn xuống sàn!
+          _liftInstructionSet = true;
+        }
+        _logFault('Đầu hơi ngẩng');
+      }
+    }
+    // --- Good form ---
+    else {
+      ctx.resultIssues.feedback['Neck'] = 'Đầu tốt';
+    }
+
+    if (isFault) _faultFrames++;
+    _isFaultingNow = isFault;
+
+    _debugData['neckStatus'] = isFault ? 'FAULT' : 'GOOD';
+  }
+
+  void _logFault(String message) {
+    if (!_faults.any((f) => f.message == message)) {
+      _faults.add(FaultRecord(
+        faultPercentage: 0.0,
+        type: 'Neck',
+        message: message,
+        affectsForm: false,
+      ));
+    }
+  }
+
+  @override
+  void finalizeHold() {
+    final shouldAffect =
+        faultPercentage > HeadNeckConfig.FAULT_PERCENT_THRESHOLD;
+
+    final updated = _faults
+        .map((f) => FaultRecord(
+              faultPercentage: faultPercentage,
+              type: f.type,
+              message: shouldAffect
+                  ? '${f.message} (${(faultPercentage * 100).toStringAsFixed(0)}% thời gian)'
+                  : f.message,
+              affectsForm: shouldAffect,
+            ))
+        .toList();
+    _faults.clear();
+    _faults.addAll(updated);
+  }
+
+  @override
+  void reset() {
+    _faults.clear();
+    _debugData.clear();
+    _dropDebouncer.reset();
+    _liftDebouncer.reset();
+    _totalFrames = 0;
+    _faultFrames = 0;
+    _isFaultingNow = false;
+    _dropInstructionSet = false;
+    _liftInstructionSet = false;
+  }
+}

@@ -1,0 +1,117 @@
+import '../../models/exercise_definition.dart';
+import '../../models/kept_exercises.dart';
+import '../../models/workout_session_report.dart';
+import '../../services/recommendation/models/plan.dart';
+import '../../services/recommendation/recommendation_service.dart';
+
+class ExerciseSequenceItem {
+  const ExerciseSequenceItem({
+    required this.definition,
+    this.catalogExerciseId,
+    this.catalogInfo,
+    this.prescription,
+    this.recommendationId,
+    this.weekNumber,
+    this.sessionIndex,
+    this.slotName,
+  });
+
+  final ExerciseDefinition definition;
+  final String? catalogExerciseId;
+  final ExerciseLaunchCatalogInfo? catalogInfo;
+  final VolumePrescription? prescription;
+  final String? recommendationId;
+  final int? weekNumber;
+  final int? sessionIndex;
+  final String? slotName;
+}
+
+class ExerciseLaunchArgs {
+  const ExerciseLaunchArgs({
+    required this.definition,
+    this.workoutSessionId,
+    this.catalogExerciseId,
+    this.catalogInfo,
+    this.prescription,
+    this.recommendationId,
+    this.weekNumber,
+    this.sessionIndex,
+    this.slotName,
+    this.sequence = const [],
+    this.sequenceIndex = 0,
+    this.priorReports = const [],
+  });
+
+  final ExerciseDefinition definition;
+  final String? workoutSessionId;
+  final String? catalogExerciseId;
+  final ExerciseLaunchCatalogInfo? catalogInfo;
+  final VolumePrescription? prescription;
+  final String? recommendationId;
+  final int? weekNumber;
+  final int? sessionIndex;
+  final String? slotName;
+  final List<ExerciseSequenceItem> sequence;
+  final int sequenceIndex;
+
+  /// Reports from previously-finished exercises in this same workout
+  /// sequence. The last entry's [ExerciseSessionReport.userDifficulty]
+  /// is null on entry — this screen's intro collects it.
+  final List<ExerciseSessionReport> priorReports;
+
+  ExerciseLaunchArgs? nextInSequence({
+    List<ExerciseSessionReport>? carryForwardReports,
+  }) {
+    var nextIndex = sequenceIndex + 1;
+    while (nextIndex < sequence.length &&
+        !isAllowedExerciseSequenceItem(sequence[nextIndex])) {
+      nextIndex++;
+    }
+    if (nextIndex >= sequence.length) return null;
+    final next = sequence[nextIndex];
+    return ExerciseLaunchArgs(
+      definition: next.definition,
+      workoutSessionId: workoutSessionId,
+      catalogExerciseId: next.catalogExerciseId,
+      catalogInfo: next.catalogInfo,
+      prescription: next.prescription,
+      recommendationId: next.recommendationId,
+      weekNumber: next.weekNumber,
+      sessionIndex: next.sessionIndex,
+      slotName: next.slotName,
+      sequence: sequence,
+      sequenceIndex: nextIndex,
+      priorReports: carryForwardReports ?? priorReports,
+    );
+  }
+}
+
+bool isAllowedExerciseSequenceItem(ExerciseSequenceItem item) {
+  if (!isKeptExercise(item.definition.id)) return false;
+  final catalogId = item.catalogExerciseId;
+  if (catalogId != null &&
+      catalogId.trim().isNotEmpty &&
+      !isKeptExercise(catalogId)) {
+    return false;
+  }
+  final infoId = item.catalogInfo?.id;
+  if (infoId != null && infoId.trim().isNotEmpty && !isKeptExercise(infoId)) {
+    return false;
+  }
+  return true;
+}
+
+bool isAllowedExerciseLaunchArgs(ExerciseLaunchArgs args) {
+  if (!isKeptExercise(args.definition.id)) return false;
+  final catalogId = args.catalogExerciseId;
+  if (catalogId != null &&
+      catalogId.trim().isNotEmpty &&
+      !isKeptExercise(catalogId)) {
+    return false;
+  }
+  final infoId = args.catalogInfo?.id;
+  if (infoId != null && infoId.trim().isNotEmpty && !isKeptExercise(infoId)) {
+    return false;
+  }
+  return true;
+}
