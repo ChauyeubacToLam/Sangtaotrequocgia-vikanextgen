@@ -650,8 +650,6 @@ void main() {
         expect(summary['unseen_ms'], 1500);
         expect(summary['paused_ms'], 2000);
 
-        // "Báo sai" on the rest screen: toggled twice for depth (net off),
-        // once for heel (net on).
         session.setFaultReported(slot, 'depth', reported: true);
         session.setFaultReported(slot, 'heel', reported: true);
         session.setFaultReported(slot, 'depth', reported: false);
@@ -686,6 +684,91 @@ void main() {
           ],
           'files': ['vika_20261120T091500Z-P07_01_squat_set1.json'],
         });
+      },
+    );
+
+    test('moveLogFiles moves only log files and keeps existing targets',
+        () async {
+      final root = await Directory.systemTemp.createTemp('vika_move_test_');
+      addTearDown(() async {
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      final from = Directory('${root.path}/old');
+      final to = Directory('${root.path}/new');
+      await from.create();
+      await File('${from.path}/vika_a_session.json').writeAsString('old-a');
+      await File('${from.path}/vika_b_session.json').writeAsString('old-b');
+      await File('${from.path}/notes.txt').writeAsString('keep');
+      await to.create();
+      await File('${to.path}/vika_b_session.json').writeAsString('new-b');
+
+      await ResearchLogStorage.moveLogFiles(from: from, to: to);
+
+      expect(await File('${to.path}/vika_a_session.json').readAsString(),
+          'old-a');
+      expect(await File('${to.path}/vika_b_session.json').readAsString(),
+          'new-b');
+      expect(await File('${from.path}/vika_a_session.json').exists(), isFalse);
+      expect(await File('${from.path}/vika_b_session.json').exists(), isFalse);
+      expect(await File('${from.path}/notes.txt').exists(), isTrue);
+      await ResearchLogStorage.moveLogFiles(
+        from: Directory('${root.path}/missing'),
+        to: to,
+      );
+    });
+
+    test(
+      'session snapshot keeps the session open and the final end overwrites it',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp('vika_snap_test_');
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+        final tracker = ResearchSessionTracker(
+          storage: ResearchLogStorage(directoryProvider: () async => tempDir),
+        );
+        final session = tracker.beginOrContinueSession(
+          config: const ResearchConfig(rawParticipantId: 'P00'),
+          isContinuation: false,
+          nowUtc: DateTime.utc(2026, 11, 20, 20, 0, 0),
+        );
+        expect(await tracker.writeSessionSnapshot(session), isNull);
+
+        final slot = tracker.nextSetSlot('squat');
+        session.setFiles.add(slot.fileName);
+        session.setFaultReported(slot, 'depth', reported: true);
+
+        final snapshot = await tracker.writeSessionSnapshot(session);
+        expect(snapshot, isNotNull);
+        expect(
+          snapshot!.uri.pathSegments.last,
+          'vika_20261120T200000Z-P00_session.json',
+        );
+        final parsed =
+            jsonDecode(await snapshot.readAsString()) as Map<String, dynamic>;
+        expect(parsed['ended_at_utc'], isNull);
+        expect(parsed['files'], [slot.fileName]);
+        expect(parsed['fault_reports'], [
+          {
+            'exercise_id': 'squat',
+            'set_index': 1,
+            'file': slot.fileName,
+            'fault': 'depth',
+          },
+        ]);
+        expect(session.isEnded, isFalse);
+        expect(tracker.activeSession, same(session));
+
+        final ended = await tracker.endSession(
+          endedAtUtc: DateTime.utc(2026, 11, 20, 20, 10, 0),
+        );
+        final finalJson =
+            jsonDecode(await ended!.readAsString()) as Map<String, dynamic>;
+        expect(ended.path, snapshot.path);
+        expect(finalJson['ended_at_utc'], '2026-11-20T20:10:00.000Z');
+        expect(await tracker.writeSessionSnapshot(session), isNull);
       },
     );
 

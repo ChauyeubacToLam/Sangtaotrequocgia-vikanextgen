@@ -1,21 +1,8 @@
-// ProfileScreen — the Hồ sơ tab. Premium Ivory v2 (cinematic).
-//
-// Architecture (top to bottom):
-//   ▲ Stage hero — dark, full-bleed, italic name, edit/share pills
-//   1. Mục tiêu — goal card with progress meter
-//   5. Vóc dáng — refined body card + BMI chip
-//   6. Mời bạn dùng Vika — referral card
-//   7. Kết nối — connected services
-//   8. Cài đặt — settings groups
-//   9. Closer + back-to-top + version
-//   ▼ Sticky pill bar (slides in after scroll past hero)
-
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -31,15 +18,14 @@ import '../services/recommendation/recommendation_service.dart';
 import '../services/session_persistence.dart';
 import '../services/streak_tier.dart';
 import '../services/user_profile_service.dart';
+import '../services/workout_reminders.dart';
 import '../theme/app_colors.dart';
 import '../theme/vf_theme.dart';
 import '../utils/orientation_lock.dart';
-import '../widgets/profile/body_card.dart';
 import '../widgets/profile/body_edit_sheet.dart';
-import '../widgets/profile/goal_card.dart';
 import '../widgets/profile/goal_edit_sheet.dart';
-import '../widgets/profile/profile_stage_hero.dart';
-import '../widgets/profile/settings_group.dart';
+import '../widgets/schedule/workout_schedule_sheet.dart';
+import '../widgets/tk/tk.dart';
 import 'research_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -59,12 +45,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final ScrollController _scrollController = ScrollController();
   final _profileService = UserProfileService();
   final _sessions = SessionPersistence();
   final _recommendations = RecommendationService();
-  bool _showStickyBar = false;
-  bool _showDownFab = false;
   bool _deleting = false;
   bool _exporting = false;
   // Mirrors AnalyticsService consent so the toggle reflects (and controls) the
@@ -72,6 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // grant/revokeConsent below.
   bool _analyticsConsent = AnalyticsService.instance.hasConsent;
   AppUserProfile? _profile;
+  WorkoutSchedule? _schedule;
 
   // Lifetime aggregate from completed workout_sessions. Null until the first
   // fetch resolves; treated as "no history" (0 sessions) while null so the UI
@@ -87,27 +71,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // Plan-derived goal progress (completion-anchored, not calendar).
   int _goalProgress = 0;
   String? _weeksLeftLabel; // "Còn N tuần nữa", null when no active plan
-  String? _phaseLabel; // "TUẦN n / N", null when no active plan
 
   // Support contact + legal links. /terms and /support are not live yet, so
   // only the live privacy page is linked; support is handled over email.
   static const String _privacyUrl = 'https://vikavn.app/privacy';
   static const String _supportEmail = 'support@vikavn.app';
 
-  static const double _stickyBarThreshold = 260;
-
-  // How close to either end (in px) before the directional scroll FAB hides —
-  // there's nowhere meaningful left to jump to.
-  static const double _fabEdge = 140;
-
   @override
   void initState() {
     super.initState();
     unawaited(OrientationLock.portraitOnly());
-    _scrollController.addListener(_onScroll);
     _profile = widget.userProfile;
     unawaited(_loadProfile());
     unawaited(_loadStats());
+    unawaited(WorkoutReminders.load().then((s) {
+      if (mounted) setState(() => _schedule = s);
+    }).catchError((Object _) {}));
+  }
+
+  Future<void> _openSchedule() async {
+    final current = _schedule ?? await WorkoutReminders.load();
+    if (!mounted) return;
+    final saved = await showWorkoutScheduleSheet(context, current);
+    if (saved != null && mounted) setState(() => _schedule = saved);
   }
 
   @override
@@ -121,52 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    final pos = _scrollController.position;
-    final offset = pos.pixels;
-    final shouldShow = offset > _stickyBarThreshold;
-
-    // "Xuống cuối" FAB — only while heading down (the sticky bar up top already
-    // covers going back to the top). Scrolling up hides it; near the bottom
-    // there's nowhere left to jump, so it hides there too. On idle the last
-    // state persists so the user can still tap after the flick settles.
-    var showDown = _showDownFab;
-    switch (pos.userScrollDirection) {
-      case ScrollDirection.reverse:
-        showDown = offset < pos.maxScrollExtent - _fabEdge;
-      case ScrollDirection.forward:
-        showDown = false;
-      case ScrollDirection.idle:
-        break;
-    }
-
-    if (shouldShow != _showStickyBar || showDown != _showDownFab) {
-      setState(() {
-        _showStickyBar = shouldShow;
-        _showDownFab = showDown;
-      });
-    }
-  }
-
-  void _scrollToTop() {
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 480),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  void _scrollToBottom() {
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 560),
-      curve: Curves.easeOutCubic,
-    );
   }
 
   Future<void> _loadProfile() async {
@@ -184,7 +125,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     var goalProgress = 0;
     String? weeksLeftLabel;
-    String? phaseLabel;
     final snapshot =
         await _recommendations.fetchLatestActivePlanSnapshotForCurrentUser();
     if (snapshot != null) {
@@ -202,10 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
         goalProgress = ((completedWeeks / totalWeeks) * 100).round();
         weeksLeftLabel = 'Còn ${totalWeeks - completedWeeks} tuần nữa';
-        final currentWeek = snapshot.currentWeek?.weekNumber;
-        if (currentWeek != null) {
-          phaseLabel = 'TUẦN $currentWeek / $totalWeeks';
-        }
       }
     }
 
@@ -214,23 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _lifetime = lifetime;
       _goalProgress = goalProgress;
       _weeksLeftLabel = weeksLeftLabel;
-      _phaseLabel = phaseLabel;
     });
-  }
-
-  /// Compact uppercase hero strip. Empty for a brand-new user (0 sessions) so
-  /// the strip is hidden rather than showing a placeholder. The streak chip is
-  /// the tier duration label (e.g. 'CHUỖI 1 THÁNG'), dropped when there's no
-  /// streak — never a raw count.
-  List<String> _buildInlineStats() {
-    final lt = _lifetime;
-    if (lt == null || lt.sessionCount == 0) return const [];
-    final stats = <String>[];
-    final streakLabel = streakTierLabel(_profile?.streakWeeks ?? 0);
-    if (streakLabel.isNotEmpty) stats.add('CHUỖI ${streakLabel.toUpperCase()}');
-    stats.add('${lt.sessionCount} BUỔI');
-    if (lt.avgForm != null) stats.add('${lt.avgForm}% FORM');
-    return stats;
   }
 
   Future<void> _openEditProfileSheet() async {
@@ -329,7 +249,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('Đăng xuất không thành công. Vui lòng thử lại.')),
+          SnackBar(
+              content: Text('Đăng xuất không thành công. Vui lòng thử lại.')),
         );
     }
   }
@@ -366,7 +287,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Chưa xóa được tài khoản. Vui lòng thử lại sau.')),
+          const SnackBar(
+              content: Text('Chưa xóa được tài khoản. Vui lòng thử lại sau.')),
         );
       return;
     }
@@ -407,7 +329,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         messenger
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(content: Text('Vui lòng đăng nhập để xuất dữ liệu.')),
+            const SnackBar(
+                content: Text('Vui lòng đăng nhập để xuất dữ liệu.')),
           );
         return;
       }
@@ -437,7 +360,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Chưa xuất được dữ liệu. Vui lòng thử lại sau.')),
+          const SnackBar(
+              content: Text('Chưa xuất được dữ liệu. Vui lòng thử lại sau.')),
         );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -496,7 +420,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Chưa mở được liên kết. Vui lòng thử lại sau.')),
+          const SnackBar(
+              content: Text('Chưa mở được liên kết. Vui lòng thử lại sau.')),
         );
     }
   }
@@ -607,204 +532,224 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     final profile = _profile;
     final displayName = profile?.displayName ?? profileMockName;
     final userInitial = profile?.initial ?? profileMockInitial;
     final avatarUrl = profile?.avatarUrl;
     final streakLabel = streakTierLabel(profile?.streakWeeks ?? 0);
-    final memberSince = profile?.memberSinceLabel ?? profileMockMemberSince;
-    final memberSinceLine = streakLabel.isEmpty
-        ? 'Thành viên từ $memberSince'
-        : 'Thành viên từ $memberSince · chuỗi $streakLabel';
-    // Body stats stay null when unknown — BodyCard renders "—", never a fake
-    // number.
-    final height = profile?.heightCm;
-    final weight = profile?.weightKg;
-    final age = profile?.age;
-    final bmi = profile?.bmiValue != null ? profile!.bmiLabel : null;
-    final bmiCategory = profile?.bmiCategory ?? 'Chưa đủ dữ liệu';
+    final lt = _lifetime;
+    final bmi = profile?.bmiValue != null ? profile!.bmiLabel : '—';
 
-    return Container(
-      color: c.bg,
-      child: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: Stack(
+    return ColoredBox(
+      color: Tk.surface,
+      child: SafeArea(
+        bottom: false,
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.only(bottom: widget.bottomPadding + 20),
           children: [
-            SingleChildScrollView(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.only(bottom: widget.bottomPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              child: Row(
                 children: [
-                  ProfileStageHero(
-                    name: displayName,
-                    userInitial: userInitial,
-                    avatarUrl: avatarUrl,
-                    phaseLabel: _phaseLabel,
-                    memberSinceLine: memberSinceLine,
-                    goalProgress: _goalProgress,
-                    inlineStats: _buildInlineStats(),
-                    onEdit: _openEditProfileSheet,
-                    onEditPhoto: _openEditProfileSheet,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 1. Mục tiêu — goal card with progress meter.
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GoalCard(
-                      title: goalTitleFor(profile?.goal),
-                      quote: goalQuoteFor(profile?.goal),
-                      progress: _goalProgress,
-                      daysLeft: _weeksLeftLabel,
-                      onEdit: _openGoalEditSheet,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // 5. Vóc dáng — body card.
-                  _SectionHeader(
-                    eyebrow: 'VÓC DÁNG',
-                    intro: 'Thông tin cơ thể của bạn. Sửa bất cứ lúc nào.',
-                  ),
-                  const SizedBox(height: 14),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: BodyCard(
-                      height: height,
-                      weight: weight,
-                      age: age,
-                      bmi: bmi,
-                      bmiCategory: bmiCategory,
-                      onEdit: _openBodyEditSheet,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // 8. Cài đặt — settings groups.
-                  _SectionHeader(
-                    eyebrow: 'CÀI ĐẶT',
-                    intro: 'Tuỳ chỉnh Vika theo cách của bạn.',
-                  ),
-                  const SizedBox(height: 14),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                  _ProfileAvatar(
+                      initial: userInitial,
+                      avatarUrl: avatarUrl,
+                      onEdit: _openEditProfileSheet),
+                  const SizedBox(width: 16),
+                  Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SettingsGroup(
-                          label: 'Quyền riêng tư',
-                          rows: [
-                            SettingRow(
-                              icon: Icons.shield_outlined,
-                              label: 'Camera xử lý ngay trên điện thoại bạn',
-                              sub: 'Video luôn ở trong điện thoại của bạn',
-                              onTap: _showCameraInfoSheet,
-                            ),
-                            SettingRow(
-                              icon: Icons.insights_outlined,
-                              label: 'Chia sẻ dữ liệu sử dụng ẩn danh',
-                              sub: _analyticsConsent
-                                  ? 'Đang bật · giúp Vika cải thiện sản phẩm'
-                                  : 'Đang tắt · không thu thập dữ liệu sử dụng',
-                              onTap: _toggleAnalyticsConsent,
-                              trailing: IgnorePointer(
-                                child: Switch.adaptive(
-                                  value: _analyticsConsent,
-                                  activeThumbColor: c.yellow,
-                                  onChanged: (_) {},
+                        Text(displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Tk.text(24,
+                                weight: FontWeight.w900, letterSpacing: -0.3)),
+                        if (profile?.email != null)
+                          Text(profile!.email!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Tk.text(14,
+                                  weight: FontWeight.w700, color: Tk.inkSoft)),
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: _showCameraInfoSheet,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: Tk.greenSoft,
+                                borderRadius: BorderRadius.circular(8)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.lock_outline_rounded,
+                                    size: 14, color: Tk.greenInk),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    'Camera xử lý ngay trên máy',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Tk.text(12,
+                                        weight: FontWeight.w900,
+                                        color: Tk.greenInk),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                            SettingRow(
-                              icon: Icons.download_rounded,
-                              label: 'Xuất dữ liệu của bạn',
-                              sub: _exporting ? 'Đang chuẩn bị…' : null,
-                              onTap: _exporting ? null : _exportData,
-                            ),
-                          ],
-                        ),
-                        SettingsGroup(
-                          label: 'Hỗ trợ',
-                          rows: [
-                            SettingRow(
-                              icon: Icons.help_outline_rounded,
-                              label: 'Trợ giúp & Phản hồi',
-                              onTap: _openSupportMail,
-                            ),
-                            SettingRow(
-                              icon: Icons.info_outline_rounded,
-                              label: 'Về Vika',
-                              sub: profileMockVersion,
-                              onTap: _showAboutSheet,
-                            ),
-                            SettingRow(
-                              icon: Icons.science_outlined,
-                              label: 'Cài đặt nghiên cứu',
-                              onTap: _openResearchSettings,
-                            ),
-                          ],
-                        ),
-                        SettingsGroup(
-                          label: 'Tài khoản',
-                          rows: [
-                            SettingRow(
-                              icon: Icons.person_outline_rounded,
-                              label: 'Sửa hồ sơ',
-                              sub: displayName,
-                              onTap: _openEditProfileSheet,
-                            ),
-                            if (profile?.email != null)
-                              // Display-only — changing email is an auth flow,
-                              // out of scope. No chevron, no tap.
-                              SettingRow(
-                                icon: Icons.alternate_email_rounded,
-                                label: 'Email',
-                                sub: profile!.email,
-                                showChevron: false,
-                              ),
-                            SettingRow(
-                              icon: Icons.logout_rounded,
-                              label: 'Đăng xuất',
-                              danger: true,
-                              onTap: _confirmSignOut,
-                            ),
-                            SettingRow(
-                              icon: Icons.delete_outline_rounded,
-                              label: 'Xóa tài khoản',
-                              danger: true,
-                              onTap: _deleting ? null : _confirmDeleteAccount,
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
-
-                  // 9. Closer + back-to-top.
-                  _Closer(
-                    onBackToTop: _scrollToTop,
-                    version: profileMockVersion,
-                  ),
-                  const SizedBox(height: 24),
                 ],
               ),
             ),
-            _StickyPillBar(
-              visible: _showStickyBar,
-              userInitial: userInitial,
-              avatarUrl: avatarUrl,
-              name: displayName,
-              onTap: _scrollToTop,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: TkCard(
+                padding: EdgeInsets.zero,
+                radius: 18,
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      _StatCell(
+                        value: streakLabel.isEmpty ? '—' : streakLabel,
+                        label: 'Chuỗi tập',
+                        icon: Icons.local_fire_department_rounded,
+                      ),
+                      const VerticalDivider(
+                          width: 2, thickness: 2, color: Tk.line),
+                      _StatCell(
+                          value: '${lt?.sessionCount ?? 0}',
+                          label: 'Buổi đã tập'),
+                      const VerticalDivider(
+                          width: 2, thickness: 2, color: Tk.line),
+                      _StatCell(
+                        value: lt?.avgForm == null ? '—' : '${lt!.avgForm}%',
+                        label: 'Form trung bình',
+                        color: Tk.primaryLip,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            _ScrollDownFab(
-              visible: _showDownFab,
-              bottomInset: widget.bottomPadding,
-              onTap: _scrollToBottom,
+            const _GroupLabel('MỤC TIÊU'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TkCard(
+                onTap: _openGoalEditSheet,
+                radius: 18,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                            child: Text(goalTitleFor(profile?.goal),
+                                style: Tk.text(18, weight: FontWeight.w900))),
+                        Text('Sửa',
+                            style: Tk.text(14,
+                                weight: FontWeight.w900, color: Tk.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TkProgressBar(
+                        value: _goalProgress / 100,
+                        height: 12,
+                        color: Tk.green),
+                    const SizedBox(height: 6),
+                    Text(
+                      _weeksLeftLabel == null
+                          ? 'Chưa có lộ trình'
+                          : '$_goalProgress% · $_weeksLeftLabel',
+                      style: Tk.text(13,
+                          weight: FontWeight.w700, color: Tk.inkSoft),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const _GroupLabel('VÓC DÁNG'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TkCard(
+                onTap: _openBodyEditSheet,
+                radius: 18,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    _StatCell(
+                        value: profile?.heightCm == null
+                            ? '—'
+                            : '${profile!.heightCm}',
+                        label: 'Cao (cm)'),
+                    _StatCell(
+                        value: profile?.weightKg == null
+                            ? '—'
+                            : '${profile!.weightKg}',
+                        label: 'Nặng (kg)'),
+                    _StatCell(
+                        value: profile?.age == null ? '—' : '${profile!.age}',
+                        label: 'Tuổi'),
+                    _StatCell(value: bmi, label: 'BMI'),
+                  ],
+                ),
+              ),
+            ),
+            const _GroupLabel('CÀI ĐẶT'),
+            _TkGroup(children: [
+              _TkRow(
+                label: 'Lịch tập & nhắc nhở',
+                sub: _schedule == null
+                    ? null
+                    : '${_schedule!.daysLabel} · ${_schedule!.timeLabel} · ${_schedule!.remindersOn ? 'Đang nhắc' : 'Tắt nhắc'}',
+                onTap: _openSchedule,
+              ),
+              _TkRow(label: 'Thông tin cá nhân', onTap: _openEditProfileSheet),
+              _TkRow(label: 'Cài đặt nghiên cứu', onTap: _openResearchSettings),
+              _TkRow(
+                label: 'Chia sẻ dữ liệu sử dụng ẩn danh',
+                onTap: _toggleAnalyticsConsent,
+                trailing: IgnorePointer(
+                  child: Switch.adaptive(
+                    value: _analyticsConsent,
+                    activeTrackColor: Tk.green,
+                    onChanged: (_) {},
+                  ),
+                ),
+              ),
+              _TkRow(
+                label: 'Xuất dữ liệu của bạn',
+                sub: _exporting ? 'Đang chuẩn bị…' : null,
+                onTap: _exporting ? null : _exportData,
+              ),
+            ]),
+            const _GroupLabel('HỖ TRỢ'),
+            _TkGroup(children: [
+              _TkRow(label: 'Liên hệ hỗ trợ', onTap: _openSupportMail),
+              _TkRow(
+                  label: 'Chính sách quyền riêng tư',
+                  onTap: () => _openExternal(_privacyUrl)),
+              _TkRow(
+                  label: 'Về Vika',
+                  sub: profileMockVersion,
+                  onTap: _showAboutSheet),
+              _TkRow(label: 'Đăng xuất', onTap: _confirmSignOut),
+            ]),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: _deleting ? null : _confirmDeleteAccount,
+                child: Text(
+                  _deleting ? 'Đang xóa…' : 'Xóa tài khoản',
+                  style: Tk.text(14, weight: FontWeight.w900, color: Tk.redInk),
+                ),
+              ),
             ),
           ],
         ),
@@ -813,74 +758,205 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SECTION HEADER — eyebrow + accent bar + intro pull-quote.
-// Mirrors the grammar used on Library and Tien bo.
-// ═══════════════════════════════════════════════════════════════
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar(
+      {required this.initial, required this.avatarUrl, required this.onEdit});
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.eyebrow,
-    this.intro,
-  });
-
-  final String eyebrow;
-  final String? intro;
+  final String initial;
+  final String? avatarUrl;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, intro == null ? 0 : 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    final url = avatarUrl;
+    final fallback = Text(initial,
+        style: Tk.text(32, weight: FontWeight.w900, color: Colors.white));
+    return Semantics(
+      button: true,
+      label: 'Sửa hồ sơ',
+      child: GestureDetector(
+        onTap: onEdit,
+        child: SizedBox(
+          width: 80,
+          height: 80,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Container(
-                width: 5,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: c.yellow,
-                  borderRadius: BorderRadius.circular(2),
+                width: 76,
+                height: 76,
+                clipBehavior: Clip.antiAlias,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Tk.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Tk.primaryLip, offset: Offset(0, 4))
+                  ],
+                ),
+                child: url == null
+                    ? fallback
+                    : Image.network(
+                        url,
+                        width: 76,
+                        height: 76,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => fallback,
+                      ),
+              ),
+              Positioned(
+                right: -2,
+                bottom: 0,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: Tk.orange,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(Icons.edit_rounded,
+                      size: 15, color: Colors.white),
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                eyebrow,
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.8,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(child: Container(height: 1, color: c.border)),
             ],
           ),
-          if (intro != null) ...[
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.only(left: 17),
-              child: Text(
-                intro!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  fontStyle: FontStyle.italic,
-                  height: 1.45,
-                  color: c.inkSoft,
-                  letterSpacing: -0.1,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  const _StatCell(
+      {required this.value,
+      required this.label,
+      this.icon,
+      this.color = Tk.ink});
+
+  final String value;
+  final String label;
+  final IconData? icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: Tk.orange),
+                  const SizedBox(width: 3),
+                ],
+                Flexible(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Tk.text(19, weight: FontWeight.w900, color: color),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: Tk.text(12, weight: FontWeight.w800, color: Tk.inkSoft)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupLabel extends StatelessWidget {
+  const _GroupLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+      child: Text(text, style: Tk.eyebrow()),
+    );
+  }
+}
+
+class _TkGroup extends StatelessWidget {
+  const _TkGroup({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Material(
+        color: Tk.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Tk.line, width: 2),
+        ),
+        child: Column(
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0)
+                const Divider(height: 2, thickness: 2, color: Tk.lineSoft),
+              children[i],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TkRow extends StatelessWidget {
+  const _TkRow({required this.label, this.sub, this.onTap, this.trailing});
+
+  final String label;
+  final String? sub;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 54),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(label, style: Tk.text(15, weight: FontWeight.w800)),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(sub!,
+                          style: Tk.text(12.5,
+                              weight: FontWeight.w700, color: Tk.inkSoft)),
+                    ],
+                  ],
                 ),
               ),
-            ),
-          ],
-        ],
+              trailing ??
+                  const Icon(Icons.chevron_right_rounded, color: Tk.inkMuted),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1756,448 +1832,6 @@ class _AvatarInitial extends StatelessWidget {
 // Carries V medallion + name + "Hồ sơ" descriptor.
 // ═══════════════════════════════════════════════════════════════
 
-class _StickyPillBar extends StatelessWidget {
-  const _StickyPillBar({
-    required this.visible,
-    required this.userInitial,
-    required this.name,
-    required this.onTap,
-    this.avatarUrl,
-  });
-
-  final bool visible;
-  final String userInitial;
-  final String? avatarUrl;
-  final String name;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final topInset = MediaQuery.viewPaddingOf(context).top;
-    return IgnorePointer(
-      ignoring: !visible,
-      child: AnimatedSlide(
-        offset: visible ? Offset.zero : const Offset(0, -1.4),
-        duration: const Duration(milliseconds: 340),
-        curve: Curves.easeOutCubic,
-        child: AnimatedOpacity(
-          opacity: visible ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOut,
-          child: Container(
-            padding: EdgeInsets.fromLTRB(14, topInset + 10, 14, 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  c.bg.withValues(alpha: 0.96),
-                  c.bg.withValues(alpha: 0.78),
-                  c.bg.withValues(alpha: 0),
-                ],
-                stops: const [0.0, 0.7, 1.0],
-              ),
-            ),
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onTap();
-              },
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: c.bgRaised,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: c.borderHi, width: 1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: c.ink.withValues(alpha: 0.14),
-                      blurRadius: 28,
-                      offset: const Offset(0, 12),
-                    ),
-                    BoxShadow(
-                      color: c.ink.withValues(alpha: 0.05),
-                      blurRadius: 2,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: c.bgInverse,
-                        shape: BoxShape.circle,
-                        border: avatarUrl == null
-                            ? Border.all(color: c.yellow, width: 1.5)
-                            : null,
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      alignment: Alignment.center,
-                      child: avatarUrl == null
-                          ? _StickyAvatarInitial(initial: userInitial)
-                          : Image.network(
-                              avatarUrl!,
-                              fit: BoxFit.cover,
-                              width: 34,
-                              height: 34,
-                              errorBuilder: (_, __, ___) =>
-                                  _StickyAvatarInitial(initial: userInitial),
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'HỒ SƠ',
-                            style: TextStyle(
-                              fontFamily: 'BeVietnamPro',
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.6,
-                              color: c.inkFaint,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '$name.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'BeVietnamPro',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              fontStyle: FontStyle.italic,
-                              letterSpacing: -0.3,
-                              color: c.ink,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: c.ink,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Lên đầu',
-                            style: TextStyle(
-                              fontFamily: 'BeVietnamPro',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              fontStyle: FontStyle.italic,
-                              letterSpacing: -0.1,
-                              color: c.invInk,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.keyboard_arrow_up_rounded,
-                            size: 14,
-                            color: c.invInkSoft,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StickyAvatarInitial extends StatelessWidget {
-  const _StickyAvatarInitial({required this.initial});
-
-  final String initial;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Text(
-      initial,
-      style: TextStyle(
-        fontFamily: 'BeVietnamPro',
-        fontSize: 14,
-        fontWeight: FontWeight.w800,
-        fontStyle: FontStyle.italic,
-        letterSpacing: -0.6,
-        color: c.yellow,
-        height: 1,
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// CLOSER — editorial sign-off + back-to-top pill.
-// ═══════════════════════════════════════════════════════════════
-
-class _Closer extends StatelessWidget {
-  const _Closer({required this.onBackToTop, required this.version});
-  final VoidCallback onBackToTop;
-  final String version;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Container(height: 1, color: c.border)),
-              const SizedBox(width: 14),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: c.yellow,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'VIKA · HỒ SƠ',
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.8,
-                  color: c.inkSoft,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(child: Container(height: 1, color: c.border)),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Cảm ơn vì đã tin tưởng Vika.',
-                      style: TextStyle(
-                        fontFamily: 'BeVietnamPro',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        fontStyle: FontStyle.italic,
-                        letterSpacing: -0.3,
-                        color: c.ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              _BackToTopButton(onTap: onBackToTop),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BackToTopButton extends StatefulWidget {
-  const _BackToTopButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  State<_BackToTopButton> createState() => _BackToTopButtonState();
-}
-
-class _BackToTopButtonState extends State<_BackToTopButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        HapticFeedback.selectionClick();
-        widget.onTap();
-      },
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 0, 6, 0),
-          height: 40,
-          decoration: BoxDecoration(
-            color: c.ink,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Lên đầu',
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: -0.2,
-                  color: c.invInk,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: c.yellow,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.arrow_upward_rounded,
-                  size: 14,
-                  color: c.yellowInk,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SCROLL-DOWN FAB — a floating "Xuống cuối" pill that appears only
-// while the user is scrolling down (going back up is handled by the
-// sticky bar at the top). Lives bottom-right, clears the bottom nav,
-// and slides away near the end of the list.
-// ═══════════════════════════════════════════════════════════════
-
-class _ScrollDownFab extends StatelessWidget {
-  const _ScrollDownFab({
-    required this.visible,
-    required this.bottomInset,
-    required this.onTap,
-  });
-
-  final bool visible;
-  final double bottomInset;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Positioned(
-      right: 16,
-      bottom: bottomInset + 16,
-      child: IgnorePointer(
-        ignoring: !visible,
-        child: AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, 1.4),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          child: AnimatedOpacity(
-            opacity: visible ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onTap();
-              },
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 0, 6, 0),
-                height: 44,
-                decoration: BoxDecoration(
-                  color: c.ink,
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: c.ink.withValues(alpha: c.isDark ? 0.5 : 0.24),
-                      blurRadius: 22,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Xuống cuối',
-                      style: TextStyle(
-                        fontFamily: 'BeVietnamPro',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        fontStyle: FontStyle.italic,
-                        letterSpacing: -0.2,
-                        color: c.invInk,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: c.yellow,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.arrow_downward_rounded,
-                        size: 15,
-                        color: c.yellowInk,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// CONFIRM DIALOG — Premium Ivory replacement for the stock AlertDialog on
-// account actions. Built in the same light cream-sheet language as the About
-// and Edit Profile modals: a warm-cream card, accent-tinted toward the action,
-// an accent medallion, eyebrow tick, italic display title, then a filled
-// confirm pill over a quiet "stay" button. Benign actions ride the brand gold;
-// a destructive action swaps to the warm amber alarm — clearly graver.
-// ═══════════════════════════════════════════════════════════════
-
 class _ConfirmDialog extends StatelessWidget {
   const _ConfirmDialog({
     required this.icon,
@@ -2270,7 +1904,8 @@ class _ConfirmDialog extends StatelessWidget {
                         width: 52,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: accent.withValues(alpha: c.isDark ? 0.16 : 0.13),
+                          color:
+                              accent.withValues(alpha: c.isDark ? 0.16 : 0.13),
                           borderRadius: BorderRadius.circular(17),
                           border: Border.all(
                             color: accent.withValues(alpha: 0.38),

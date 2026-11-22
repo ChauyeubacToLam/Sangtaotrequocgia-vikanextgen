@@ -7,7 +7,6 @@ import '../../utils/exercise_logger.dart';
 import 'metrics/lunge_metric_base.dart';
 import 'metrics/lunge_depth_metric.dart';
 import 'metrics/lunge_trunk_lean_metric.dart';
-import 'metrics/lunge_heel_lift_metric.dart';
 import 'metrics/lunge_lumbar_proxy_metric.dart';
 import '../../utils/debouncer.dart';
 import '../../voice/policy_voice_coach.dart';
@@ -35,13 +34,13 @@ class Lunge extends ExerciseBase {
     'depth',
     'trunk',
     'lumbar',
-    'heel',
   ];
 
   @override
   Set<VikaImageOrientation> get supportedOrientations =>
       const <VikaImageOrientation>{
-        VikaImageOrientation.portrait,
+        VikaImageOrientation.landscapeLeft,
+        VikaImageOrientation.landscapeRight,
       };
 
   final int maxRep;
@@ -55,13 +54,11 @@ class Lunge extends ExerciseBase {
 
   final LungeDepthMetric depthMetric = LungeDepthMetric();
   final LungeTrunkLeanMetric trunkLeanMetric = LungeTrunkLeanMetric();
-  final LungeHeelLiftMetric heelLiftMetric = LungeHeelLiftMetric();
   final LungeLumbarProxyMetric lumbarProxyMetric = LungeLumbarProxyMetric();
 
   late final List<LungeMetricBase> _metrics = [
     depthMetric,
     trunkLeanMetric,
-    heelLiftMetric,
     lumbarProxyMetric,
   ];
 
@@ -188,7 +185,7 @@ class Lunge extends ExerciseBase {
   void onSetComplete() {
     logger.pushKey("depth_fails_count", depthMetric.faultsCount);
     logger.pushKey("trunk_lean_fails_count", trunkLeanMetric.faultsCount);
-    logger.pushKey("heel_lift_fails_count", heelLiftMetric.faultsCount);
+    logger.pushKey("heel_lift_fails_count", 0);
     logger.pushKey("lumbar_proxy_fails_count", lumbarProxyMetric.faultsCount);
     logger.pushKey("rejected_shallow_attempts_count", _rejectedShallowAttempts);
 
@@ -335,15 +332,6 @@ class Lunge extends ExerciseBase {
         calculateVerticalAngle(pivot: lead.hip!, point: lead.shoulder!);
     double trunkLean = convertClockAngleToTrunkLean(backAngle, cameraFacing);
 
-    final leadFoot = smoothedLandmarks[(_isLeftLegLead ?? true)
-        ? PoseLandmarkType.leftFootIndex
-        : PoseLandmarkType.rightFootIndex];
-    final leadHeel = smoothedLandmarks[(_isLeftLegLead ?? true)
-        ? PoseLandmarkType.leftHeel
-        : PoseLandmarkType.rightHeel];
-    double heelDistance =
-        (leadFoot != null && leadHeel != null) ? leadFoot.y - leadHeel.y : 0.0;
-
     // Normalised (0-180) so the same posture reads the same in both facings.
     double shoulderHipTrailKneeAngle = calculateAngleNormalized(
         firstPoint: lead.shoulder!,
@@ -357,7 +345,6 @@ class Lunge extends ExerciseBase {
       leadKneeAngle: leadKneeAngle,
       trailKneeAngle: trailKneeAngle,
       trunkLean: trunkLean,
-      heelDistance: heelDistance,
       shoulderHipTrailKneeAngle: shoulderHipTrailKneeAngle,
       lungeState: lungeState,
       isLeftLegLead: _isLeftLegLead ?? true,
@@ -381,7 +368,6 @@ class Lunge extends ExerciseBase {
         '${trunkLean >= 0 ? "+" : ""}${trunkLean.toStringAsFixed(1)}°';
     debugData['shTrailKneeAngle'] =
         shoulderHipTrailKneeAngle.toStringAsFixed(1);
-    debugData['heelDist'] = heelDistance.toStringAsFixed(2);
     debugData['correctForm'] = correctForm.toString();
 
     // 6. Rep completion (standing up)
@@ -401,7 +387,6 @@ class Lunge extends ExerciseBase {
 
       repCount += 1;
 
-      depthMetric.checkRepCompletion(lungeState, ctx);
       _transitionState(LungeState.standing, now);
 
       final allFaults = <FaultRecord>[];

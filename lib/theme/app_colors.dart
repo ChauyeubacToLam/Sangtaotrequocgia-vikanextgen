@@ -171,10 +171,7 @@ class VikaColors {
   /// `MediaQuery.platformBrightnessOf` — automatically tracks system
   /// dark mode toggles. If the user has set a manual override in-app
   /// (future feature), we'll inject an InheritedWidget here.
-  static VikaColors of(BuildContext context) {
-    final brightness = MediaQuery.platformBrightnessOf(context);
-    return brightness == Brightness.dark ? dark : light;
-  }
+  static VikaColors of(BuildContext context) => light;
 }
 
 extension VikaColorsContext on BuildContext {

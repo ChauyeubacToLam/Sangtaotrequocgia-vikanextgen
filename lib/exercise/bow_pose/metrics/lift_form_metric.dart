@@ -1,5 +1,5 @@
 import 'bow_pose_metric_base.dart';
-import '../../../../utils/debouncer.dart';
+import '../../../utils/debouncer.dart';
 
 class LiftConfig {
   static const double CHEST_GOOD_MIN = 0.04;

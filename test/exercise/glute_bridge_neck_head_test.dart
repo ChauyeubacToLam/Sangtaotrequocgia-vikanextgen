@@ -68,7 +68,8 @@ void main() {
     });
 
     test('a sustained head lift during the bridge is still recorded', () {
-      final metric = NeckHeadMetric();
+      final metric = NeckHeadMetric()
+        ..onBottomFrame(_ctx(GluteBridgeState.bottom, headLifted: false));
       for (var i = 0; i < NeckHeadConfig.DEBOUNCE_FRAMES; i++) {
         metric.update(_ctx(GluteBridgeState.ascending));
       }
@@ -104,7 +105,9 @@ void main() {
     // (0.1 torso) for about 0.2 s and settle back without becoming a rep.
     for (final hip in <double>[300, 300, 300, 300, 300, 300, 295, 290, 290,
       290, 290, 290, 295, 300, 300, 300, 300, 300, 300, 300, 300]) {
-      frame(hip, headLifted: true);
+      frame(hip,
+          headLifted:
+              hip < 300 || bridge.gluteState != GluteBridgeState.bottom);
     }
     expect(states, [GluteBridgeState.bottom, GluteBridgeState.ascending,
         GluteBridgeState.bottom], reason: 'fixture precondition: an abort');
@@ -124,6 +127,46 @@ void main() {
     expect(bridge.repCount, 1, reason: 'fixture precondition: states $states');
     expect(bridge.logger.repLogs.single.data['fault_types'],
         isNot(contains('neck_head')));
+  });
+
+  GluteBridge runOneBridge(bool Function(GluteBridge bridge) headLifted) {
+    final bridge = GluteBridge(maxRep: 10)
+      ..exerciseState = ExerciseState.activated
+      ..cameraFacing = CameraFacing.right
+      ..scaleFactor = 100;
+    var t = 0;
+    for (final hip in <double>[
+      300, 300, 300, 300, 300, 300, 300, 300, //
+      296, 292, 288, 284, 280, 276, 272, 268, 264, 260, //
+      260, 260, 260, 260, 260, 260, 260, 260, //
+      264, 268, 272, 276, 280, 284, 288, 292, 296, 300, //
+      300, 300, 300, 300, 300, 300, 300, 300,
+    ]) {
+      bridge.frameTimestamp = DateTime.fromMillisecondsSinceEpoch(t);
+      bridge.checkingPose(_supine(hipY: hip, headLifted: headLifted(bridge)));
+      t += 33;
+    }
+    expect(bridge.repCount, 1, reason: 'fixture precondition: one bridge');
+    return bridge;
+  }
+
+  test('an ear that rests above the shoulder line is not a head lift', () {
+    final data = runOneBridge((_) => true).logger.repLogs.single.data;
+    expect(data['fault_types'], isNot(contains('neck_head')));
+    expect(data['head_lift_rest'] as double, closeTo(0.30, 0.01));
+    expect(data['peak_head_lift'] as double, closeTo(0, 0.01));
+  });
+
+  test('lifting the head from the floor during the bridge is a fault', () {
+    final data = runOneBridge(
+            (bridge) => bridge.gluteState != GluteBridgeState.bottom)
+        .logger
+        .repLogs
+        .single
+        .data;
+    expect(data['fault_types'], contains('neck_head'));
+    expect(data['head_lift_rest'] as double, closeTo(0, 0.01));
+    expect(data['peak_head_lift'] as double, closeTo(0.30, 0.01));
   });
 
   test('pacing message states the 1.3x ratio the code enforces', () {

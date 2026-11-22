@@ -92,6 +92,7 @@ IGNORED_DIRECTORY_CSV_NAMES: frozenset[str] = frozenset(
         "cue_candidates.csv",
         "satisfaction.csv",
         "frame_rate.csv",
+        "fault_reports.csv",
     }
 )
 
@@ -193,6 +194,7 @@ class SessionLog:
     condition: str
     satisfaction: Optional[int]
     files: list[str] = field(default_factory=list)
+    fault_reports: list[tuple[str, int, str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -1147,6 +1149,35 @@ def _parse_session_log(
     raw_files = obj.get("files")
     files_list = [str(x) for x in raw_files] if isinstance(raw_files, list) else []
     session_id = str(obj.get("session_id") or path.stem)
+
+    fault_reports: list[tuple[str, int, str, str]] = []
+    raw_reports = obj.get("fault_reports")
+    for rep in raw_reports if isinstance(raw_reports, list) else []:
+        ok = (
+            isinstance(rep, dict)
+            and isinstance(rep.get("exercise_id"), str)
+            and isinstance(rep.get("set_index"), int)
+            and not isinstance(rep.get("set_index"), bool)
+            and isinstance(rep.get("file"), str)
+            and isinstance(rep.get("fault"), str)
+            and rep["fault"].strip()
+        )
+        if not ok:
+            issues.append(
+                ValidationIssue(
+                    severity="warning",
+                    code="invalid_fault_report",
+                    file=rel_name,
+                    line=find_json_line(raw_text, "fault_reports"),
+                    message_en=f"Malformed fault_reports entry {rep!r}; skipped.",
+                    message_vi=f"Mục fault_reports không hợp lệ {rep!r}; đã bỏ qua.",
+                )
+            )
+            continue
+        fault_reports.append(
+            (rep["exercise_id"].strip(), rep["set_index"], rep["file"], rep["fault"].strip())
+        )
+
     return SessionLog(
         file_path=str(path),
         file_name=rel_name,
@@ -1155,6 +1186,7 @@ def _parse_session_log(
         condition=cond,
         satisfaction=sat,
         files=files_list,
+        fault_reports=fault_reports,
     )
 
 
@@ -2993,6 +3025,89 @@ class EvaluationResults:
     cue_candidate_rows: list[dict[str, Any]]
     satisfaction_rows: list[dict[str, Any]]
     frame_rate_rows: list[dict[str, Any]]
+    fault_report_rows: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _canon_fault_id(exercise_id: str, raw: str) -> str:
+    lookup = {
+        re.sub(r"[\s_-]+", "", tok).casefold(): tok
+        for tok in KNOWN_EXERCISES.get(exercise_id, ())
+    }
+    return lookup.get(re.sub(r"[\s_-]+", "", raw).casefold(), raw)
+
+
+def _build_fault_reports(
+    set_logs: dict[tuple[str, str, str, int], SetLog],
+    session_logs: Sequence[SessionLog],
+    coach_sets: dict[tuple[str, str, str, int], dict[str, list[CoachRow]]],
+    all_pairs_by_set: dict[tuple[str, str, str, int], list[MatchedRepPair]],
+    issues: list[ValidationIssue],
+) -> list[dict[str, Any]]:
+    by_file = {Path(sl.file_name).name: sl for sl in set_logs.values()}
+    reported: set[tuple[tuple[str, str, str, int], str]] = set()
+    for sess in session_logs:
+        for ex_id, s_idx, fname, fault in sess.fault_reports:
+            sl = by_file.get(Path(fname).name) or set_logs.get(
+                (sess.participant_id, sess.condition, ex_id, s_idx)
+            )
+            if sl is None:
+                issues.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="fault_report_without_set_log",
+                        file=sess.file_name,
+                        line=1,
+                        message_en=f"fault_reports points at {fname!r}, which is not among the set logs; skipped.",
+                        message_vi=f"fault_reports trỏ tới {fname!r} nhưng không có tệp log hiệp đó; đã bỏ qua.",
+                    )
+                )
+                continue
+            reported.add((sl.set_key, _canon_fault_id(sl.exercise_id, fault)))
+
+    keys = set(reported)
+    for skey, sl in set_logs.items():
+        if sl.condition == "ai":
+            for rep in sl.reps:
+                for f in rep.faults:
+                    keys.add((skey, f))
+
+    rows: list[dict[str, Any]] = []
+    for skey, fault in sorted(keys):
+        sl = set_logs[skey]
+        hits = [
+            p
+            for p in all_pairs_by_set.get(skey, [])
+            if p.status == "matched" and p.app_rep and p.coach_rep and fault in p.app_rep.faults
+        ]
+        confirmed = sum(1 for p in hits if fault in p.coach_rep.faults)
+        absent = len(hits) - confirmed
+        if skey not in coach_sets:
+            verdict = "unlabelled"
+        elif not hits:
+            verdict = "no_matched_rep"
+        elif confirmed == 0:
+            verdict = "app_false_alarm"
+        elif absent == 0:
+            verdict = "coach_confirmed"
+        else:
+            verdict = "mixed"
+        pid, cond, ex_id, s_idx = skey
+        rows.append(
+            {
+                "participant_id": pid,
+                "condition": cond,
+                "exercise_id": ex_id,
+                "set_index": s_idx,
+                "log_file": sl.file_name,
+                "fault": fault,
+                "reported": 1 if (skey, fault) in reported else 0,
+                "app_matched_reps_with_fault": len(hits),
+                "coach_confirmed": confirmed,
+                "coach_absent": absent,
+                "verdict": verdict,
+            }
+        )
+    return rows
 
 
 def evaluate_all(
@@ -3165,7 +3280,12 @@ def evaluate_all(
     # ------------------------------------------------------------------
     frame_rate_rows = _build_frame_rate(set_logs)
 
+    fault_report_rows = _build_fault_reports(
+        set_logs, session_logs, coach_sets, all_pairs_by_set, issues
+    )
+
     return EvaluationResults(
+        fault_report_rows=fault_report_rows,
         issues=issues,
         tolerance_s=tolerance_s,
         cue_map_used=cue_map_used,
@@ -4698,6 +4818,24 @@ def write_all_outputs(out_dir: Path, res: EvaluationResults) -> None:
         res.frame_rate_rows,
     )
 
+    _write_csv(
+        out_dir / "fault_reports.csv",
+        (
+            "participant_id",
+            "condition",
+            "exercise_id",
+            "set_index",
+            "log_file",
+            "fault",
+            "reported",
+            "app_matched_reps_with_fault",
+            "coach_confirmed",
+            "coach_absent",
+            "verdict",
+        ),
+        res.fault_report_rows,
+    )
+
     summary_md = render_summary_markdown_vi(res)
     (out_dir / "summary.md").write_text(summary_md, encoding="utf-8")
 
@@ -4995,6 +5133,36 @@ def render_summary_markdown_vi(res: EvaluationResults) -> str:
                 f"| {ex_lbl} | `{_md_cell(r['phase'])}` | `{_md_cell(r['reason'])}` | "
                 f"{r['n_sets_with_reason']}/{r['n_total_sets']} | {r['event_count']} | "
                 f"{r['duration_ms']} ms | {sh_act} | {sh_ph} |"
+            )
+    lines.append("")
+
+    lines.append("### 6.3. Nút \"Báo sai\" của người tập so với nhãn HLV (điều kiện `ai`)")
+    lines.append("")
+    lines.append(
+        "Mỗi dòng của `fault_reports.csv` là một cặp (hiệp, lỗi app phát hiện). \"App báo thừa\" nghĩa là "
+        "trên các rep đã khớp mà app gắn lỗi đó, HLV không thấy lỗi ở rep nào."
+    )
+    lines.append("")
+    if not res.fault_report_rows:
+        lines.append("- Không có cặp (hiệp, lỗi) nào ở điều kiện `ai`.")
+    else:
+        lines.append(
+            "| Nhóm | Số cặp (hiệp, lỗi) | Đối chiếu được với HLV | App báo thừa (Wilson 95%) | Một phần | HLV thấy lỗi |"
+        )
+        lines.append("|---|---:|---:|---:|---:|---:|")
+        for flag, label in ((1, "Người tập bấm Báo sai"), (0, "Không bấm")):
+            grp = [r for r in res.fault_report_rows if r["reported"] == flag]
+            judged = [
+                r for r in grp if r["verdict"] in ("app_false_alarm", "mixed", "coach_confirmed")
+            ]
+            k = sum(1 for r in judged if r["verdict"] == "app_false_alarm")
+            lo, hi = wilson_ci(k, len(judged))
+            rate = (k / len(judged)) if judged else None
+            mixed = sum(1 for r in judged if r["verdict"] == "mixed")
+            conf = sum(1 for r in judged if r["verdict"] == "coach_confirmed")
+            lines.append(
+                f"| {label} | {len(grp)} | {len(judged)} | "
+                f"{_fmt_rate_with_ci_vi(rate, lo, hi, k, len(judged))} | {mixed} | {conf} |"
             )
     lines.append("")
 

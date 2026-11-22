@@ -1036,13 +1036,13 @@ class PoseOverlayPainter extends CustomPainter {
       );
     }
 
-    final syncRatio =
-        _readDouble(debugData['syncRatio'] ?? debugData['peakSyncRatio']);
-    if (hip != null && syncRatio != null) {
+    final leanRise = _readDouble(
+        debugData['syncLeanRise'] ?? debugData['peakSyncLeanRise']);
+    if (hip != null && leanRise != null) {
       _drawLabel(
         canvas,
         hip + const Offset(12, 10),
-        'đồng bộ ${syncRatio.toStringAsFixed(2)}x',
+        'thân đổ thêm ${leanRise.toStringAsFixed(0)}°',
         const Color(0xFFAED581),
       );
     }

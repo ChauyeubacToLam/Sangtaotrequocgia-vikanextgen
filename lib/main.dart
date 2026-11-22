@@ -19,8 +19,10 @@ import 'services/analytics_service.dart';
 import 'debug/debug_types.dart';
 import 'exercise/exercise_base.dart';
 import 'models/exercise_definition.dart';
+import 'nutrition/nutrition_sync.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/magic_link_sent_screen.dart';
+import 'screens/boot_splash.dart';
 import 'screens/exercise/exercise_launch_guard.dart';
 import 'screens/main_shell.dart';
 // The 17-screen V5OnboardingNavigator stays in the repo as a fallback.
@@ -30,6 +32,10 @@ import 'screens/reviewer/reviewer_plan_screen.dart';
 import 'screens/weekly_check_in_screen.dart';
 import 'services/catalog/catalog_source.dart';
 import 'services/recommendation/recommendation_service.dart';
+import 'services/research/research_log_storage.dart';
+import 'services/research/research_preferences.dart';
+import 'widgets/tk/tk.dart';
+import 'services/workout_reminders.dart';
 import 'theme/typography.dart';
 import 'theme/vf_theme.dart';
 import 'utils/orientation_lock.dart';
@@ -44,51 +50,44 @@ bool _hasSeenOnboarding = false;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _configureAppChrome();
+  runApp(const BootSplash(load: _boot));
+}
 
-  Object? startupError;
-  StackTrace? startupStackTrace;
-
+Future<Widget> _boot(void Function(double) report) async {
   try {
     final appConfig = await _loadAppConfig();
-
+    report(0.15);
     await Supabase.initialize(
       url: appConfig.supabaseUrl,
       anonKey: appConfig.supabaseAnonKey,
     );
-
-    // PostHog setup runs here, AFTER Supabase, and only configures the SDK —
-    // it does NOT start collecting. The SDK is set up opted-out; whether
-    // collection actually turns on is decided by the persisted consent flag in
-    // AnalyticsService.init() below, which can only enable for a user who
-    // already accepted the S06 policy on a prior launch.
+    NutritionSync.instance.start();
+    report(0.4);
     await _setUpAnalytics(appConfig);
+    report(0.5);
   } catch (error, stackTrace) {
-    startupError = error;
-    startupStackTrace = stackTrace;
+    debugPrint('[Vika] Startup failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+    return _VikaStartupErrorApp(error: error);
   }
 
-  await _configureAppChrome();
-
-  if (startupError == null) {
-    await _loadDeviceCameras();
-    // Preload the bundled exercise catalog so synchronous volume lookups
-    // (launch + list cards) are ready before first paint, offline-safe.
-    await CatalogSource.instance.ensureLoaded();
-    _hasCompletedOnboarding = await _loadInitialOnboardingCompletion();
-    try {
-      _hasSeenOnboarding = await _readStoredOnboardingCompletion();
-    } catch (error, stackTrace) {
-      debugPrint('[Vika] Failed to read seen onboarding state: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      _hasSeenOnboarding = false;
-    }
-    runApp(const VikaApp());
-    return;
+  await _loadDeviceCameras();
+  report(0.65);
+  await CatalogSource.instance.ensureLoaded();
+  await ResearchPreferences.load();
+  report(0.8);
+  _hasCompletedOnboarding = await _loadInitialOnboardingCompletion();
+  try {
+    _hasSeenOnboarding = await _readStoredOnboardingCompletion();
+  } catch (error, stackTrace) {
+    debugPrint('[Vika] Failed to read seen onboarding state: $error');
+    debugPrintStack(stackTrace: stackTrace);
+    _hasSeenOnboarding = false;
   }
-
-  debugPrint('[Vika] Startup failed: $startupError');
-  debugPrintStack(stackTrace: startupStackTrace);
-  runApp(_VikaStartupErrorApp(error: startupError));
+  report(0.9);
+  await WorkoutReminders.refresh(active: _hasCompletedOnboarding);
+  return const VikaApp();
 }
 
 Future<void> _configureAppChrome() async {
@@ -493,12 +492,14 @@ class _VikaAppState extends State<VikaApp> with WidgetsBindingObserver {
       title: 'Vika',
       debugShowCheckedModeBanner: false,
       theme: VFTheme.lightTheme,
-      builder: (context, child) => ScrollConfiguration(
-        behavior: const VFScrollBehavior(),
-        // Clamp the user's text scale to [0.9, 1.3]. Respects accessibility
-        // settings within reason; prevents 2× scales from breaking the
-        // tight Premium Ivory layouts. See lib/theme/typography.dart.
-        child: VikaType.clampTextScaler(context, child),
+      builder: (context, child) => _BootFadeIn(
+        child: ScrollConfiguration(
+          behavior: const VFScrollBehavior(),
+          // Clamp the user's text scale to [0.9, 1.3]. Respects accessibility
+          // settings within reason; prevents 2× scales from breaking the
+          // tight Premium Ivory layouts. See lib/theme/typography.dart.
+          child: VikaType.clampTextScaler(context, child),
+        ),
       ),
       initialRoute: '/',
       onGenerateRoute: (settings) {
@@ -563,6 +564,26 @@ class _VikaAppState extends State<VikaApp> with WidgetsBindingObserver {
   }
 }
 
+class _BootFadeIn extends StatelessWidget {
+  const _BootFadeIn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Tk.indigo,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+        builder: (context, t, child) => Opacity(opacity: t, child: child),
+        child: child,
+      ),
+    );
+  }
+}
+
 _AppEntryState? _entryStateFromRouteArg(Object? value) {
   return switch (value) {
     'onboarding' => _AppEntryState.onboarding,
@@ -612,6 +633,11 @@ class _AppEntryGateState extends State<AppEntryGate> {
   void initState() {
     super.initState();
     unawaited(OrientationLock.portraitOnly());
+    unawaited(
+      ResearchLogStorage.instance
+          .resolveDirectory()
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
     _entryState = _initialEntryState();
     _authSubscription = supabase.auth.onAuthStateChange.listen(
       _handleAuthStateChange,
@@ -776,6 +802,18 @@ class _AppEntryGateState extends State<AppEntryGate> {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: KeyedSubtree(
+        key: ValueKey(_entryState),
+        child: _entryBody(),
+      ),
+    );
+  }
+
+  Widget _entryBody() {
     switch (_entryState) {
       case _AppEntryState.onboarding:
         // B1 has its own "Đăng nhập" toggle, so there is no hop to the

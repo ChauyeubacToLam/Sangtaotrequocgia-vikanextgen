@@ -10,6 +10,7 @@ No third-party packages are required (Python 3.9+ standard library only).
 
 - `evaluate.py` — Single-file CLI entry point.
 - `test_evaluate.py` — `unittest` suite covering synthetic scenarios, edge cases, input recovery, and end-to-end CLI execution.
+- `camera_safety.py` — Separate CLI for the provoked bad-camera trials (`KE_HOACH_THU_SO_LIEU.md` section 5): `--trials an_toan_camera.csv --logs <dir> --out <dir>` writes `camera_safety.csv` and `camera_safety_summary.md` (detection, prompt kind, latency, reps/faults logged during the bad window, recovery). Checked by `test_camera_safety.py`.
 - `HUONG_DAN_GAN_NHAN.md` — Vietnamese instruction sheet for the video-labelling coaches.
 - `coach_labels_template.csv` — Spreadsheet-friendly CSV template with example rows across `squat`, `push_up`, `glute_bridge`, and `plank`.
 - `cue_fault_map.csv` — Optional mapping from Vika voice cue keys (`key`) to canonical fault IDs (`fault`) when `cue` log events omit `"fault"`.
@@ -119,3 +120,4 @@ coach_id,participant_id,condition,exercise_id,set_index,rep_n,video_t_s,counted,
 | `cue_candidates.csv` | Ranked `success` and `failure` candidate sets for qualitative video examples. |
 | `satisfaction.csv` | Mean, SD, median, missing count, and `1..5` score distribution by condition. |
 | `frame_rate.csv` | Mean and worst `mean_fps`, `min_fps_1s`, and `max_gap_ms` per exercise with worst-case log filenames. |
+| `fault_reports.csv` | One row per (`ai` set, app-detected or user-reported fault): `reported` (user tapped "Báo sai", from the session log's `fault_reports`), app detections of that fault on matched reps, how many the reference coach confirmed, and `verdict` (`app_false_alarm` = coach saw it on none, `coach_confirmed` = on all, `mixed`, `no_matched_rep`, `unlabelled`). Summarised in `summary.md` section 6.3, reported vs not reported. |

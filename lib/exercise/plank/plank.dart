@@ -427,9 +427,6 @@ class Plank extends ExerciseBase {
       }
       return 'Gồng cơ bụng, nâng hông lên';
     }
-    if (geometry.isStanding) {
-      return 'Chống bằng cẳng tay';
-    }
     return 'Giữ thân người thẳng';
   }
 
@@ -769,13 +766,11 @@ class _ForearmPlankGeometry {
       isTrunkHorizontal &&
       isBodyAlignedForStart &&
       isKneeExtended &&
-      isForearmPlank &&
-      !isStanding;
+      isForearmPlank;
 
   bool get isHoldPose =>
       isTrunkHorizontal &&
       isBodyAlignedForHold &&
       isKneeExtended &&
-      isForearmPlank &&
-      !isStanding;
+      isForearmPlank;
 }

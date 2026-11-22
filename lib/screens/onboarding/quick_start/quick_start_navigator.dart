@@ -5,8 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:vika/models/exercise_definition.dart';
-import 'package:vika/pose/vika_image_orientation.dart';
 import 'package:vika/screens/exercise/exercise_launch_args.dart';
 import 'package:vika/services/analytics_service.dart';
 import 'package:vika/services/auth_service.dart';
@@ -16,6 +14,7 @@ import 'package:vika/services/recommendation/recommendation_service.dart';
 import 'package:vika/services/session_persistence.dart';
 import 'package:vika/services/workout_launch_service.dart';
 import 'package:vika/utils/orientation_lock.dart';
+import 'package:vika/widgets/tk/tk.dart';
 
 import '../onboarding_data.dart';
 import '../v5/v5_primitives.dart';
@@ -23,13 +22,13 @@ import '../v5/v5_theme.dart';
 import 'quick_start_goal_screen.dart';
 import 'quick_start_programs.dart';
 
-/// Three-step path from app open to the first rep. Replaces the 17-screen
+/// Two-step path from app open to the first rep. Replaces the 17-screen
 /// V5OnboardingNavigator at the app entry gate; that one stays in the repo
 /// as a fallback and is not edited.
 ///
 ///   B1 account   email + password (create / sign in)
 ///   B2 goal      one screen: goal, program, age, intensity
-///   B3 train     persist, generate plan, camera placement, launch session 1
+///              then persist, generate plan and launch session 1
 ///
 /// A signed-in user who reaches this widget (signed up but never finished)
 /// starts at B2.
@@ -45,7 +44,7 @@ class QuickStartNavigator extends StatefulWidget {
   State<QuickStartNavigator> createState() => _QuickStartNavigatorState();
 }
 
-enum _Step { account, goal, setup }
+enum _Step { welcome, account, goal }
 
 // Defaults for the fields the old 17-screen flow collected. The plan engine
 // reads fitness_level, fork, goals, training_duration and schedule_sessions
@@ -91,15 +90,12 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
   String? _level;
 
   String get _effectiveLevel =>
-      _level ??
-      recommendedLevel(age: _age, goal: _goal ?? QuickGoal.muscle);
+      _level ?? recommendedLevel(age: _age, goal: _goal ?? QuickGoal.muscle);
 
-  // B3 state.
   bool _preparing = false;
   bool _launching = false;
   bool _persisted = false;
   bool _signalsWritten = false;
-  bool _landscape = false;
   List<ExerciseSequenceItem> _sequence = const [];
 
   @override
@@ -108,7 +104,7 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
     unawaited(OrientationLock.portraitOnly());
     widget.onTakeOverAuth?.call();
     _step = Supabase.instance.client.auth.currentSession == null
-        ? _Step.account
+        ? _Step.welcome
         : _Step.goal;
   }
 
@@ -157,12 +153,21 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
     });
   }
 
-  void _startSetup() {
-    _go(_Step.setup);
-    unawaited(_prepare());
+  Future<void> _start() async {
+    if (_preparing || _launching) return;
+    await _prepare();
+    if (!mounted) return;
+    if (_sequence.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Chưa tạo được buổi tập. Kiểm tra mạng rồi bấm lại nhé.'),
+        ),
+      );
+      return;
+    }
+    await _launch();
   }
-
-  // ─── B3 ────────────────────────────────────────────────────────────
 
   void _fillDefaults() {
     final level = _effectiveLevel;
@@ -221,14 +226,9 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
     } catch (e) {
       debugPrint('[QuickStart] could not build the first session: $e');
     }
-    final landscape = sequence.isEmpty
-        ? false
-        : await _needsLandscape(sequence.first.definition);
-
     if (!mounted) return;
     setState(() {
       _sequence = sequence;
-      _landscape = landscape;
       _preparing = false;
     });
   }
@@ -314,8 +314,14 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
 
   Widget _buildStep() {
     switch (_step) {
+      case _Step.welcome:
+        return _WelcomeStep(onStart: () => _go(_Step.account));
       case _Step.account:
-        return _AccountStep(onAuthenticated: _afterAuth);
+        return _AccountStep(
+          onAuthenticated: _afterAuth,
+          initialSignUp: true,
+          onBack: () => _go(_Step.welcome),
+        );
       case _Step.goal:
         return QuickStartGoalScreen(
           goal: _goal,
@@ -323,21 +329,12 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
           age: _age,
           level: _level,
           onGoal: _pickGoal,
-          onProgram: (program) => setState(() => _program = program),
+          onProgram: (program) => setState(
+              () => _program = program.id == _program?.id ? null : program),
           onAge: (age) => setState(() => _age = age),
           onLevel: (level) => setState(() => _level = level),
-          onNext: _startSetup,
-        );
-      case _Step.setup:
-        return _SetupStep(
-          preparing: _preparing,
-          launching: _launching,
-          sequence: _sequence,
-          landscape: _landscape,
-          planSaved: _persisted,
-          onStart: _launch,
-          onRetry: _prepare,
-          onBack: _preparing || _launching ? null : () => _go(_Step.goal),
+          busy: _preparing || _launching,
+          onNext: _start,
         );
     }
   }
@@ -371,29 +368,131 @@ class _QuickStartNavigatorState extends State<QuickStartNavigator> {
   }
 }
 
-/// The exercise class owns its supported orientations; build one, read it,
-/// and release its detector straight away (the experience screen builds its
-/// own instance when the session starts).
-Future<bool> _needsLandscape(ExerciseDefinition definition) async {
-  try {
-    final exercise = definition.createExercise(reps: 1, seconds: 1);
-    final landscape = !exercise.supportedOrientations
-        .contains(VikaImageOrientation.portrait);
-    await exercise.disposeDetectors();
-    return landscape;
-  } catch (_) {
-    return false;
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // B1 — account
 // ═══════════════════════════════════════════════════════════════════
 
+class _WelcomeStep extends StatelessWidget {
+  const _WelcomeStep({required this.onStart});
+
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget dot(double size, Color color, {double radius = 99}) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+              color: color, borderRadius: BorderRadius.circular(radius)),
+        );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light
+          .copyWith(statusBarColor: Colors.transparent),
+      child: Container(
+        color: Tk.indigo,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: 360,
+                    height: 360,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 290,
+                          height: 290,
+                          decoration: const BoxDecoration(
+                              color: Tk.indigoHi, shape: BoxShape.circle),
+                        ),
+                        Positioned(
+                            left: 40, top: 46, child: dot(22, Tk.orange)),
+                        Positioned(
+                            right: 48, top: 18, child: dot(14, Tk.green)),
+                        Positioned(
+                            right: 26,
+                            bottom: 64,
+                            child: Transform.rotate(
+                                angle: 0.3,
+                                child: dot(18, const Color(0xFF6E8BFF),
+                                    radius: 5))),
+                        Positioned(
+                            left: 30,
+                            bottom: 50,
+                            child: dot(10, const Color(0xFFFFD23F))),
+                        const TkMascot(
+                            asset: Tk.mascotWave,
+                            size: 330,
+                            semanticLabel: 'Tắc Kè Vika vẫy tay chào'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Text(
+                'CHÀO MỪNG BẠN ĐẾN VỚI',
+                style: Tk.text(14,
+                    weight: FontWeight.w800,
+                    color: Tk.onIndigoSoft,
+                    letterSpacing: 2),
+              ),
+              const SizedBox(height: 6),
+              Text('VIKA',
+                  style: Tk.text(64,
+                      weight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 4,
+                      height: 1)),
+              const SizedBox(height: 10),
+              Text(
+                'HLV AI ngay tại nhà',
+                textAlign: TextAlign.center,
+                style: Tk.text(20,
+                    weight: FontWeight.w700,
+                    color: Tk.onIndigoSoft,
+                    height: 1.3),
+              ),
+              const SizedBox(height: 32),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    TkButton(
+                        label: 'Bắt đầu ngay',
+                        tone: TkButtonTone.white,
+                        onTap: onStart),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Dành cho người từ 16 tuổi trở lên',
+                      style: Tk.text(12,
+                          weight: FontWeight.w700,
+                          color: const Color(0xFFA9A4E0)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AccountStep extends StatefulWidget {
-  const _AccountStep({required this.onAuthenticated});
+  const _AccountStep({
+    required this.onAuthenticated,
+    required this.initialSignUp,
+    required this.onBack,
+  });
 
   final Future<void> Function() onAuthenticated;
+  final bool initialSignUp;
+  final VoidCallback onBack;
 
   @override
   State<_AccountStep> createState() => _AccountStepState();
@@ -402,7 +501,7 @@ class _AccountStep extends StatefulWidget {
 class _AccountStepState extends State<_AccountStep> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _signUp = true;
+  late bool _signUp = widget.initialSignUp;
   bool _busy = false;
   bool _obscure = true;
   String? _error;
@@ -460,385 +559,130 @@ class _AccountStepState extends State<_AccountStep> {
   @override
   Widget build(BuildContext context) {
     return V5KeyboardForm(
-      footer: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PrimaryButton(
-            label: _signUp ? 'Tạo tài khoản' : 'Đăng nhập',
-            busy: _busy,
-            onTap: _submit,
-          ),
-          const SizedBox(height: V5.space10),
-          Text(
-            'Bạn cần từ 16 tuổi trở lên. Hình ảnh camera chỉ được xử lý '
-            'trên điện thoại, không gửi đi đâu.',
-            textAlign: TextAlign.center,
-            style: V5.bodyXs(context, color: V5.inkSoft),
-          ),
-        ],
+      background: Tk.surface,
+      scrollPadding: const EdgeInsets.only(bottom: 24),
+      footer: TkButton(
+        label: _signUp ? 'Tiếp tục' : 'Đăng nhập',
+        busy: _busy,
+        onTap: _submit,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: V5.space24),
-          V5ScreenHeader(
-            eyebrow: 'Bước 1/3',
-            title: _signUp
-                ? 'Tạo tài khoản\nđể bắt đầu tập'
-                : 'Chào mừng\nbạn quay lại',
-            subtitle: 'Ba bước là vào buổi tập đầu tiên.',
+          TkTopBar(
+            onBack: _busy ? null : widget.onBack,
+            progress: 1 / 2,
+            trailing: '1/2',
           ),
-          const SizedBox(height: V5.space24),
-          _ModeToggle(
-            signUp: _signUp,
-            onChanged: _busy
-                ? null
-                : (v) => setState(() {
-                      _signUp = v;
-                      _error = null;
-                    }),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 20, 0),
+            child: TkSpeechRow(
+              asset: Tk.mascotPoint,
+              mascotSize: 128,
+              message: _signUp
+                  ? 'Chào bạn! Tạo tài khoản để mình nhớ tiến bộ của bạn nhé.'
+                  : 'Mừng bạn quay lại! Đăng nhập để tập tiếp nhé.',
+            ),
           ),
-          const SizedBox(height: V5.space16),
-          AutofillGroup(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Field(
-                  label: 'EMAIL',
-                  controller: _email,
-                  hint: 'ban@email.com',
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
+                const SizedBox(height: 14),
+                Text(
+                  _signUp ? 'Tạo tài khoản' : 'Đăng nhập',
+                  style:
+                      Tk.text(28, weight: FontWeight.w900, letterSpacing: -0.4),
                 ),
-                const SizedBox(height: V5.space12),
-                _Field(
-                  label: 'MẬT KHẨU',
-                  controller: _password,
-                  hint: 'Ít nhất 6 ký tự',
-                  obscure: _obscure,
-                  autofillHints: [
-                    _signUp
-                        ? AutofillHints.newPassword
-                        : AutofillHints.password,
-                  ],
-                  onSubmitted: (_) => _submit(),
-                  suffix: GestureDetector(
-                    onTap: () => setState(() => _obscure = !_obscure),
-                    child: Icon(
-                      _obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 18,
-                      color: V5.inkSoft,
-                    ),
+                const SizedBox(height: 4),
+                Text(
+                  'Hai bước là vào buổi tập đầu tiên.',
+                  style:
+                      Tk.text(16, weight: FontWeight.w700, color: Tk.inkSoft),
+                ),
+                const SizedBox(height: 18),
+                TkSegmented(
+                  labels: const ['Tạo tài khoản', 'Đăng nhập'],
+                  selected: _signUp ? 0 : 1,
+                  onChanged: _busy
+                      ? null
+                      : (i) => setState(() {
+                            _signUp = i == 0;
+                            _error = null;
+                          }),
+                ),
+                const SizedBox(height: 18),
+                AutofillGroup(
+                  child: Column(
+                    children: [
+                      TkField(
+                        label: 'EMAIL',
+                        controller: _email,
+                        hint: 'ban@email.com',
+                        keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
+                      ),
+                      const SizedBox(height: 14),
+                      TkField(
+                        label: 'MẬT KHẨU',
+                        controller: _password,
+                        hint: 'Ít nhất 6 ký tự',
+                        obscure: _obscure,
+                        autofillHints: [
+                          _signUp
+                              ? AutofillHints.newPassword
+                              : AutofillHints.password,
+                        ],
+                        onSubmitted: (_) => _submit(),
+                        suffix: IconButton(
+                          tooltip: _obscure ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: Tk.inkSoft,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!,
+                      style: Tk.text(14,
+                          weight: FontWeight.w800, color: Tk.redInk)),
+                ],
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  decoration: BoxDecoration(
+                      color: Tk.greenSoft,
+                      borderRadius: BorderRadius.circular(14)),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.lock_outline_rounded,
+                          color: Tk.greenLip, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Bạn cần từ 16 tuổi trở lên. Hình ảnh camera chỉ được xử lý trên điện thoại, không gửi đi đâu.',
+                          style: Tk.text(13,
+                              weight: FontWeight.w700,
+                              color: const Color(0xFF24442D),
+                              height: 1.45),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: V5.space12),
-            Text(_error!, style: V5.bodySm(context, color: V5.danger)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ModeToggle extends StatelessWidget {
-  const _ModeToggle({required this.signUp, required this.onChanged});
-
-  final bool signUp;
-  final ValueChanged<bool>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget tab(String label, bool value) {
-      final active = signUp == value;
-      return Expanded(
-        child: GestureDetector(
-          onTap: onChanged == null ? null : () => onChanged!(value),
-          behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: active ? V5.ink : Colors.transparent,
-              borderRadius: BorderRadius.circular(V5.radiusFull),
-            ),
-            child: Text(
-              label,
-              style: V5.text(
-                context,
-                size: 13.5,
-                weight: FontWeight.w700,
-                color: active ? V5.invInk : V5.inkSoft,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: V5.surface,
-        border: Border.all(color: V5.border),
-        borderRadius: BorderRadius.circular(V5.radiusFull),
-      ),
-      child: Row(
-        children: [tab('Tạo tài khoản', true), tab('Đăng nhập', false)],
-      ),
-    );
-  }
-}
-
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.label,
-    required this.controller,
-    required this.hint,
-    this.keyboardType,
-    this.obscure = false,
-    this.suffix,
-    this.autofillHints,
-    this.onSubmitted,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final String hint;
-  final TextInputType? keyboardType;
-  final bool obscure;
-  final Widget? suffix;
-  final Iterable<String>? autofillHints;
-  final ValueChanged<String>? onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = V5.text(
-      context,
-      size: 15,
-      weight: FontWeight.w600,
-      color: V5.ink,
-      letterSpacing: -0.1,
-    );
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
-        color: V5.surface,
-        border: Border.all(color: V5.border),
-        borderRadius: BorderRadius.circular(V5.radiusMd),
-        boxShadow: V5.elevation1,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: V5.eyebrow(context, color: V5.inkFaint)),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  keyboardType: keyboardType,
-                  obscureText: obscure,
-                  autocorrect: false,
-                  enableSuggestions: !obscure,
-                  autofillHints: autofillHints,
-                  onSubmitted: onSubmitted,
-                  cursorColor: V5.yellow,
-                  style: style,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    hintText: hint,
-                    hintStyle: style.copyWith(color: V5.inkFaint),
-                  ),
-                ),
-              ),
-              if (suffix != null) suffix!,
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Non-positioned pill button for the form footer. [V5PillCTA] is a
-/// `Positioned` and only works inside a V5Screen stack.
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.onTap,
-    this.busy = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: busy ? null : onTap,
-      child: Container(
-        height: 56,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: V5.ink,
-          borderRadius: BorderRadius.circular(V5.radiusFull),
-          boxShadow: V5.elevation1,
-        ),
-        child: busy
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: V5.yellow,
-                ),
-              )
-            : Text(
-                label,
-                style: V5.text(
-                  context,
-                  size: 15,
-                  weight: FontWeight.w700,
-                  color: V5.invInk,
-                ),
-              ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// B3 — camera setup, then launch
-// ═══════════════════════════════════════════════════════════════════
-
-class _SetupStep extends StatelessWidget {
-  const _SetupStep({
-    required this.preparing,
-    required this.launching,
-    required this.sequence,
-    required this.landscape,
-    required this.planSaved,
-    required this.onStart,
-    required this.onRetry,
-    required this.onBack,
-  });
-
-  final bool preparing;
-  final bool launching;
-  final List<ExerciseSequenceItem> sequence;
-  final bool landscape;
-  final bool planSaved;
-  final VoidCallback onStart;
-  final VoidCallback onRetry;
-  final VoidCallback? onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    if (preparing) {
-      return V5Page(
-        index: 3,
-        total: 3,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: V5.yellow),
-              const SizedBox(height: V5.space16),
-              Text(
-                'Đang chuẩn bị buổi tập đầu tiên…',
-                style: V5.body(context, color: V5.inkSoft),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (sequence.isEmpty) {
-      return V5Page(
-        index: 3,
-        total: 3,
-        onBack: onBack,
-        cta: V5PillCTA(label: 'Thử lại', onTap: onRetry),
-        child: const V5ScreenHeader(
-          eyebrow: 'Bước 3/3',
-          title: 'Chưa tạo được\nbuổi tập',
-          subtitle: 'Vui lòng kiểm tra kết nối mạng rồi thử lại.',
-        ),
-      );
-    }
-
-    final definition = sequence.first.definition;
-    final tips = <(IconData, String)>[
-      if (landscape)
-        (
-          Icons.screen_rotation_rounded,
-          'Xoay ngang điện thoại. Bài này cần đặt máy nằm ngang.',
-        ),
-      for (final tip in definition.setupTips)
-        (Icons.check_circle_outline_rounded, tip),
-      (Icons.videocam_outlined, definition.cameraHint),
-      (Icons.crop_free_rounded, definition.framingHint),
-    ];
-
-    return V5Page(
-      index: 3,
-      total: 3,
-      onBack: onBack,
-      scroll: true,
-      cta: V5PillCTA(
-        label: launching ? 'Đang mở camera…' : 'Bắt đầu tập',
-        yellow: true,
-        enabled: !launching,
-        onTap: onStart,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          V5ScreenHeader(
-            eyebrow: 'Bước 3/3',
-            title: 'Đặt máy cho bài\n${definition.displayName}',
-            subtitle: 'Buổi đầu có ${sequence.length} bài: '
-                '${sequence.map((s) => s.definition.displayName).join(', ')}.',
-            size: V5HeaderSize.medium,
-          ),
-          const SizedBox(height: V5.space20),
-          for (final (icon, text) in tips)
-            if (text.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: V5.space12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(icon, size: 20, color: V5.yellowDeep),
-                    const SizedBox(width: V5.space12),
-                    Expanded(
-                      child: Text(
-                        text,
-                        style: V5.body(context, color: V5.ink),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          if (!planSaved) ...[
-            const SizedBox(height: V5.space8),
-            Text(
-              'Chưa lưu được hồ sơ (có thể do mất mạng). Bạn vẫn tập '
-              'được buổi này; lần mở sau Vika sẽ hỏi lại mục tiêu.',
-              style: V5.bodySm(context, color: V5.inkSoft),
-            ),
-          ],
-          const SizedBox(height: 96),
         ],
       ),
     );

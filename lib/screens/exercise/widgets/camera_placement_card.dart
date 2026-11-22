@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/exercise_lookup.dart';
 import '../../../pose/vika_image_orientation.dart';
 import '../../../services/catalog/catalog_source.dart';
-import '../../../theme/app_colors.dart';
+import '../../../widgets/tk/tk.dart';
 
 /// Required phone orientation derived from `ExerciseBase.supportedOrientations`.
 enum PhonePlacementOrientation {
@@ -35,7 +35,8 @@ enum PhonePlacementOrientation {
       };
 
   IconData get icon => switch (this) {
-        PhonePlacementOrientation.portrait => Icons.stay_current_portrait_rounded,
+        PhonePlacementOrientation.portrait =>
+          Icons.stay_current_portrait_rounded,
         PhonePlacementOrientation.landscape =>
           Icons.stay_current_landscape_rounded,
         PhonePlacementOrientation.portraitOrLandscape =>
@@ -85,135 +86,155 @@ class ExercisePlacementSpec {
   final String? placementWhere;
 }
 
-/// Single source of camera-placement facts for the 21 kept exercises, keyed by
-/// canonical `catalogId` (`keptExerciseIds`).
-///
-/// Orientation and view come from each exercise class's `supportedOrientations`,
-/// `checkSafety`, and `isInStartPosition`. `placementWhere` carries concrete
-/// height/distance phrases from `exercise_definition.dart` without inventing
-/// numbers where the copy gives none.
+const String kOnePlacementWhere = 'Máy ngang · cao 60–70 cm · cách ~3 m';
+const String kJumpPlacementWhere =
+    'Máy ngang · cao 60–70 cm · lùi ~3,5 m, chừa chỗ trên đầu';
+
 const Map<String, ExercisePlacementSpec> kExercisePlacementByCatalogId =
     <String, ExercisePlacementSpec>{
   'squat': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portrait,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.standing,
-    placementWhere: 'Máy ngang hông · cách 2–3 m',
+    placementWhere: kOnePlacementWhere,
   ),
   'push_up': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Đặt máy thấp ngang thân',
+    placementWhere: kOnePlacementWhere,
   ),
   'glute_bridge': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'plank': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Đặt máy thấp ngang thân',
+    placementWhere: kOnePlacementWhere,
   ),
   'lunge': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portrait,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.standing,
-    placementWhere: 'Máy ngang hông · cách 2–3 m',
+    placementWhere: kOnePlacementWhere,
   ),
   'jump_squat': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portrait,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.standing,
+    placementWhere: kJumpPlacementWhere,
   ),
   'jumping_jack': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portrait,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.facingCamera,
     posture: PlacementPostureGlyph.standing,
-    placementWhere: 'Lùi xa, chừa khoảng trống trên đầu',
+    placementWhere: kJumpPlacementWhere,
   ),
   'wall_pushup': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portrait,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.standing,
+    placementWhere: kOnePlacementWhere,
   ),
   'situp': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'leg_raises': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'vup': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'mcgill_curlup': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Đặt máy thấp ngang thân',
+    placementWhere: kOnePlacementWhere,
   ),
   'dead_bug': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'bird_dog': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'mountain_climber': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'superman': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Thấp ngang thân · cao 30–50 cm',
+    placementWhere: kOnePlacementWhere,
   ),
   'tricep_dip': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.seated,
+    placementWhere: kOnePlacementWhere,
   ),
   'side_plank_dip': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portraitOrLandscape,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
+    placementWhere: kOnePlacementWhere,
   ),
   'seated_forward_fold': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.seated,
-    placementWhere: 'Đặt máy ngang hông',
+    placementWhere: kOnePlacementWhere,
   ),
   'butterfly': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.portraitOrLandscape,
+    orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.facingCamera,
     posture: PlacementPostureGlyph.seated,
+    placementWhere: kOnePlacementWhere,
   ),
   'sphinx': ExercisePlacementSpec(
     orientation: PhonePlacementOrientation.landscape,
     view: UserCameraView.sideOn,
     posture: PlacementPostureGlyph.floor,
-    placementWhere: 'Đặt máy thấp ngang thân',
+    placementWhere: kOnePlacementWhere,
+  ),
+  'step_up': ExercisePlacementSpec(
+    orientation: PhonePlacementOrientation.landscape,
+    view: UserCameraView.sideOn,
+    posture: PlacementPostureGlyph.standing,
+    placementWhere: kOnePlacementWhere,
+  ),
+  'neck_side_stretch': ExercisePlacementSpec(
+    orientation: PhonePlacementOrientation.landscape,
+    view: UserCameraView.facingCamera,
+    posture: PlacementPostureGlyph.standing,
+    placementWhere: kOnePlacementWhere,
+  ),
+  'pushup_rotation': ExercisePlacementSpec(
+    orientation: PhonePlacementOrientation.landscape,
+    view: UserCameraView.sideOn,
+    posture: PlacementPostureGlyph.floor,
+    placementWhere: kOnePlacementWhere,
   ),
 };
 
@@ -343,8 +364,6 @@ PlacementTransitionNotice? computePlacementTransition({
   );
 }
 
-/// Compact camera & body placement card rendered on `ExerciseIntroPage` before
-/// each exercise starts.
 class CameraPlacementCard extends StatelessWidget {
   const CameraPlacementCard({
     super.key,
@@ -359,443 +378,108 @@ class CameraPlacementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     final warning = safetyWarning?.trim();
-    final hasWarning = warning != null && warning.isNotEmpty;
     final transition = transitionNotice;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: c.bgRaised,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: c.border),
-        boxShadow: [
-          BoxShadow(
-            color: c.ink.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
+    return TkCard(
+      lip: false,
+      radius: 18,
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (transition != null) _TransitionStrip(notice: transition),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _PlacementDiagramTile(spec: spec),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _PlacementFactRow(
-                        icon: spec.orientation.icon,
-                        text: spec.orientation.vietnameseLabel,
-                        emphasized: true,
-                      ),
-                      const SizedBox(height: 6),
-                      _PlacementFactRow(
-                        icon: spec.view.icon,
-                        text: spec.view.vietnameseLabel,
-                        emphasized: true,
-                      ),
-                      const SizedBox(height: 6),
-                      _PlacementFactRow(
-                        icon: Icons.crop_free_rounded,
-                        text: spec.bodyFraming,
-                      ),
-                      if (spec.placementWhere != null) ...[
-                        const SizedBox(height: 6),
-                        _PlacementFactRow(
-                          icon: Icons.straighten_rounded,
-                          text: spec.placementWhere!,
-                        ),
-                      ],
-                    ],
-                  ),
+          if (transition != null && transition.requiresAction) ...[
+            _Note(
+              icon: transition.phoneRotated
+                  ? Icons.screen_rotation_alt_rounded
+                  : Icons.sync_alt_rounded,
+              text: transition.message,
+              color: Tk.orangeSoft,
+              ink: Tk.orangeInk,
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Tk.primarySoft,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-          ),
-          if (hasWarning) _SafetyWarningStrip(warning: warning),
-        ],
-      ),
-    );
-  }
-}
-
-class _TransitionStrip extends StatelessWidget {
-  const _TransitionStrip({required this.notice});
-
-  final PlacementTransitionNotice notice;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final bg = notice.requiresAction ? c.yellowGhost : c.powder;
-    final iconColor = notice.requiresAction ? c.yellowInk : c.inkSoft;
-    final icon = notice.phoneRotated
-        ? Icons.screen_rotation_alt_rounded
-        : notice.requiresAction
-            ? Icons.sync_alt_rounded
-            : Icons.check_circle_outline_rounded;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: bg,
-        border: Border(
-          bottom: BorderSide(
-            color: notice.requiresAction
-                ? c.yellow.withValues(alpha: 0.45)
-                : c.border,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: iconColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              notice.message,
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
-                color: c.ink,
+                child: Icon(spec.orientation.icon, color: Tk.primary, size: 22),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      spec.placementWhere ?? spec.orientation.vietnameseLabel,
+                      style: Tk.text(15, weight: FontWeight.w900, height: 1.3),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      spec.view.vietnameseLabel,
+                      style: Tk.text(13.5,
+                          weight: FontWeight.w700, color: Tk.inkSoft),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (warning != null && warning.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _Note(
+              icon: Icons.warning_amber_rounded,
+              text: warning,
+              color: const Color(0xFFFDECEC),
+              ink: Tk.redInk,
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _PlacementFactRow extends StatelessWidget {
-  const _PlacementFactRow({
+class _Note extends StatelessWidget {
+  const _Note({
     required this.icon,
     required this.text,
-    this.emphasized = false,
+    required this.color,
+    required this.ink,
   });
 
   final IconData icon;
   final String text;
-  final bool emphasized;
+  final Color color;
+  final Color ink;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1.5),
-          child: Icon(
-            icon,
-            size: 15,
-            color: emphasized ? c.ink : c.inkSoft,
-          ),
-        ),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontFamily: 'BeVietnamPro',
-              fontSize: 12.5,
-              fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
-              height: 1.3,
-              color: emphasized ? c.ink : c.inkSoft,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SafetyWarningStrip extends StatelessWidget {
-  const _SafetyWarningStrip({required this.warning});
-
-  final String warning;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 11),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: c.attention.withValues(alpha: 0.10),
-        border: Border(
-          top: BorderSide(color: c.attention.withValues(alpha: 0.30)),
-        ),
+        color: color,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(
-              Icons.warning_amber_rounded,
-              size: 16,
-              color: c.attention,
-            ),
-          ),
+          Icon(icon, size: 18, color: ink),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              warning,
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-                color: c.ink,
-              ),
+              text,
+              style: Tk.text(13,
+                  weight: FontWeight.w800, color: Tk.ink, height: 1.35),
             ),
           ),
         ],
       ),
     );
-  }
-}
-
-class _PlacementDiagramTile extends StatelessWidget {
-  const _PlacementDiagramTile({required this.spec});
-
-  final ExercisePlacementSpec spec;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Container(
-      width: 88,
-      height: 84,
-      decoration: BoxDecoration(
-        color: c.bgInverse,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: c.borderDark),
-      ),
-      child: CustomPaint(
-        painter: _PlacementDiagramPainter(
-          spec: spec,
-          phoneColor: c.yellow,
-          personColor: c.invInk,
-          guideColor: c.invInkFaint,
-        ),
-      ),
-    );
-  }
-}
-
-class _PlacementDiagramPainter extends CustomPainter {
-  const _PlacementDiagramPainter({
-    required this.spec,
-    required this.phoneColor,
-    required this.personColor,
-    required this.guideColor,
-  });
-
-  final ExercisePlacementSpec spec;
-  final Color phoneColor;
-  final Color personColor;
-  final Color guideColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final phonePaint = Paint()
-      ..color = phoneColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-    final phoneFill = Paint()
-      ..color = phoneColor.withValues(alpha: 0.16)
-      ..style = PaintingStyle.fill;
-    final guidePaint = Paint()
-      ..color = guideColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..strokeCap = StrokeCap.round;
-    final personStroke = Paint()
-      ..color = personColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final personHead = Paint()
-      ..color = personColor
-      ..style = PaintingStyle.fill;
-
-    // 1. Floor baseline
-    final floorY = size.height - 13;
-    canvas.drawLine(
-      Offset(8, floorY),
-      Offset(size.width - 8, floorY),
-      guidePaint,
-    );
-
-    // 2. Phone glyph on the left (raised to hip height for standing exercises,
-    // resting low near the floor for floor/seated exercises).
-    final standingPhone = spec.posture == PlacementPostureGlyph.standing &&
-        spec.orientation == PhonePlacementOrientation.portrait;
-    final Rect phoneRect = switch (spec.orientation) {
-      PhonePlacementOrientation.portrait => standingPhone
-          ? Rect.fromLTWH(10, floorY - 38, 13, 24)
-          : Rect.fromLTWH(10, floorY - 26, 13, 24),
-      PhonePlacementOrientation.landscape =>
-          Rect.fromLTWH(8, floorY - 15, 22, 13),
-      PhonePlacementOrientation.portraitOrLandscape =>
-          Rect.fromLTWH(10, floorY - 25, 13, 23),
-    };
-    if (standingPhone) {
-      canvas.drawLine(
-        Offset(phoneRect.center.dx, phoneRect.bottom + 1),
-        Offset(phoneRect.center.dx, floorY),
-        guidePaint,
-      );
-      canvas.drawLine(
-        Offset(phoneRect.left + 1, floorY),
-        Offset(phoneRect.right - 1, floorY),
-        guidePaint,
-      );
-    }
-    final phoneRRect =
-        RRect.fromRectAndRadius(phoneRect, const Radius.circular(3));
-    canvas.drawRRect(phoneRRect, phoneFill);
-    canvas.drawRRect(phoneRRect, phonePaint);
-
-    if (spec.orientation == PhonePlacementOrientation.portraitOrLandscape) {
-      final altRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(8, floorY - 14, 21, 12),
-        const Radius.circular(2.5),
-      );
-      canvas.drawRRect(
-        altRect,
-        Paint()
-          ..color = phoneColor.withValues(alpha: 0.45)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2,
-      );
-    }
-
-    // 3. Camera field-of-view rays toward the framing box
-    final lensOrigin = Offset(phoneRect.right + 2, phoneRect.center.dy);
-    const frameLeft = 39.0;
-    final frameRight = size.width - 9;
-    const frameTop = 12.0;
-    final frameBottom = floorY - 2;
-
-    final rayPaint = Paint()
-      ..color = phoneColor.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawLine(lensOrigin, Offset(frameLeft, frameTop + 4), rayPaint);
-    canvas.drawLine(lensOrigin, Offset(frameLeft, frameBottom - 2), rayPaint);
-
-    // 4. Corner brackets showing whole-body framing (head to feet)
-    const corner = 5.0;
-    // Top-left
-    canvas.drawLine(Offset(frameLeft, frameTop + corner),
-        Offset(frameLeft, frameTop), guidePaint);
-    canvas.drawLine(Offset(frameLeft, frameTop),
-        Offset(frameLeft + corner, frameTop), guidePaint);
-    // Top-right
-    canvas.drawLine(Offset(frameRight - corner, frameTop),
-        Offset(frameRight, frameTop), guidePaint);
-    canvas.drawLine(Offset(frameRight, frameTop),
-        Offset(frameRight, frameTop + corner), guidePaint);
-    // Bottom-left
-    canvas.drawLine(Offset(frameLeft, frameBottom - corner),
-        Offset(frameLeft, frameBottom), guidePaint);
-    canvas.drawLine(Offset(frameLeft, frameBottom),
-        Offset(frameLeft + corner, frameBottom), guidePaint);
-    // Bottom-right
-    canvas.drawLine(Offset(frameRight - corner, frameBottom),
-        Offset(frameRight, frameBottom), guidePaint);
-    canvas.drawLine(Offset(frameRight, frameBottom),
-        Offset(frameRight, frameBottom - corner), guidePaint);
-
-    // 5. Person silhouette inside the frame
-    final cx = (frameLeft + frameRight) / 2;
-    switch ((spec.posture, spec.view)) {
-      case (PlacementPostureGlyph.standing, UserCameraView.facingCamera):
-        // Front-facing standing figure (both arms and legs open)
-        canvas.drawCircle(Offset(cx, 21), 3.6, personHead);
-        canvas.drawLine(Offset(cx, 25), Offset(cx, 44), personStroke);
-        canvas.drawLine(Offset(cx - 10, 32), Offset(cx + 10, 32), personStroke);
-        canvas.drawLine(Offset(cx, 44), Offset(cx - 7, 65), personStroke);
-        canvas.drawLine(Offset(cx, 44), Offset(cx + 7, 65), personStroke);
-      case (PlacementPostureGlyph.standing, UserCameraView.sideOn):
-        // Side-profile standing figure (facing toward left/camera with nose/arm)
-        canvas.drawCircle(Offset(cx, 21), 3.6, personHead);
-        canvas.drawLine(Offset(cx, 25), Offset(cx + 1, 45), personStroke);
-        canvas.drawLine(Offset(cx, 29), Offset(cx - 8, 37), personStroke);
-        canvas.drawLine(Offset(cx + 1, 45), Offset(cx - 3, 55), personStroke);
-        canvas.drawLine(Offset(cx - 3, 55), Offset(cx - 1, 65), personStroke);
-        canvas.drawLine(Offset(cx - 1, 65), Offset(cx - 5, 65), personStroke);
-      case (PlacementPostureGlyph.floor, _):
-        // Side-profile floor plank/supine figure spanning head-to-feet
-        canvas.drawCircle(Offset(frameLeft + 8, floorY - 16), 3.3, personHead);
-        canvas.drawLine(
-          Offset(frameLeft + 12, floorY - 15),
-          Offset(frameRight - 6, floorY - 8),
-          personStroke,
-        );
-        canvas.drawLine(
-          Offset(frameLeft + 14, floorY - 14),
-          Offset(frameLeft + 14, floorY - 3),
-          personStroke,
-        );
-        canvas.drawLine(
-          Offset(frameRight - 6, floorY - 8),
-          Offset(frameRight - 6, floorY - 3),
-          personStroke,
-        );
-      case (PlacementPostureGlyph.seated, UserCameraView.facingCamera):
-        // Seated front-facing butterfly figure
-        canvas.drawCircle(Offset(cx, 31), 3.5, personHead);
-        canvas.drawLine(Offset(cx, 35), Offset(cx, 54), personStroke);
-        canvas.drawLine(Offset(cx - 8, 43), Offset(cx, 54), personStroke);
-        canvas.drawLine(Offset(cx + 8, 43), Offset(cx, 54), personStroke);
-        canvas.drawLine(Offset(cx, 54), Offset(cx - 11, 61), personStroke);
-        canvas.drawLine(Offset(cx, 54), Offset(cx + 11, 61), personStroke);
-        canvas.drawLine(Offset(cx - 11, 61), Offset(cx, 65), personStroke);
-        canvas.drawLine(Offset(cx + 11, 61), Offset(cx, 65), personStroke);
-      case (PlacementPostureGlyph.seated, UserCameraView.sideOn):
-        // Seated side-profile figure with legs extended horizontally
-        canvas.drawCircle(Offset(frameLeft + 10, 36), 3.4, personHead);
-        canvas.drawLine(
-          Offset(frameLeft + 10, 40),
-          Offset(frameLeft + 12, floorY - 4),
-          personStroke,
-        );
-        canvas.drawLine(
-          Offset(frameLeft + 12, floorY - 4),
-          Offset(frameRight - 6, floorY - 4),
-          personStroke,
-        );
-        canvas.drawLine(
-          Offset(frameLeft + 11, 46),
-          Offset(frameLeft + 22, 52),
-          personStroke,
-        );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlacementDiagramPainter oldDelegate) {
-    return oldDelegate.spec != spec ||
-        oldDelegate.phoneColor != phoneColor ||
-        oldDelegate.personColor != personColor ||
-        oldDelegate.guideColor != guideColor;
   }
 }

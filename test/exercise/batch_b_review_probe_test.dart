@@ -729,6 +729,33 @@ _Pose _tricepDip(double lift, {required bool leftNear}) {
   );
 }
 
+_Pose _tricepDipBent(double lift, {required bool leftNear}) {
+  const k = 300.0, floor = 640.0, arm = 0.36 * k;
+  final h = lift * k;
+  final hip = (700.0, floor - 0.10 * k - h);
+  final shoulder = _add(
+      hip, (-0.50 * k * math.sin(_rad(20)), -0.50 * k * math.cos(_rad(20))));
+  final wrist = (hip.$1 - 0.30 * k, floor - 0.02 * k);
+  final reach = _sub(shoulder, wrist);
+  final d = math.sqrt(reach.$1 * reach.$1 + reach.$2 * reach.$2);
+  final bend = math.sqrt(arm * arm - d * d / 4);
+  final mid = _mid(shoulder, wrist);
+  final elbow = (mid.$1 + bend * reach.$2 / d, mid.$2 - bend * reach.$1 / d);
+  return _side(
+    near: {
+      'ear': _add(shoulder, (0.04 * k, -0.17 * k)),
+      'shoulder': shoulder,
+      'elbow': elbow,
+      'wrist': wrist,
+      'hip': hip,
+      'knee': (hip.$1 + 0.38 * k, floor - 0.45 * k - h / 2),
+      'ankle': (hip.$1 + 0.55 * k, floor - 0.08 * k),
+    },
+    leftNear: leftNear,
+    mirrorAbout: 640,
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -1117,8 +1144,8 @@ void main() {
             'never leaves resting and the resting baseline follows the trunk '
             'up. A lift slower than about 24 deg/s is never counted.');
 
-    test('PROBE tricep dip ($side): one floor dip (hips up 0.15 m over 1.0 s, '
-        'back to the floor over 1.0 s) counts once with no fault', () {
+    test('PROBE tricep dip ($side): hips up 0.15 m and back with the arms '
+        'kept straight is not a rep', () {
       final r = _Run(TricepDip(maxRep: 10));
       r.activate(_tricepDip(0, leftNear: leftNear));
       r.hold(_tricepDip(0, leftNear: leftNear), 10);
@@ -1127,9 +1154,24 @@ void main() {
       r.ramp(
           30, (s) => _tricepDip(0.15 * (1 - _ease(s)), leftNear: leftNear));
       r.hold(_tricepDip(0, leftNear: leftNear), 15);
+      expect(r.e.repCount, 0);
+    });
+
+    test('PROBE tricep dip ($side): one dip from straight arms (163 deg) down '
+        'to 103 deg over 1.0 s and back counts once with no fault', () {
+      final r = _Run(TricepDip(maxRep: 10));
+      r.activate(_tricepDipBent(0.15, leftNear: leftNear));
+      r.hold(_tricepDipBent(0.15, leftNear: leftNear), 10);
+      r.ramp(30,
+          (s) => _tricepDipBent(0.15 * (1 - _ease(s)), leftNear: leftNear));
+      r.hold(_tricepDipBent(0, leftNear: leftNear), 15);
+      r.ramp(30, (s) => _tricepDipBent(0.15 * _ease(s), leftNear: leftNear));
+      r.hold(_tricepDipBent(0.15, leftNear: leftNear), 15);
       expect(r.e.repCount, 1);
       expect(r.faultTypes.expand((t) => t), isEmpty,
           reason: 'rep logs: ${r.e.logger.repLogs.map((l) => l.data)}');
+      expect(r.e.logger.repLogs.single.data['min_elbow_angle'] as double,
+          closeTo(103, 3));
     });
   }
 }

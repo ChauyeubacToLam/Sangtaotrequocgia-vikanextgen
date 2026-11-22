@@ -11,13 +11,14 @@ import 'package:vika/models/exercise_definition.dart';
 PoseLandmark _lm(PoseLandmarkType type, double x, double y) =>
     PoseLandmark(type: type, x: x, y: y, z: 0, likelihood: 0.99);
 
-// Same seated floor-dip layout as tricep_dip_floor_setup_test (facing left).
-Map<PoseLandmarkType, PoseLandmark> _pose(double hipY) => {
+Map<PoseLandmarkType, PoseLandmark> _pose({required bool bent}) => {
       PoseLandmarkType.leftEar: _lm(PoseLandmarkType.leftEar, 180, 160),
       PoseLandmarkType.leftShoulder: _lm(PoseLandmarkType.leftShoulder, 200, 200),
-      PoseLandmarkType.leftElbow: _lm(PoseLandmarkType.leftElbow, 250, 300),
+      PoseLandmarkType.leftElbow: bent
+          ? _lm(PoseLandmarkType.leftElbow, 150, 350)
+          : _lm(PoseLandmarkType.leftElbow, 250, 300),
       PoseLandmarkType.leftWrist: _lm(PoseLandmarkType.leftWrist, 300, 400),
-      PoseLandmarkType.leftHip: _lm(PoseLandmarkType.leftHip, 400, hipY),
+      PoseLandmarkType.leftHip: _lm(PoseLandmarkType.leftHip, 400, 350),
       PoseLandmarkType.leftAnkle: _lm(PoseLandmarkType.leftAnkle, 600, 400),
     };
 
@@ -25,10 +26,10 @@ TricepDip _oneRep() {
   final e = TricepDip(maxRep: 10)
     ..cameraFacing = CameraFacing.left
     ..exerciseState = ExerciseState.activated;
-  expect(e.isInStartPosition(_pose(350)), isTrue);
-  for (var i = 1; i <= 4; i++) {
+  expect(e.isInStartPosition(_pose(bent: false)), isTrue);
+  for (var i = 1; i <= 8; i++) {
     e.frameTimestamp = DateTime.fromMillisecondsSinceEpoch(i * 100);
-    e.checkingPose(_pose(280));
+    e.checkingPose(_pose(bent: i <= 4));
   }
   expect(e.repCount, 1);
   return e;

@@ -41,6 +41,9 @@ import 'lunge/lunge_report_builder.dart';
 import 'Jump_Squat/jump_squat_report_builder_v2.dart';
 import 'side_plank_dip/side_plank_dip_report_builder_v2.dart';
 import 'step_back_burpee/step_back_burpee_report_builder_v2.dart';
+import 'step_up/step_up_report_builder.dart';
+import 'neck_side_stretch/neck_side_stretch_report_builder.dart';
+import 'push_up_rotation/push_up_rotation_report_builder.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // REGISTRY
@@ -98,6 +101,9 @@ final Map<String, ReportBuilderEntry> reportBuilders = {
   'jump_squat': (builder: JumpSquatReportBuilderV2(), met: 8.0),
   'side_plank_dip': (builder: SidePlankDipReportBuilderV2(), met: 3.5),
   'step_back_burpee': (builder: StepBackBurpeeReportBuilderV2(), met: 8.0),
+  'step_up': (builder: StepUpReportBuilder(), met: 5.0),
+  'neck_side_stretch': (builder: NeckSideStretchReportBuilder(), met: 2.3),
+  'push_up_rotation': (builder: PushUpRotationReportBuilder(), met: 3.8),
 };
 
 const Map<String, String> _reportBuilderAliases = {

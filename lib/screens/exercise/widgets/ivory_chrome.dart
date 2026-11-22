@@ -302,96 +302,96 @@ class IvoryPauseOverlay extends StatelessWidget {
               ],
               Text(
                 isManualPause ? 'ĐÃ TẠM NGHỈ' : 'MẤT TÍN HIỆU',
-              style: TextStyle(
-                fontFamily: _font,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: VikaIvory.attention,
-                letterSpacing: 1.6,
+                style: TextStyle(
+                  fontFamily: _font,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: VikaIvory.attention,
+                  letterSpacing: 1.6,
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isManualPause ? 'Tạm nghỉ một chút?' : 'Bạn ở đâu rồi?',
-              style: TextStyle(
-                fontFamily: _font,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: VikaIvory.ink,
-                letterSpacing: -0.6,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isManualPause
-                  ? 'Tiến độ set này được giữ nguyên.\nẤn nút bên dưới để tiếp tục tập.'
-                  : 'Quay lại khung hình để AI tiếp tục theo dõi, hoặc ấn nút bên dưới.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: _font,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: VikaIvory.inkSoft,
-                letterSpacing: -0.1,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Resume button
-            GestureDetector(
-              onTap: onResume,
-              child: Container(
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
+              const SizedBox(height: 6),
+              Text(
+                isManualPause ? 'Tạm nghỉ một chút?' : 'Bạn ở đâu rồi?',
+                style: TextStyle(
+                  fontFamily: _font,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
                   color: VikaIvory.ink,
-                  borderRadius: BorderRadius.circular(26),
+                  letterSpacing: -0.6,
+                  height: 1.1,
                 ),
-                padding: const EdgeInsets.fromLTRB(22, 0, 6, 0),
-                child: Row(
-                  children: [
-                    Text('Tiếp tục tập',
-                        style: TextStyle(
-                          fontFamily: _font,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: VikaIvory.invInk,
-                          letterSpacing: -0.2,
-                        )),
-                    const Spacer(),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: VikaIvory.yellow,
-                        borderRadius: BorderRadius.circular(20),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isManualPause
+                    ? 'Tiến độ set này được giữ nguyên.\nẤn nút bên dưới để tiếp tục tập.'
+                    : 'Quay lại khung hình để AI tiếp tục theo dõi, hoặc ấn nút bên dưới.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: _font,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: VikaIvory.inkSoft,
+                  letterSpacing: -0.1,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Resume button
+              GestureDetector(
+                onTap: onResume,
+                child: Container(
+                  width: double.infinity,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: VikaIvory.ink,
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(22, 0, 6, 0),
+                  child: Row(
+                    children: [
+                      Text('Tiếp tục tập',
+                          style: TextStyle(
+                            fontFamily: _font,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: VikaIvory.invInk,
+                            letterSpacing: -0.2,
+                          )),
+                      const Spacer(),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: VikaIvory.yellow,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(Icons.play_arrow_rounded,
+                            size: 20, color: VikaIvory.yellowInk),
                       ),
-                      child: Icon(Icons.play_arrow_rounded,
-                          size: 20, color: VikaIvory.yellowInk),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
-            // End button
-            GestureDetector(
-              onTap: onEnd,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                child: Text('Kết thúc buổi tập',
-                    style: TextStyle(
-                      fontFamily: _font,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: VikaIvory.inkFaint,
-                      letterSpacing: -0.1,
-                    )),
+              const SizedBox(height: 10),
+              // End button
+              GestureDetector(
+                onTap: onEnd,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                  child: Text('Kết thúc buổi tập',
+                      style: TextStyle(
+                        fontFamily: _font,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: VikaIvory.inkFaint,
+                        letterSpacing: -0.1,
+                      )),
+                ),
               ),
-            ),
-          ],
+            ],
           ),
         ),
       ),

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/research/research_log_exporter.dart';
 import '../services/research/research_log_storage.dart';
 import '../services/research/research_preferences.dart';
-import '../theme/app_colors.dart';
+import '../widgets/tk/tk.dart';
 
 class ResearchSettingsScreen extends StatefulWidget {
   const ResearchSettingsScreen({
@@ -118,194 +118,121 @@ class _ResearchSettingsScreenState extends State<ResearchSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     final activeConfig = ResearchConfig(
       rawParticipantId: _participantController.text,
       condition: _condition,
     );
+    final fieldStyle = Tk.text(16, weight: FontWeight.w700);
+    OutlineInputBorder border(Color color) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: color, width: 2),
+        );
 
     return Scaffold(
-      backgroundColor: c.bg,
-      appBar: AppBar(
-        backgroundColor: c.bg,
-        foregroundColor: c.ink,
-        elevation: 0,
-        title: Text(
-          'Cài đặt nghiên cứu',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: c.ink,
-          ),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-              children: [
-                Text(
-                  'MÃ NGƯỜI THAM GIA',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
-                    color: c.inkSoft,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _participantController,
-                  textCapitalization: TextCapitalization.characters,
-                  onChanged: _saveParticipantId,
-                  onSubmitted: _saveParticipantId,
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: c.ink,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Ví dụ: P07 (để trống = anon)',
-                    hintStyle: TextStyle(
-                      fontFamily: 'BeVietnamPro',
-                      fontSize: 14,
-                      color: c.inkFaint,
-                    ),
-                    filled: true,
-                    fillColor: c.bgRaised,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: c.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: c.border),
-                    ),
-                    suffixIcon: _participantController.text.isNotEmpty
-                        ? IconButton(
-                            tooltip: 'Xóa mã',
-                            icon: Icon(Icons.clear_rounded, color: c.inkSoft),
-                            onPressed: () {
-                              _participantController.clear();
-                              _saveParticipantId('');
-                            },
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Mã đang ghi vào tệp: ${activeConfig.participantId}',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 12.5,
-                    color: c.inkSoft,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  'ĐIỀU KIỆN THỬ NGHIỆM',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
-                    color: c.inkSoft,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ConditionOptionTile(
-                  title: 'Có phản hồi AI (ai)',
-                  subtitle:
-                      'Hiển thị bộ đếm, khung xương, điểm số và giọng nhắc kỹ thuật như bình thường.',
-                  selected: _condition == ResearchCondition.ai,
-                  onTap: () => _selectCondition(ResearchCondition.ai),
-                ),
-                const SizedBox(height: 10),
-                _ConditionOptionTile(
-                  title: 'Đối chứng — không phản hồi (control)',
-                  subtitle:
-                      'Tắt giọng sửa lỗi, bộ đếm, khung xương và điểm số; vẫn chấm và lưu nhật ký ngầm.',
-                  selected: _condition == ResearchCondition.control,
-                  onTap: () => _selectCondition(ResearchCondition.control),
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  'TỆP NHẬT KÝ TRÊN MÁY',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.4,
-                    color: c.inkSoft,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: c.bgRaised,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Số tệp nhật ký đang lưu: $_storedFileCount',
-                        style: TextStyle(
-                          fontFamily: 'BeVietnamPro',
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: c.ink,
+      backgroundColor: Tk.surface,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TkTopBar(onBack: () => Navigator.of(context).maybePop()),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(color: Tk.primary))
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(24, 6, 24, 32),
+                      children: [
+                        Text('Cài đặt nghiên cứu', style: Tk.text(28, weight: FontWeight.w900, letterSpacing: -0.4)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Chỉ dùng khi tham gia thử nghiệm.',
+                          style: Tk.text(15, weight: FontWeight.w700, color: Tk.inkSoft),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tối đa 300 tệp mới nhất được giữ trong bộ nhớ riêng của ứng dụng.',
-                        style: TextStyle(
-                          fontFamily: 'BeVietnamPro',
-                          fontSize: 12.5,
-                          color: c.inkSoft,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Builder(
-                        builder: (buttonContext) => SizedBox(
-                          height: 50,
-                          child: FilledButton.icon(
-                            onPressed: (_sharing || _storedFileCount == 0)
-                                ? null
-                                : () => _shareAll(buttonContext),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: c.yellow,
-                              foregroundColor: c.yellowInk,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            icon: const Icon(Icons.ios_share_rounded, size: 18),
-                            label: Text(
-                              _sharing
-                                  ? 'Đang chuẩn bị chia sẻ…'
-                                  : 'Chia sẻ tất cả tệp nhật ký',
-                              style: const TextStyle(
-                                fontFamily: 'BeVietnamPro',
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                        const SizedBox(height: 22),
+                        Text('MÃ NGƯỜI THAM GIA', style: Tk.eyebrow()),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _participantController,
+                          textCapitalization: TextCapitalization.characters,
+                          onChanged: _saveParticipantId,
+                          onSubmitted: _saveParticipantId,
+                          cursorColor: Tk.primary,
+                          style: fieldStyle,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            filled: true,
+                            fillColor: Tk.surfaceSoft,
+                            hintText: 'Ví dụ: P07 (để trống = anon)',
+                            hintStyle: fieldStyle.copyWith(color: Tk.inkMuted),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            enabledBorder: border(const Color(0xFFE1E3F0)),
+                            focusedBorder: border(Tk.primary),
+                            suffixIcon: _participantController.text.isNotEmpty
+                                ? IconButton(
+                                    tooltip: 'Xóa mã',
+                                    icon: const Icon(Icons.clear_rounded, color: Tk.inkSoft),
+                                    onPressed: () {
+                                      _participantController.clear();
+                                      _saveParticipantId('');
+                                    },
+                                  )
+                                : null,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                        const SizedBox(height: 6),
+                        Text(
+                          'Mã đang ghi vào tệp: ${activeConfig.participantId}',
+                          style: Tk.text(13, weight: FontWeight.w700, color: Tk.inkSoft),
+                        ),
+                        const SizedBox(height: 24),
+                        Text('ĐIỀU KIỆN THỬ NGHIỆM', style: Tk.eyebrow()),
+                        const SizedBox(height: 8),
+                        _ConditionOptionTile(
+                          title: 'Có phản hồi AI (ai)',
+                          subtitle: 'Hiển thị bộ đếm, khung xương, điểm số và giọng nhắc kỹ thuật như bình thường.',
+                          selected: _condition == ResearchCondition.ai,
+                          onTap: () => _selectCondition(ResearchCondition.ai),
+                        ),
+                        const SizedBox(height: 10),
+                        _ConditionOptionTile(
+                          title: 'Đối chứng — không phản hồi (control)',
+                          subtitle: 'Tắt giọng sửa lỗi, bộ đếm, khung xương và điểm số; vẫn chấm và lưu nhật ký ngầm.',
+                          selected: _condition == ResearchCondition.control,
+                          onTap: () => _selectCondition(ResearchCondition.control),
+                        ),
+                        const SizedBox(height: 24),
+                        Text('TỆP NHẬT KÝ TRÊN MÁY', style: Tk.eyebrow()),
+                        const SizedBox(height: 8),
+                        TkCard(
+                          lip: false,
+                          radius: 18,
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text('Số tệp nhật ký đang lưu: $_storedFileCount', style: Tk.text(16, weight: FontWeight.w900)),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tối đa 300 tệp mới nhất được giữ trong bộ nhớ riêng của ứng dụng.',
+                                style: Tk.text(13, weight: FontWeight.w600, color: Tk.inkSoft, height: 1.4),
+                              ),
+                              const SizedBox(height: 14),
+                              Builder(
+                                builder: (buttonContext) => TkButton(
+                                  label: _sharing ? 'Đang chuẩn bị chia sẻ…' : 'Chia sẻ tất cả tệp nhật ký',
+                                  icon: Icons.ios_share_rounded,
+                                  busy: _sharing,
+                                  onTap: _storedFileCount == 0 ? null : () => _shareAll(buttonContext),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
             ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -325,28 +252,21 @@ class _ConditionOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: TkCard(
+        onTap: onTap,
+        radius: 18,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: c.bgRaised,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? c.yellow : c.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
+        color: selected ? Tk.primarySoft : Tk.surface,
+        borderColor: selected ? Tk.primary : Tk.line,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              selected
-                  ? Icons.radio_button_checked_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: selected ? c.yellow : c.inkFaint,
+              selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+              color: selected ? Tk.primary : Tk.inkMuted,
               size: 22,
             ),
             const SizedBox(width: 12),
@@ -354,25 +274,9 @@ class _ConditionOptionTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: 'BeVietnamPro',
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w800,
-                      color: c.ink,
-                    ),
-                  ),
+                  Text(title, style: Tk.text(15, weight: FontWeight.w900, color: selected ? Tk.primaryLip : Tk.ink)),
                   const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontFamily: 'BeVietnamPro',
-                      fontSize: 12.5,
-                      height: 1.4,
-                      color: c.inkSoft,
-                    ),
-                  ),
+                  Text(subtitle, style: Tk.text(13, weight: FontWeight.w600, color: Tk.inkSoft, height: 1.4)),
                 ],
               ),
             ),

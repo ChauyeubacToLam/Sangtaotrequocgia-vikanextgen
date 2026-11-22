@@ -3003,6 +3003,12 @@ and ankle Y within 0.55 torso (`:216-219`). Elbow angle is never computed.
 **Anti-cheat.** Hands and feet must stay on one ground line, and the user must return to seated
 before the next lift (tested). Nothing checks that the elbows bend.
 
+CHANGED 2026-11-21 (device test, `docs/field-test-log.md` 5.11): the hip-lift table above is gone.
+Reps are counted on the camera-side elbow angle: below 150 starts the descent, at or below 120 is the
+bottom, at or above 130 starts the push, at or above 150 counts the rep (2 frames each, hands and feet
+still grounded). The hips may stay off the floor between reps; a hip lift with straight arms is not a
+rep. Rep logs carry `min_elbow_angle` and `top_elbow_angle`.
+
 **Faults.** **None are evaluated.** The four metric objects are created (`:60-64`) but no code calls
 their `update` or `onStateTransition`; `_completeRep` builds an empty fault list (`:295-297`), so every
 rep is logged with `correctForm = true`, and `liveFaults` is not overridden. The table lists what

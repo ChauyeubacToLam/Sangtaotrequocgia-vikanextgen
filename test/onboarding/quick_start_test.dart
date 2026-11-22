@@ -110,28 +110,28 @@ void main() {
       // Three goal cards, no CTA yet.
       expect(find.text('Đau mỏi, giãn cơ'), findsOneWidget);
       expect(find.text('Bài tập nổi tiếng'), findsOneWidget);
-      expect(find.text('Tiếp tục'), findsNothing);
+      expect(find.text('BẮT ĐẦU TẬP'), findsNothing);
 
       await tester.tap(find.text('Tăng cơ, giảm mỡ'));
       await tester.pump(const Duration(milliseconds: 1600));
       expect(find.text('Giảm mỡ toàn thân'), findsOneWidget);
-      expect(find.text('Chọn một bài để tiếp'), findsOneWidget);
+      expect(find.text('CHỌN MỘT BÀI ĐỂ TIẾP'), findsOneWidget);
       // Age 28, muscle goal: "Vừa sức" is suggested and preselected.
-      expect(find.text('Gợi ý'), findsOneWidget);
+      expect(find.text('GỢI Ý'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.text('Giảm mỡ toàn thân'));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Tiếp tục'), findsOneWidget);
-      await tester.tap(find.text('Tiếp tục'));
+      expect(find.text('BẮT ĐẦU TẬP'), findsOneWidget);
+      await tester.tap(find.text('BẮT ĐẦU TẬP'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(continued, 1);
 
       // Switching goal drops the program picked under the old goal.
       await tester.tap(find.text('Nổi tiếng'));
       await tester.pump(const Duration(milliseconds: 1600));
-      expect(find.text('Herschel Walker'), findsOneWidget);
-      expect(find.text('Chọn một bài để tiếp'), findsOneWidget);
+      expect(find.text('Cristiano Ronaldo'), findsOneWidget);
+      expect(find.text('CHỌN MỘT BÀI ĐỂ TIẾP'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -165,15 +165,22 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(tookOverAuth, isTrue);
-      expect(find.text('Tạo tài khoản'), findsNWidgets(2)); // tab + button
+      expect(find.text('BẮT ĐẦU NGAY'), findsOneWidget);
+      await tester.tap(find.text('BẮT ĐẦU NGAY'));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Tạo tài khoản'), findsNWidgets(2));
       expect(find.textContaining('16 tuổi'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Đăng nhập').first);
+      await tester.pump();
       await tester.tap(find.text('Đăng nhập').first);
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.textContaining('Chào mừng'), findsOneWidget);
+      expect(find.textContaining('Mừng bạn quay lại'), findsOneWidget);
       expect(find.text('Đăng nhập'), findsNWidgets(2));
 
-      await tester.tap(find.text('Đăng nhập').last);
+      await tester.tap(find.text('ĐĂNG NHẬP'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Email chưa đúng định dạng.'), findsOneWidget);
 

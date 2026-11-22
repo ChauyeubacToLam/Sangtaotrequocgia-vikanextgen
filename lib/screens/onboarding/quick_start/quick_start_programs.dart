@@ -39,7 +39,12 @@ const quickPrograms = <QuickProgram>[
     name: 'Đau mỏi lưng dưới',
     note: 'Bài ổn định cột sống của GS Stuart McGill. Đau dữ dội, tê chân '
         'hoặc sau mổ: hãy đi khám trước.',
-    exerciseIds: ['mcgill_curlup', 'bird_dog', 'side_plank_dip', 'glute_bridge'],
+    exerciseIds: [
+      'mcgill_curlup',
+      'bird_dog',
+      'side_plank_dip',
+      'glute_bridge'
+    ],
   ),
   QuickProgram(
     id: 'stretch_lower_body',
@@ -87,6 +92,21 @@ const quickPrograms = <QuickProgram>[
 
   // ─── Bài tập nổi tiếng ──────────────────────────────────────────────
   QuickProgram(
+    id: 'famous_ronaldo',
+    goal: QuickGoal.famous,
+    name: 'Cristiano Ronaldo',
+    note: 'Bụng, chân và sức bật theo phong cách của Ronaldo. Không phải lịch '
+        'tập chính thức của anh ấy.',
+    exerciseIds: ['situp', 'leg_raises', 'jump_squat', 'lunge'],
+  ),
+  QuickProgram(
+    id: 'famous_tyson',
+    goal: QuickGoal.famous,
+    name: 'Mike Tyson',
+    note: 'Bốn động tác trong bài tập không tạ của Mike Tyson.',
+    exerciseIds: ['squat', 'push_up', 'tricep_dip', 'situp'],
+  ),
+  QuickProgram(
     id: 'famous_walker',
     goal: QuickGoal.famous,
     name: 'Herschel Walker',
@@ -119,8 +139,25 @@ const quickPrograms = <QuickProgram>[
   ),
 ];
 
-List<QuickProgram> programsFor(QuickGoal goal) =>
-    [for (final p in quickPrograms) if (p.goal == goal) p];
+const quickProgramMonograms = {
+  'famous_ronaldo': 'CR7',
+  'famous_tyson': 'MT',
+  'famous_walker': 'HW',
+  'famous_bruce_lee': 'LTL',
+  'famous_acsm_7min': '7′',
+};
+
+const quickProgramPortraits = {
+  'famous_ronaldo': 'assets/famous/ronaldo.webp',
+  'famous_tyson': 'assets/famous/tyson.webp',
+  'famous_walker': 'assets/famous/walker.webp',
+  'famous_bruce_lee': 'assets/famous/bruce_lee.webp',
+};
+
+List<QuickProgram> programsFor(QuickGoal goal) => [
+      for (final p in quickPrograms)
+        if (p.goal == goal) p
+    ];
 
 /// Level keys match `profiles.fitness_level`.
 const quickLevels = ['beginner', 'intermediate', 'advanced'];

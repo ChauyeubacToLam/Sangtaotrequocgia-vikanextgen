@@ -24,8 +24,8 @@ Tài liệu này hướng dẫn cách xem video quay người tập và điền 
 | `rep_n` | Có | Số thứ tự lần tập/giữ do chính HLV đếm tuần tự trong hiệp (`1, 2, 3, ...`). Nếu cả hiệp người tập hoàn toàn không thực hiện lần nào, ghi 1 dòng `rep_n = 0` và `counted = 0`. | `1`, `2`, `3` |
 | `video_t_s` | Khuyến khích | **Số giây tính từ tiếng "bíp" bắt đầu của ứng dụng** (nghe thấy trong video) **đến thời điểm kết thúc lần tập/giữ đó**. Ví dụ: tiếng bíp ở giây `4.2` của video, rep 1 kết thúc ở giây `16.6` → điền `12.4`. Nếu video mất tiếng bíp hoặc không xác định được, **để trống**. **Plank:** ứng dụng phát lại đúng tiếng bíp này sau mỗi lần nghỉ giữa các lần giữ, nên luôn lấy tiếng bíp **đầu tiên** của hiệp làm mốc. | `12.4` (hoặc để trống) |
 | `counted` | Có | Điền **`1`** nếu HLV công nhận đây là 1 rep hợp lệ (hoặc 1 lần giữ Plank đủ ~15 giây). Điền **`0`** nếu là nhịp thử dở dang / nửa rep / gãy tư thế Plank sớm trước 15 giây. | `1` hoặc `0` |
-| `faults` | Có (để trống nếu chuẩn) | Danh sách mã lỗi tư thế của lần tập đó (xem Bảng mã lỗi ở Mục 3). Nếu tập chuẩn không lỗi: **để trống**. Nếu có từ 2 lỗi trở lên trong cùng 1 rep: nối bằng dấu chấm phẩy **`;`** (không dùng dấu phẩy `,`). | `depth` hoặc `depth;heel` |
-| `note` | Tùy chọn | Ghi chú ngắn gọn bằng tiếng Việt (không ảnh hưởng đến phép tính tự động). | `kiễng gót ở đáy` |
+| `faults` | Có (để trống nếu chuẩn) | Danh sách mã lỗi tư thế của lần tập đó (xem Bảng mã lỗi ở Mục 3). Nếu tập chuẩn không lỗi: **để trống**. Nếu có từ 2 lỗi trở lên trong cùng 1 rep: nối bằng dấu chấm phẩy **`;`** (không dùng dấu phẩy `,`). | `depth` hoặc `depth;tempo` |
+| `note` | Tùy chọn | Ghi chú ngắn gọn bằng tiếng Việt (không ảnh hưởng đến phép tính tự động). | `thả rơi ở đáy` |
 
 ---
 
@@ -40,7 +40,6 @@ Thời điểm kết thúc rep (`video_t_s`): khi người tập đứng thẳng
 |---|---|
 | `depth` | **Chưa đủ sâu:** Đùi chưa hạ đủ thấp (góc gối ở đáy còn mở lớn, squat nông). |
 | `trunk` | **Đổ người quá mức / ngả sau:** Thân trên gập đổ về phía trước quá nhiều (hoặc ngả ngược ra sau). |
-| `heel` | **Kiễng / nhấc gót chân:** Gót chân bị nhấc rời khỏi mặt sàn trong lúc xuống hoặc lên. |
 | `tempo` | **Nhịp độ thiếu kiểm soát:** Thả rơi người xuống quá nhanh, bật nảy ở đáy không có điểm dừng ngắn, hoặc mất kiểm soát pha hạ. |
 | `sync` | **Hông lên trước vai (Good-morning squat):** Khi đứng lên, mông/hông bật cao nhanh hơn vai làm lưng gập xuống. |
 

@@ -27,7 +27,7 @@
    ========================================================================= */
 
 import 'push_up_metric_base.dart';
-import '../../../../utils/debouncer.dart';
+import '../../../utils/debouncer.dart';
 
 class TrunkAlignmentConfig {
   /// Sag thresholds (positive deviation = hips dropping)

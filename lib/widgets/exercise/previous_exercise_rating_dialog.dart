@@ -28,6 +28,7 @@ import 'package:flutter/services.dart';
 import '../../interpreter/interpreter_base.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/vf_theme.dart';
+import '../../screens/exercise/widgets/sensor_rotated_box.dart';
 
 Future<String> showPreviousExerciseRatingDialog(
   BuildContext context, {
@@ -42,10 +43,12 @@ Future<String> showPreviousExerciseRatingDialog(
     barrierColor: const Color(0xFF15110D).withValues(alpha: 0.82),
     transitionDuration: const Duration(milliseconds: 440),
     pageBuilder: (context, anim1, anim2) {
-      return _PreviousExerciseRatingDialog(
-        exerciseName: exerciseName,
-        formScore: formScore,
-        issueQuestion: issueQuestion,
+      return SensorRotatedBox(
+        child: _PreviousExerciseRatingDialog(
+          exerciseName: exerciseName,
+          formScore: formScore,
+          issueQuestion: issueQuestion,
+        ),
       );
     },
     transitionBuilder: (context, anim, secondaryAnim, child) {
@@ -136,8 +139,6 @@ class _PreviousExerciseRatingDialogState
   void _answerIssue(bool answer) {
     setState(() => _issueAnswer = answer);
     HapticFeedback.selectionClick();
-    // TODO(wiring): capture issue-confirm answer (_issueAnswer); it is not
-    // persisted and not threaded to any consumer.
   }
 
   void _continue() {

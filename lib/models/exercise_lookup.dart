@@ -67,6 +67,15 @@ String _exerciseAlias(String value) {
     'sphinxstretch' => 'sphinx_',
     'suryanamaskarexercise' => 'surya_namaskar',
     'nhydng' => 'jumping_jack',
+    'stepups' => 'step_up',
+    'boxstepup' => 'step_up',
+    'chairstepup' => 'step_up',
+    'neckstretch' => 'neck_side_stretch',
+    'lateralneckstretch' => 'neck_side_stretch',
+    'necklateralflexionstretch' => 'neck_side_stretch',
+    'tpushup' => 'push_up_rotation',
+    'rotationpushup' => 'push_up_rotation',
+    'pushupwithrotation' => 'push_up_rotation',
     _ => value,
   };
 }

@@ -1,47 +1,19 @@
-// PlanScreen — the completion-anchored Plan tab ("Progress Ledger on a Spine").
-//
-// THE MODEL SHIFT: progression advances by COMPLETING sessions, never by the
-// calendar. There are no dates, no weekday pins, no "this week = 7 dates". A
-// "block" is a progression unit (shown as "TUẦN N · <phase>"); its sessions
-// are an ordered sequence ("Buổi 1 / 2 / 3"). Every status — block, session,
-// retest — is derived ONLY from completion (done · current · upcoming), and the
-// single NEXT session is the one unmistakable thing to tap.
-//
-// Composition, top → bottom:
-//   • ProgramStageHero      dark stage: completion bezel + current block +
-//                           NEXT-up entry + the one halo CTA
-//   • ProgramSessionLedger  §SỔ BUỔI — selected block's sessions (done show
-//                           form + difficulty; done rows expand per-exercise)
-//   • ProgramBlockSequence  §CHẶNG ĐƯỜNG — the 7 blocks on a continuous spine
-//   • ProgramRetestBeat     end-of-program retest (completion-gated lock)
-//   • EditorialCloser
-//
-// DATA: a real ProgramPlan, mapped from the engine snapshot + completion
-// records via ProgramPlanMapper.fromSnapshot. Loaded async in _loadProgram
-// (active plan snapshot + catalog name/AI lookup + logged session results),
-// and reloaded after a completed workout so the ledger reflects the session
-// just finished. The prior mock-only presentation is preserved in
-// plan_screen_legacy.dart.
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../data/library_mock.dart';
 import '../data/program_mock.dart';
 import '../services/recommendation/program_plan_mapper.dart';
 import '../services/recommendation/recommendation_service.dart';
+import '../services/research/research_preferences.dart';
 import '../services/session_persistence.dart';
 import '../services/user_profile_service.dart';
 import '../services/user_program_service.dart';
 import '../services/workout_launch_service.dart';
-import '../theme/app_colors.dart';
-import '../theme/responsive.dart';
 import '../utils/orientation_lock.dart';
-import '../widgets/ivory/skeleton.dart';
-import '../widgets/plan/editorial_closer.dart';
-import '../widgets/plan/program/program_session_ledger.dart';
-import '../widgets/plan/program/program_stage_hero.dart';
-import '../widgets/plan/wordmark_header.dart';
+import '../widgets/tk/tk.dart';
 import 'exercise/exercise_launch_args.dart';
 
 class PlanScreen extends StatefulWidget {
@@ -80,7 +52,6 @@ class _PlanScreenState extends State<PlanScreen> {
   /// null = still loading. Non-null with empty blocks = no active plan.
   ProgramPlan? _program;
   int _selectedBlockIndex = 0;
-  int? _expandedSessionIndex;
   bool _loadingProgram = false;
   bool _programReloadQueued = false;
 
@@ -157,7 +128,6 @@ class _PlanScreenState extends State<PlanScreen> {
         // Re-point to the current block (advances after a completed session).
         _selectedBlockIndex =
             mapped.blocks.isEmpty ? 0 : mapped.currentBlockIndex;
-        _expandedSessionIndex = null;
       });
     } finally {
       _loadingProgram = false;
@@ -174,15 +144,6 @@ class _PlanScreenState extends State<PlanScreen> {
     if (index == _selectedBlockIndex) return;
     setState(() {
       _selectedBlockIndex = index;
-      // Expansion is per-block; don't carry an open row across blocks.
-      _expandedSessionIndex = null;
-    });
-  }
-
-  void _toggleSessionExpand(int sessionIndex) {
-    setState(() {
-      _expandedSessionIndex =
-          _expandedSessionIndex == sessionIndex ? null : sessionIndex;
     });
   }
 
@@ -240,243 +201,262 @@ class _PlanScreenState extends State<PlanScreen> {
     return completedFinalSlot;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final r = Responsive.of(context);
-
-    final program = _program;
-
-    // Loading: snapshot/catalog fetch in flight — shimmer a stand-in plan
-    // (hero + ledger) instead of a bare spinner.
-    if (program == null) {
-      return _PlanSkeleton(
-        bottomPadding: widget.bottomPadding,
-        userProfile: widget.userProfile,
-      );
-    }
-
-    // No active plan (e.g. onboarding not finished). Graceful, never crashes
-    // the block indexing below.
-    if (program.blocks.isEmpty) {
-      return Container(
-        color: c.bg,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Text(
-          'Chưa có lộ trình. Hoàn tất thiết lập để Vika lên kế hoạch cho bạn nhé.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: c.inkSoft, height: 1.5),
-        ),
-      );
-    }
-
-    // The retest is folded into the session ledger as the final beat of the
-    // LAST block (no separate card); show it only when that block is selected.
-    final isLastBlock = _selectedBlockIndex == program.blocks.length - 1;
-
-    return Container(
-      color: c.bg,
-      child: MediaQuery.removePadding(
-        // Defeat MainShell's top SafeArea so the dark hero bleeds into the
-        // status-bar area, then re-apply the inset inside the hero — same
-        // trick as Home.
-        context: context,
-        removeTop: true,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.only(bottom: widget.bottomPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ProgramStageHero(
-                program: program,
-                selectedIndex: _selectedBlockIndex,
-                onSelectBlock: _selectBlock,
-                onStartNext: _startNextSession,
-                userInitial: widget.userProfile?.initial ?? 'N',
-                avatarUrl: widget.userProfile?.avatarUrl,
-              ),
-              SizedBox(height: r.gap(34)),
-              ProgramSessionLedger(
-                block: _selectedBlock,
-                expandedIndex: _expandedSessionIndex,
-                onToggleExpand: _toggleSessionExpand,
-                onStartNext: _startNextSession,
-                retest: isLastBlock ? program.retest : null,
-                retestUnlocked: program.allBlocksDone,
-                onStartRetest: program.allBlocksDone ? _startNextSession : null,
-              ),
-              SizedBox(height: r.gap(38)),
-              const EditorialCloser(
-                section: 'LỘ TRÌNH',
-                tagline: 'Tiến từng buổi, không vội.',
-              ),
-              const SizedBox(height: 28),
-            ],
-          ),
-        ),
+  void _openSession(PlanSession session, {required bool startable}) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _SessionSheet(
+        title: session.title.isEmpty
+            ? 'Buổi ${session.index + 1}'
+            : 'Buổi ${session.index + 1} · ${session.title}',
+        meta: [
+          '${session.exerciseCount} bài',
+          if (session.durationLabel.isNotEmpty) session.durationLabel,
+        ].join(' · '),
+        note: session.coachNote,
+        exercises: session.exercises,
+        status: session.status,
+        onStart: startable
+            ? () {
+                Navigator.of(context).pop();
+                unawaited(_startNextSession());
+              }
+            : null,
       ),
     );
   }
-}
 
-// ═══════════════════════════════════════════════════════════════
-// LOADING SKELETON — mirrors the program hero + session ledger so the
-// swap to the real plan lands without a layout jump.
-// ═══════════════════════════════════════════════════════════════
-
-class _PlanSkeleton extends StatelessWidget {
-  const _PlanSkeleton({
-    required this.bottomPadding,
-    this.userProfile,
-  });
-
-  final double bottomPadding;
-  final AppUserProfile? userProfile;
+  void _openRetest(ProgramRetest retest, {required bool startable}) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _SessionSheet(
+        title: retest.title,
+        meta: retest.description,
+        note: retest.coachNote,
+        exercises: retest.exercises,
+        status: retest.status,
+        onStart: startable
+            ? () {
+                Navigator.of(context).pop();
+                unawaited(_startNextSession());
+              }
+            : null,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final topInset = MediaQuery.viewPaddingOf(context).top;
-    return Container(
-      color: c.bg,
-      child: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.only(bottom: bottomPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Dark stage hero
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(36)),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: const Alignment(-0.7, -1),
-                      end: const Alignment(0.7, 1),
-                      colors: [c.bgInverse, c.bgInverseHi],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: c.ink.withValues(alpha: 0.22),
-                        blurRadius: 48,
-                        offset: const Offset(0, 14),
-                      ),
-                    ],
+    final program = _program;
+    if (program == null) {
+      return const ColoredBox(
+        color: Tk.surface,
+        child: Center(child: CircularProgressIndicator(color: Tk.primary)),
+      );
+    }
+    if (program.blocks.isEmpty) {
+      return ColoredBox(
+        color: Tk.surface,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!ResearchPreferences.cachedConfig.isControl)
+                  const TkMascot(asset: Tk.mascotThink, size: 160),
+                const SizedBox(height: 12),
+                Text(
+                  'Chưa có lộ trình. Hoàn tất thiết lập để Vika lên kế hoạch cho bạn nhé.',
+                  textAlign: TextAlign.center,
+                  style: Tk.text(16,
+                      weight: FontWeight.w700, color: Tk.inkSoft, height: 1.45),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final block = _selectedBlock;
+    final isCurrentBlock = _selectedBlockIndex == program.currentBlockIndex;
+    final isLastBlock = _selectedBlockIndex == program.blocks.length - 1;
+    final retest = isLastBlock ? program.retest : null;
+    final nextBlock = _selectedBlockIndex + 1 < program.blocks.length
+        ? program.blocks[_selectedBlockIndex + 1]
+        : null;
+    final showMascot = !ResearchPreferences.cachedConfig.isControl;
+
+    return ColoredBox(
+      color: Tk.surface,
+      child: SafeArea(
+        bottom: false,
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.only(bottom: widget.bottomPadding + 20),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lộ trình của bạn',
+                      style: Tk.text(28,
+                          weight: FontWeight.w900, letterSpacing: -0.4)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${program.blocksTotal} tuần · Tiến từng buổi, không vội.',
+                    style:
+                        Tk.text(15, weight: FontWeight.w700, color: Tk.inkSoft),
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.only(top: topInset),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 62,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                itemCount: program.blocks.length,
+                separatorBuilder: (context, i) => const SizedBox(width: 8),
+                itemBuilder: (context, i) => _WeekChip(
+                  block: program.blocks[i],
+                  selected: i == _selectedBlockIndex,
+                  onTap: () => _selectBlock(i),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: _BlockBanner(block: block),
+            ),
+            const SizedBox(height: 10),
+            for (var i = 0; i < block.sessions.length; i++)
+              _PathRow(
+                offset: _pathOffsets[i % _pathOffsets.length],
+                mascot:
+                    showMascot && isCurrentBlock && block.sessions[i].isNext,
+                child: _SessionNode(
+                  session: block.sessions[i],
+                  live: isCurrentBlock,
+                  onTap: () {
+                    final s = block.sessions[i];
+                    if (isCurrentBlock && s.isNext) {
+                      unawaited(_startNextSession());
+                    } else {
+                      _openSession(s, startable: false);
+                    }
+                  },
+                  onLongPress: () => _openSession(block.sessions[i],
+                      startable: isCurrentBlock && block.sessions[i].isNext),
+                ),
+              ),
+            if (retest != null)
+              _PathRow(
+                offset:
+                    _pathOffsets[block.sessions.length % _pathOffsets.length],
+                mascot: false,
+                child: _RetestNode(
+                  retest: retest,
+                  unlocked: program.allBlocksDone,
+                  onTap: () => _openRetest(retest,
+                      startable: program.allBlocksDone &&
+                          retest.status != ProgramStatus.done),
+                ),
+              ),
+            if (nextBlock != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: GestureDetector(
+                  onTap: () => _selectBlock(_selectedBlockIndex + 1),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border:
+                          Border.all(color: const Color(0xFFDADCEB), width: 2),
+                    ),
+                    child: Row(
                       children: [
-                        WordmarkHeader(
-                          inverted: true,
-                          userInitial: userProfile?.initial ?? 'N',
-                          avatarUrl: userProfile?.avatarUrl,
-                          trailingIcon: Icons.menu_book_rounded,
-                          trailingTooltip: 'Sổ tập',
-                        ),
-                        const SizedBox(height: 22),
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(24, 0, 24, 28),
-                          child: Shimmer(
-                            inverted: true,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Eyebrow
-                                SkeletonBox(
-                                    width: 130, height: 12, inverted: true),
-                                SizedBox(height: 20),
-                                // Headline — two lines
-                                SkeletonBox(
-                                    width: 240,
-                                    height: 38,
-                                    radius: 9,
-                                    inverted: true),
-                                SizedBox(height: 11),
-                                SkeletonBox(
-                                    width: 170,
-                                    height: 38,
-                                    radius: 9,
-                                    inverted: true),
-                                SizedBox(height: 24),
-                                // Completion bezel — block selector chips
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: SkeletonBox(
-                                            height: 56,
-                                            radius: 16,
-                                            inverted: true)),
-                                    SizedBox(width: 8),
-                                    Expanded(
-                                        child: SkeletonBox(
-                                            height: 56,
-                                            radius: 16,
-                                            inverted: true)),
-                                    SizedBox(width: 8),
-                                    Expanded(
-                                        child: SkeletonBox(
-                                            height: 56,
-                                            radius: 16,
-                                            inverted: true)),
-                                    SizedBox(width: 8),
-                                    Expanded(
-                                        child: SkeletonBox(
-                                            height: 56,
-                                            radius: 16,
-                                            inverted: true)),
-                                  ],
-                                ),
-                                SizedBox(height: 22),
-                                // Stat row
-                                Row(
-                                  children: [
-                                    SkeletonBox(
-                                        width: 78, height: 12, inverted: true),
-                                    SizedBox(width: 14),
-                                    SkeletonBox(
-                                        width: 58, height: 12, inverted: true),
-                                    SizedBox(width: 14),
-                                    SkeletonBox(
-                                        width: 68, height: 12, inverted: true),
-                                  ],
-                                ),
-                                SizedBox(height: 20),
-                                // CTA pill
-                                SkeletonBox(
-                                    height: 54, radius: 999, inverted: true),
-                              ],
-                            ),
+                        Expanded(
+                          child: Text(
+                            'TUẦN ${nextBlock.blockNumber} · ${nextBlock.phaseName.toUpperCase()}',
+                            style: Tk.text(14,
+                                weight: FontWeight.w900, color: Tk.inkSoft),
                           ),
+                        ),
+                        Icon(
+                          nextBlock.status == ProgramStatus.upcoming
+                              ? Icons.lock_rounded
+                              : Icons.chevron_right_rounded,
+                          color: Tk.inkSoft,
+                          size: 20,
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 34),
-              // Session ledger
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Shimmer(
-                  child: Column(
-                    children: [
-                      _LedgerRowSkeleton(),
-                      SizedBox(height: 12),
-                      _LedgerRowSkeleton(),
-                      SizedBox(height: 12),
-                      _LedgerRowSkeleton(),
-                    ],
-                  ),
-                ),
-              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _pathOffsets = <double>[0, 58, 0, -58];
+
+class _WeekChip extends StatelessWidget {
+  const _WeekChip(
+      {required this.block, required this.selected, required this.onTap});
+
+  final ProgramBlock block;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, border) = switch ((selected, block.status)) {
+      (true, _) => (Tk.ink, Colors.white, Tk.ink),
+      (false, ProgramStatus.done) => (Tk.greenSoft, Tk.greenInk, Tk.greenSoft),
+      (false, ProgramStatus.current) => (
+          Tk.primarySoft,
+          Tk.primaryLip,
+          Tk.primaryLine
+        ),
+      (false, ProgramStatus.upcoming) => (Tk.surface, Tk.inkSoft, Tk.line),
+    };
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: border, width: 2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (block.status == ProgramStatus.done) ...[
+                Icon(Icons.check_rounded, size: 16, color: fg),
+                const SizedBox(width: 4),
+              ],
+              Text('Tuần ${block.blockNumber}',
+                  style: Tk.text(14, weight: FontWeight.w900, color: fg)),
             ],
           ),
         ),
@@ -485,39 +465,428 @@ class _PlanSkeleton extends StatelessWidget {
   }
 }
 
-/// A single session-ledger row stand-in: index medallion + title/meta + a
-/// trailing chevron block.
-class _LedgerRowSkeleton extends StatelessWidget {
-  const _LedgerRowSkeleton();
+class _BlockBanner extends StatelessWidget {
+  const _BlockBanner({required this.block});
+
+  final ProgramBlock block;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
+    final total = block.sessionsTotal;
+    final done = block.sessionsDone;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
-        color: c.bgRaised,
+        color: Tk.primary,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: c.border),
+        boxShadow: const [
+          BoxShadow(color: Tk.primaryLip, offset: Offset(0, 4))
+        ],
       ),
-      child: const Row(
+      child: Row(
         children: [
-          SkeletonCircle(size: 38),
-          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
-                SkeletonBox(width: 150, height: 13),
-                SizedBox(height: 9),
-                SkeletonBox(width: 90, height: 11),
+                Text(
+                  'TUẦN ${block.blockNumber} · ${block.phaseName.toUpperCase()}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Tk.text(12.5,
+                      weight: FontWeight.w900,
+                      color: const Color(0xFFDCE4FF),
+                      letterSpacing: 1),
+                ),
+                const SizedBox(height: 2),
+                Text('Đã xong $done/$total buổi',
+                    style: Tk.text(18,
+                        weight: FontWeight.w900, color: Colors.white)),
+                if (block.focusLabel.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    block.focusLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Tk.text(13,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFFDCE4FF)),
+                  ),
+                ],
               ],
             ),
           ),
-          SizedBox(width: 12),
-          SkeletonBox(width: 18, height: 18, radius: 5),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: CircularProgressIndicator(
+              value: total == 0 ? 0 : done / total,
+              strokeWidth: 6,
+              strokeCap: StrokeCap.round,
+              backgroundColor: const Color(0xFF4E78F0),
+              color: Colors.white,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _PathRow extends StatelessWidget {
+  const _PathRow(
+      {required this.offset, required this.mascot, required this.child});
+
+  final double offset;
+  final bool mascot;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mascotLeft = offset >= 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: SizedBox(
+        height: mascot ? 150 : 104,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (mascot)
+              Align(
+                alignment:
+                    mascotLeft ? Alignment.centerLeft : Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Transform.flip(
+                    flipX: !mascotLeft,
+                    child: const TkMascot(
+                        asset: Tk.mascotPoint,
+                        size: 124,
+                        semanticLabel: 'Tắc Kè chỉ vào buổi tiếp theo'),
+                  ),
+                ),
+              ),
+            Transform.translate(offset: Offset(offset, 0), child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Bubble extends StatelessWidget {
+  const _Bubble({
+    required this.size,
+    required this.color,
+    required this.lip,
+    required this.child,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  final Size size;
+  final Color color;
+  final Color lip;
+  final Widget child;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: TkPressable(
+        onTap: onTap,
+        lipColor: lip,
+        lipDepth: 6,
+        radius: size.height,
+        child: Container(
+          width: size.width,
+          height: size.height,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.all(
+                  Radius.elliptical(size.width / 2, size.height / 2))),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionNode extends StatelessWidget {
+  const _SessionNode(
+      {required this.session,
+      required this.live,
+      required this.onTap,
+      required this.onLongPress});
+
+  final PlanSession session;
+  final bool live;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final number = session.index + 1;
+    if (live && session.isNext) {
+      return Semantics(
+        button: true,
+        label: 'Bắt đầu buổi $number',
+        excludeSemantics: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: Tk.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Tk.line, width: 2),
+              ),
+              child: Text('BẮT ĐẦU',
+                  style:
+                      Tk.text(13, weight: FontWeight.w900, color: Tk.primary)),
+            ),
+            const SizedBox(height: 6),
+            _Bubble(
+              size: const Size(84, 76),
+              color: Tk.primary,
+              lip: Tk.primaryLip,
+              onTap: onTap,
+              onLongPress: onLongPress,
+              child: const Icon(Icons.play_arrow_rounded,
+                  color: Colors.white, size: 44),
+            ),
+            const SizedBox(height: 4),
+            Text('Buổi $number · Tiếp theo',
+                style:
+                    Tk.text(12.5, weight: FontWeight.w900, color: Tk.primary)),
+          ],
+        ),
+      );
+    }
+    final done = session.status == ProgramStatus.done;
+    return Semantics(
+      button: true,
+      label: done ? 'Buổi $number, đã xong' : 'Buổi $number, chưa mở',
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Bubble(
+            size: const Size(68, 62),
+            color: done ? Tk.green : const Color(0xFFE9EAF2),
+            lip: done ? Tk.greenLip : const Color(0xFFD3D5E3),
+            onTap: onTap,
+            child: done
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 34)
+                : const Icon(Icons.lock_rounded, color: Tk.inkMuted, size: 24),
+          ),
+          const SizedBox(height: 4),
+          Text('Buổi $number',
+              style: Tk.text(12, weight: FontWeight.w800, color: Tk.inkSoft)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RetestNode extends StatelessWidget {
+  const _RetestNode(
+      {required this.retest, required this.unlocked, required this.onTap});
+
+  final ProgramRetest retest;
+  final bool unlocked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = retest.status == ProgramStatus.done;
+    return Semantics(
+      button: true,
+      label: retest.title,
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Bubble(
+            size: const Size(74, 68),
+            color: done
+                ? Tk.green
+                : (unlocked ? Tk.orange : const Color(0xFFE9EAF2)),
+            lip: done
+                ? Tk.greenLip
+                : (unlocked ? Tk.orangeLip : const Color(0xFFD3D5E3)),
+            onTap: onTap,
+            child: Icon(Icons.emoji_events_rounded,
+                color: unlocked || done ? Colors.white : Tk.inkMuted, size: 34),
+          ),
+          const SizedBox(height: 4),
+          Text('Kiểm tra lại',
+              style: Tk.text(12, weight: FontWeight.w800, color: Tk.inkSoft)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionSheet extends StatelessWidget {
+  const _SessionSheet({
+    required this.title,
+    required this.meta,
+    required this.note,
+    required this.exercises,
+    required this.status,
+    required this.onStart,
+  });
+
+  final String title;
+  final String meta;
+  final String note;
+  final List<SessionExercise> exercises;
+  final ProgramStatus status;
+  final VoidCallback? onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Tk.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                      color: Tk.line, borderRadius: BorderRadius.circular(3)),
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        switch (status) {
+                          ProgramStatus.done => 'ĐÃ XONG',
+                          ProgramStatus.current => 'TIẾP THEO',
+                          ProgramStatus.upcoming => 'SẮP TỚI',
+                        },
+                        style: Tk.eyebrow(
+                            color: status == ProgramStatus.done
+                                ? Tk.greenLip
+                                : Tk.inkSoft),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(title,
+                          style: Tk.text(23,
+                              weight: FontWeight.w900, height: 1.2)),
+                      const SizedBox(height: 4),
+                      Text(meta,
+                          style: Tk.text(14.5,
+                              weight: FontWeight.w700,
+                              color: Tk.inkSoft,
+                              height: 1.4)),
+                      const SizedBox(height: 14),
+                      for (final e in exercises)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                    color: Tk.surfaceSoft,
+                                    borderRadius: BorderRadius.circular(14)),
+                                alignment: Alignment.center,
+                                child: switch (
+                                    exerciseThumbnailForId(e.exerciseId)) {
+                                  final asset? => Image.asset(asset,
+                                      width: 44,
+                                      height: 44,
+                                      cacheWidth: 720,
+                                      fit: BoxFit.contain,
+                                      excludeFromSemantics: true),
+                                  null => const Icon(
+                                      Icons.fitness_center_rounded,
+                                      color: Tk.inkSoft),
+                                },
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(e.name,
+                                        style: Tk.text(15.5,
+                                            weight: FontWeight.w900)),
+                                    Text(e.volumeLabel,
+                                        style: Tk.text(13,
+                                            weight: FontWeight.w700,
+                                            color: Tk.inkSoft)),
+                                  ],
+                                ),
+                              ),
+                              if (e.formScore != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                      color: Tk.greenSoft,
+                                      borderRadius: BorderRadius.circular(8)),
+                                  child: Text('Form ${e.formScore}',
+                                      style: Tk.text(12,
+                                          weight: FontWeight.w900,
+                                          color: Tk.greenInk)),
+                                ),
+                            ],
+                          ),
+                        ),
+                      if (note.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                          decoration: BoxDecoration(
+                              color: Tk.primarySoft,
+                              borderRadius: BorderRadius.circular(14)),
+                          child: Text(note,
+                              style: Tk.text(14,
+                                  weight: FontWeight.w700,
+                                  color: Tk.primaryLip,
+                                  height: 1.4)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (onStart != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                  child: TkButton(
+                      label: 'Bắt đầu',
+                      icon: Icons.play_arrow_rounded,
+                      tone: TkButtonTone.green,
+                      onTap: onStart),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

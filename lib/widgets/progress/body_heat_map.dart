@@ -22,6 +22,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/pain_regions.dart';
 import '../../theme/app_colors.dart';
+import 'body_3d.dart';
 
 /// One reported pain area, shaped for display. [intensity] is 1..5 (null on
 /// legacy rows); [confirmed] lights an interpreter-confirmed origin
@@ -90,7 +91,7 @@ class BodyPainReporter extends StatefulWidget {
     required this.gender,
     required this.onReport,
     required this.onResolve,
-    this.figureHeight = 308,
+    this.figureHeight = 330,
   });
 
   /// region id → reported mark. Absent = not reported.
@@ -104,25 +105,12 @@ class BodyPainReporter extends StatefulWidget {
   State<BodyPainReporter> createState() => _BodyPainReporterState();
 }
 
-class _BodyPainReporterState extends State<BodyPainReporter>
-    with SingleTickerProviderStateMixin {
-  // One ambient controller drives the figure's slow breath and the node pulse
-  // halos — never time-of-day based, just a continuous loop.
-  late final AnimationController _ambient = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 4200),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _ambient.dispose();
-    super.dispose();
-  }
-
+class _BodyPainReporterState extends State<BodyPainReporter> {
   Future<void> _openPicker({
     required String region,
     required String label,
     required bool isOther,
+    String? notesHint,
   }) async {
     HapticFeedback.selectionClick();
     final existing = widget.reports[region];
@@ -135,7 +123,7 @@ class _BodyPainReporterState extends State<BodyPainReporter>
         regionLabel: label,
         isOther: isOther,
         initialIntensity: existing?.intensity,
-        initialNotes: existing?.notes,
+        initialNotes: notesHint ?? existing?.notes,
         editing: existing != null,
       ),
     );
@@ -211,27 +199,41 @@ class _BodyPainReporterState extends State<BodyPainReporter>
                 children: [
                   _PanelEyebrow(count: reports.length),
                   const SizedBox(height: 6),
-
-                  // The figure — luminous, breathing, glowing from within.
                   Center(
-                    child: AnimatedBuilder(
-                      animation: _ambient,
-                      builder: (context, _) => _LuminousFigure(
-                        gender: widget.gender,
-                        height: widget.figureHeight,
-                        reports: reports,
-                        ordinals: ordinals,
-                        t: _ambient.value,
-                        onTapRegion: (r) => _openPicker(
-                          region: r.id,
-                          label: r.vnLabel,
-                          isOther: false,
-                        ),
-                      ),
+                    child: Body3DPicker(
+                      gender: widget.gender,
+                      height: widget.figureHeight,
+                      colorFor: (part) {
+                        final region = part.region;
+                        final mark = region != null
+                            ? reports[region]
+                            : (other?.notes?.trim() == part.label
+                                ? other
+                                : null);
+                        return mark == null
+                            ? null
+                            : _intensityColor(mark.intensity);
+                      },
+                      onTapPart: (part) {
+                        final region = part.region;
+                        if (region != null) {
+                          _openPicker(
+                            region: region,
+                            label: part.displayLabel,
+                            isOther: false,
+                          );
+                        } else {
+                          _openPicker(
+                            region: kOtherPainRegion,
+                            label: part.label,
+                            isOther: true,
+                            notesHint: part.label,
+                          );
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 18),
-
                   if (isEmpty)
                     const _EmptyPrompt()
                   else ...[
@@ -260,7 +262,6 @@ class _BodyPainReporterState extends State<BodyPainReporter>
                         ),
                       ),
                   ],
-
                   const SizedBox(height: 14),
                   _OtherTile(
                     reported: other != null,
@@ -293,7 +294,7 @@ class _PanelEyebrow extends StatelessWidget {
         const _Sparkle(size: 10),
         const SizedBox(width: 8),
         Text(
-          'CHẠM VÀO VÙNG ĐAU',
+          'KÉO ĐỂ XOAY · CHẠM VÀO VÙNG ĐAU',
           style: TextStyle(
             fontFamily: 'BeVietnamPro',
             fontSize: 10,
@@ -324,335 +325,6 @@ class _PanelEyebrow extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// LUMINOUS FIGURE — glow from within, breathing, numbered callouts
-// ═══════════════════════════════════════════════════════════════════
-
-class _LuminousFigure extends StatelessWidget {
-  const _LuminousFigure({
-    required this.gender,
-    required this.height,
-    required this.reports,
-    required this.ordinals,
-    required this.t,
-    required this.onTapRegion,
-  });
-
-  final BodyGender gender;
-  final double height;
-  final Map<String, PainMark> reports;
-  final Map<String, int> ordinals;
-  final double t; // 0..1 ambient phase
-  final void Function(PainRegion region) onTapRegion;
-
-  // Real silhouette aspect ratios: male 78×245, female 86×245.
-  static double _ratio(BodyGender g) =>
-      g == BodyGender.female ? 86 / 245 : 78 / 245;
-
-  String _asset() => gender == BodyGender.female
-      ? 'assets/images/body_female.png'
-      : 'assets/images/body_male.png';
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final w = height * _ratio(gender);
-    final asset = _asset();
-
-    // Gentle breath: a ~1% scale sway. Node pulse: an expanding fade ring.
-    final breathe = 1 + 0.012 * math.sin(t * 2 * math.pi);
-    final pulseRing = t; // 0..1
-
-    return SizedBox(
-      // Box is exactly the body width so fx-based nodes line up with the
-      // centered figure; outer glow + the edge wrist node bleed via Clip.none.
-      width: w,
-      height: height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          // Soft contact pool beneath the feet — figure floats on the stage.
-          Positioned(
-            bottom: -6,
-            child: IgnorePointer(
-              child: Container(
-                width: w * 0.9,
-                height: 26,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(99),
-                  gradient: RadialGradient(
-                    colors: [
-                      c.ink.withValues(alpha: 0.55),
-                      c.ink.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Outer halos: warm light leaking out around lit regions, BEHIND
-          // the body so it reads as emanation.
-          for (final r in painRegions)
-            if (reports[r.id] != null)
-              Positioned(
-                left: r.fx * w - _haloSize(reports[r.id]!) / 2,
-                top: r.fy * height - _haloSize(reports[r.id]!) / 2,
-                child: IgnorePointer(
-                  child: _AmbientGlow(
-                    size: Size.square(_haloSize(reports[r.id]!)),
-                    color: _intensityColor(reports[r.id]!.intensity),
-                    opacity: 0.22,
-                  ),
-                ),
-              ),
-
-          // The body + in-body glow, breathing.
-          Transform.scale(
-            scale: breathe,
-            child: SizedBox(
-              width: w,
-              height: height,
-              child: Stack(
-                children: [
-                  // Base ivory ghost.
-                  Positioned.fill(
-                    child: Image.asset(
-                      asset,
-                      fit: BoxFit.contain,
-                      color: c.invInk.withValues(alpha: 0.17),
-                      colorBlendMode: BlendMode.srcIn,
-                      errorBuilder: (context, _, __) => _MissingAsset(c: c),
-                    ),
-                  ),
-                  // Top-lit sheen — the spotlight catching the upper body.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: ShaderMask(
-                        blendMode: BlendMode.dstIn,
-                        shaderCallback: (rect) => LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: const [Colors.white, Colors.transparent],
-                          stops: const [0.0, 0.62],
-                        ).createShader(rect),
-                        child: Image.asset(
-                          asset,
-                          fit: BoxFit.contain,
-                          color: c.invInk.withValues(alpha: 0.16),
-                          colorBlendMode: BlendMode.srcIn,
-                          errorBuilder: (context, _, __) =>
-                              const SizedBox.shrink(),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // In-body glow — one masked, recolored body per lit region.
-                  for (final r in painRegions)
-                    if (reports[r.id] != null)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: _InBodyGlow(
-                            asset: asset,
-                            region: r,
-                            intensity: reports[r.id]!.intensity,
-                          ),
-                        ),
-                      ),
-                ],
-              ),
-            ),
-          ),
-
-          // Callout nodes (not scaled, so taps stay precise + crisp).
-          for (final r in painRegions)
-            _ZoneNode(
-              left: r.fx * w,
-              top: r.fy * height,
-              mark: reports[r.id],
-              ordinal: ordinals[r.id],
-              pulseRing: pulseRing,
-              onTap: () => onTapRegion(r),
-            ),
-        ],
-      ),
-    );
-  }
-
-  static double _haloSize(PainMark m) =>
-      96 + ((m.intensity ?? 3).toDouble()) * 14;
-}
-
-/// The recolored, radial-masked body copy that makes a region glow from
-/// within. The mask is a soft circle at the zone, so the visible glow is the
-/// body's own shape fading out — light under the skin.
-class _InBodyGlow extends StatelessWidget {
-  const _InBodyGlow({
-    required this.asset,
-    required this.region,
-    required this.intensity,
-  });
-
-  final String asset;
-  final PainRegion region;
-  final int? intensity;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _intensityColor(intensity);
-    final i = (intensity ?? 3).clamp(1, 5);
-    // Higher intensity → wider, hotter bloom.
-    final radius = 0.40 + i * 0.05;
-    final center = Alignment(region.fx * 2 - 1, region.fy * 2 - 1);
-
-    return ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (rect) => RadialGradient(
-        center: center,
-        radius: radius,
-        colors: const [Colors.white, Colors.transparent],
-        stops: const [0.0, 1.0],
-      ).createShader(rect),
-      child: Image.asset(
-        asset,
-        fit: BoxFit.contain,
-        color: color.withValues(alpha: 0.92),
-        colorBlendMode: BlendMode.srcIn,
-        errorBuilder: (context, _, __) => const SizedBox.shrink(),
-      ),
-    );
-  }
-}
-
-/// A tappable callout. Unreported = a faint hairline ring inviting a tap;
-/// reported = a crisp numbered node over its glow, with a slow pulse halo.
-class _ZoneNode extends StatelessWidget {
-  const _ZoneNode({
-    required this.left,
-    required this.top,
-    required this.mark,
-    required this.ordinal,
-    required this.pulseRing,
-    required this.onTap,
-  });
-
-  final double left;
-  final double top;
-  final PainMark? mark;
-  final int? ordinal;
-  final double pulseRing;
-  final VoidCallback onTap;
-
-  static const double _hit = 42;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final reported = mark != null;
-    final accent = _intensityColor(mark?.intensity);
-
-    final Widget core = reported
-        ? Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              // Expanding pulse ring.
-              Container(
-                width: 22 + pulseRing * 22,
-                height: 22 + pulseRing * 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: accent.withValues(alpha: (1 - pulseRing) * 0.55),
-                    width: 1.4,
-                  ),
-                ),
-              ),
-              // Numbered node.
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: accent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: c.invInk.withValues(alpha: 0.92),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.6),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: Text(
-                  '${ordinal ?? ''}',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                    color: c.bgInverse,
-                  ),
-                ),
-              ),
-            ],
-          )
-        : Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: c.invInk.withValues(alpha: 0.06),
-              border: Border.all(
-                color: c.invInk.withValues(alpha: 0.32),
-                width: 1.2,
-              ),
-            ),
-          );
-
-    return Positioned(
-      left: left - _hit / 2,
-      top: top - _hit / 2,
-      width: _hit,
-      height: _hit,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: onTap,
-        child: Center(child: core),
-      ),
-    );
-  }
-}
-
-class _MissingAsset extends StatelessWidget {
-  const _MissingAsset({required this.c});
-  final VikaColors c;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: c.invInk.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'body.png\nmissing',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'BeVietnamPro',
-          fontSize: 10,
-          color: c.invInkFaint,
-        ),
-      ),
     );
   }
 }

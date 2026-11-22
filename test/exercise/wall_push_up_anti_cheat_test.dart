@@ -181,7 +181,8 @@ void main() {
     expect(wallPushUp.repCount, 1);
   });
 
-  test('counts a rep but records coaching when the wall hand drifts', () {
+  test('counts a rep but records coaching when the wall hand slides in the rep',
+      () {
     final wallPushUp = WallPushUp(maxRep: 15)
       ..cameraFacing = CameraFacing.right
       ..exerciseState = ExerciseState.activated;
@@ -227,6 +228,16 @@ void main() {
     _pump(wallPushUp, top, 0);
     _pump(wallPushUp, down1, 100);
     _pump(wallPushUp, down2, 200);
+    final bottomHandAtSetup = _wallPose(
+      shoulderX: 360,
+      shoulderY: 260,
+      hipX: 290,
+      hipY: 340,
+      elbowX: 440,
+      elbowY: 260,
+    );
+    _pump(wallPushUp, bottomHandAtSetup, 300);
+    _pump(wallPushUp, bottomHandAtSetup, 400);
     for (var i = 0; i < 8; i += 1) {
       _pump(wallPushUp, bottom, 500 + i * 100);
     }

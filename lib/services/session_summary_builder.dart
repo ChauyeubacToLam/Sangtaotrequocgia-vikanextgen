@@ -61,8 +61,6 @@ class SessionSummaryBuilder {
     final bool hasScoreableWork;
 
     if (hasRepWork && hasHoldWork) {
-      // TODO(session-summary): replace this interim path with cross-modal
-      // total-sets weighting once hold active_seconds capture lands.
       hasScoreableWork = true;
       rawFormScore = _equalWeightMean(scoreInputs);
     } else if (hasRepWork || hasHoldWork) {

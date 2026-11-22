@@ -1,5 +1,7 @@
 // ignore_for_file: curly_braces_in_flow_control_structures, non_constant_identifier_names, constant_identifier_names
 
+import 'dart:math' as math;
+
 import 'package:vika/utils/debouncer.dart';
 
 import '../../utils/pose_math_helpers.dart';
@@ -41,6 +43,7 @@ class GluteBridgeConfig {
   /// Hip must return within this fraction of scaleFactor to baseline.
   static const double BOTTOM_TOLERANCE_RATIO = 0.12;
   static const double BOTTOM_TOLERANCE_PIXELS = 18.0;
+  static const double REP_RETURN_FRACTION = 0.3;
 
   // --- Start-position geometry ---
   /// Max shoulder-hip line angle from horizontal (degrees, unsigned).
@@ -104,6 +107,8 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
 
   // --- Peak hip position tracked during ascending ---
   double? _peakHipY;
+  double? _lowestHipY;
+  bool _continuingRep = false;
   int? _topHoldStartMs;
 
   // --- Angle and deviation at peak hip (for HipExtension per-rep check) ---
@@ -176,6 +181,7 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
     correctForm = true;
     _hipYHistory.clear();
     _peakHipY = null;
+    _continuingRep = false;
     _peakShoulderHipKneeAngle = null;
     _peakNormalizedDeviation = null;
     _peakKneeAngle = null;
@@ -396,16 +402,7 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
     final knee = tracked['knee']!;
     final ankle = tracked['ankle']!;
 
-    // Head: prefer camera-side ear, fall back to nose.
-    final ear = tracked['ear'];
-    final nose = smoothedLandmarks[PoseLandmarkType.nose];
-
-    // Explicit null fallback hierarchy to prevent bypass when head goes out of frame
-    final double headY = (ear != null && ExerciseBase.isLandmarkConfident(ear))
-        ? ear.y
-        : (nose != null && ExerciseBase.isLandmarkConfident(nose))
-            ? nose.y
-            : shoulder.y; // Fallback if head is totally lost.
+    final double? headY = tracked['ear']?.y;
 
     // ---------- 2. Calculate Geometry ----------
 
@@ -592,8 +589,6 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
      TOP_HOLD → DESCENDING: velocity > DESCENDING_THRESHOLD for 3+ frames
      DESCENDING → BOTTOM : |velocity| < REST for 3+ frames AND hip ≈ baseline
                            → rep is counted here
-     DESCENDING → ASCENDING: velocity < ASCENDING_THRESHOLD for 3+ frames
-                           → rep is counted here too (no stop at the bottom)
      ----------------------------------------------------------------------- */
   void _updateGluteState(
     double hipY,
@@ -635,12 +630,14 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
         }
         // Abort: hip never got high enough and stopped moving.
         else if (_bottomDebouncer.update(isAtRest && isAtBottom)) {
-          _transitionState(GluteBridgeState.bottom, timestampMs);
-          // Not a rep: drop the attempt's fault state so it is not attached
-          // to the next counted rep (not counted in *_fails_count either).
-          for (final metric in _metrics) {
-            metric.reset();
+          if (_continuingRep) {
+            _onRepCompleted(timestampMs);
+          } else {
+            for (final metric in _metrics) {
+              metric.reset();
+            }
           }
+          _transitionState(GluteBridgeState.bottom, timestampMs);
         }
         break;
 
@@ -651,14 +648,19 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
         break;
 
       case GluteBridgeState.descending:
-        // Rep counted here when returning to bottom.
+        if (_lowestHipY == null || hipY > _lowestHipY!) _lowestHipY = hipY;
         if (_bottomDebouncer.update(isAtRest && isAtBottom)) {
           _onRepCompleted(timestampMs);
           _transitionState(GluteBridgeState.bottom, timestampMs);
-        }
-        // Fallback: If user goes right back into another rep without stopping at bottom.
-        else if (_ascendDebouncer.update(isAscending)) {
-          _onRepCompleted(timestampMs);
+        } else if (_ascendDebouncer.update(isAscending)) {
+          final double lift = baseline - (_peakHipY ?? baseline);
+          final double returnZone = math.max(
+              bottomTolerance, lift * GluteBridgeConfig.REP_RETURN_FRACTION);
+          if (_lowestHipY! >= baseline - returnZone) {
+            _onRepCompleted(timestampMs);
+          } else {
+            _continuingRep = true;
+          }
           _transitionState(GluteBridgeState.ascending, timestampMs);
         }
         break;
@@ -671,6 +673,7 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
      ----------------------------------------------------------------------- */
   void _onRepCompleted(int timestampMs) {
     repCount += 1;
+    _continuingRep = false;
 
     // Let HipExtensionMetric evaluate the peak angle and deviation.
     hipExtensionMetric.checkRepCompletion(
@@ -735,6 +738,8 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
         "peak_hip_extension_angle": _peakShoulderHipKneeAngle ?? 0.0,
         "peak_normalized_hip_deviation": _peakNormalizedDeviation ?? 0.0,
         "peak_knee_angle": _peakKneeAngle ?? 0.0,
+        "head_lift_rest": neckHeadMetric.restingLift,
+        "peak_head_lift": neckHeadMetric.peakLift,
         "fault_types": allFaults.map((f) => f.type).toSet().toList(),
         "fault_affects_form": faultAffectsForm,
         "fault_priorities": faultPriorities,
@@ -759,6 +764,7 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
     previousGluteState = gluteState;
     gluteState = newState;
     _topHoldStartMs = newState == GluteBridgeState.topHold ? timestampMs : null;
+    if (newState == GluteBridgeState.descending) _lowestHipY = null;
 
     // Clear phase status at the start of a new rep.
     if (newState == GluteBridgeState.ascending) {

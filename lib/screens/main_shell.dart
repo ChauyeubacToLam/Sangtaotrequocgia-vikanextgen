@@ -20,8 +20,10 @@ import '../models/exercise_definition.dart';
 import '../models/kept_exercises.dart';
 import '../services/analytics_service.dart';
 import '../services/recommendation/recommendation_service.dart';
+import '../services/research/research_preferences.dart';
 import '../services/user_program_service.dart';
 import '../services/user_profile_service.dart';
+import '../services/workout_reminders.dart';
 import '../theme/app_colors.dart';
 import '../theme/responsive.dart';
 import '../utils/orientation_lock.dart';
@@ -29,6 +31,7 @@ import '../widgets/ivory/bottom_nav.dart';
 import 'dashboard_home_screen.dart';
 import 'exercise/exercise_launch_args.dart';
 import 'library_screen.dart';
+import 'nutrition/nutrition_screen.dart';
 import 'plan_screen.dart';
 import 'profile_screen.dart';
 import 'progress_screen.dart';
@@ -40,8 +43,20 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+enum _Tab { home, plan, library, nutrition, progress, profile }
+
+class _MainShellState extends State<MainShell>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
+  late final List<_Tab> _tabs = [
+    for (final t in _Tab.values)
+      if (t != _Tab.nutrition || !ResearchPreferences.cachedConfig.isControl) t,
+  ];
+  late final AnimationController _tabFade = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+    value: 1,
+  );
   final ValueNotifier<int> _planRefreshNudge = ValueNotifier<int>(0);
   final ValueNotifier<int> _progressRefreshNudge = ValueNotifier<int>(0);
   UserProgramData? _program;
@@ -52,6 +67,7 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     unawaited(OrientationLock.portraitOnly());
+    unawaited(WorkoutReminders.askPermissionOnce());
     _loadProgram();
     _loadProfile();
   }
@@ -75,11 +91,13 @@ class _MainShellState extends State<MainShell> {
   void _handleTabTap(int idx) {
     if (idx == _currentIndex) return;
     setState(() => _currentIndex = idx);
-    if (idx == 1) {
+    _tabFade.forward(from: 0);
+    final tab = _tabs[idx];
+    if (tab == _Tab.plan) {
       _planRefreshNudge.value++;
-    } else if (idx == 3) {
+    } else if (tab == _Tab.progress) {
       _progressRefreshNudge.value++;
-    } else if (idx == 4) {
+    } else if (tab == _Tab.profile) {
       // Hồ sơ is where settings (incl. the analytics consent toggle) live.
       // No-op without consent.
       unawaited(AnalyticsService.instance.capture('settings_opened'));
@@ -111,6 +129,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    _tabFade.dispose();
     _planRefreshNudge.dispose();
     _progressRefreshNudge.dispose();
     super.dispose();
@@ -127,40 +146,41 @@ class _MainShellState extends State<MainShell> {
     final navCapsule = r.w(68);
     final contentBottomPadding = navCapsule + bottomInset + r.w(4);
 
-    final screens = [
-      DashboardHomeScreen(
+    final screens = <_Tab, Widget>{
+      _Tab.home: DashboardHomeScreen(
         bottomPadding: contentBottomPadding,
         // Library is its own tab now — Home's "browse" callback just
         // switches to the Library tab.
-        onOpenBrowser: () => setState(() => _currentIndex = 2),
+        onOpenBrowser: () => _handleTabTap(_tabs.indexOf(_Tab.library)),
         program: _program,
         userProfile: _profile,
         onProfileChanged: _handleProfileChanged,
       ),
-      PlanScreen(
+      _Tab.plan: PlanScreen(
         bottomPadding: contentBottomPadding,
         program: _program,
         userProfile: _profile,
         refreshListenable: _planRefreshNudge,
         onProfileChanged: _handleProfileChanged,
       ),
-      LibraryScreen(
+      _Tab.library: LibraryScreen(
         bottomPadding: contentBottomPadding,
         onSelectExercise: _openExerciseFromLibrary,
         userProfile: _profile,
       ),
-      ProgressScreen(
+      _Tab.nutrition: NutritionScreen(bottomPadding: contentBottomPadding),
+      _Tab.progress: ProgressScreen(
         bottomPadding: contentBottomPadding,
         refreshListenable: _progressRefreshNudge,
         userProfile: _profile,
         onProfileChanged: _handleProfileChanged,
       ),
-      ProfileScreen(
+      _Tab.profile: ProfileScreen(
         bottomPadding: contentBottomPadding,
         userProfile: _profile,
         onProfileChanged: _handleProfileChanged,
       ),
-    ];
+    };
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -173,15 +193,29 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: c.bg,
         body: SafeArea(
           bottom: false,
-          child: IndexedStack(
-            index: _currentIndex,
-            children: screens,
+          child: AnimatedBuilder(
+            animation: _tabFade,
+            builder: (context, child) {
+              final t = Curves.easeOutCubic.transform(_tabFade.value);
+              return Opacity(
+                opacity: t,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - t) * 10),
+                  child: child,
+                ),
+              );
+            },
+            child: IndexedStack(
+              index: _currentIndex,
+              children: [for (final t in _tabs) screens[t]!],
+            ),
           ),
         ),
         bottomNavigationBar: IvoryBottomNav(
           currentIndex: _currentIndex,
           bottomInset: bottomInset,
           onTap: _handleTabTap,
+          showNutrition: _tabs.contains(_Tab.nutrition),
         ),
       ),
     );

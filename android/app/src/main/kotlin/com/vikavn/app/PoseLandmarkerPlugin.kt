@@ -2,14 +2,20 @@ package com.vikavn.app
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.graphics.Matrix
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.util.Range
 import android.util.Size
 import android.view.Surface
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.core.ExtendableBuilder
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -50,7 +56,9 @@ class PoseLandmarkerPlugin(
     private var cameraExecutor: ExecutorService? = null
     private var preview: Preview? = null
     private var imageAnalysis: ImageAnalysis? = null
-    private var poseLandmarkerHelper: PoseLandmarkerHelper? = null
+    @Volatile private var poseLandmarkerHelper: PoseLandmarkerHelper? = null
+    private val landmarkerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val landmarkerLoading = AtomicBoolean(false)
     private var useFrontCamera = true
     @Volatile private var currentOrientationCode: String? = null
     @Volatile private var currentOrientationIsFrontCamera = true
@@ -64,6 +72,11 @@ class PoseLandmarkerPlugin(
     // helper's throttle; @Volatile keeps it visible to a fresh executor after
     // a pause/resume re-bind.
     @Volatile private var lastAnalyzedTimestampMs = Long.MIN_VALUE
+    private var aeFpsRange: Range<Int>? = null
+    private var perfWindowStartMs = 0L
+    private var perfCameraFrames = 0
+    private var perfAnalyzedFrames = 0
+    private var perfConvertNs = 0L
 
     init {
         methodChannel.setMethodCallHandler(this)
@@ -73,6 +86,14 @@ class PoseLandmarkerPlugin(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "initialize" -> initialize(call, result)
+            "warmUp" -> {
+                try {
+                    ensureRuntimeSupport()
+                    ensurePoseLandmarkerAsync()
+                } catch (_: Exception) {
+                }
+                result.success(null)
+            }
             "setOrientation" -> {
                 val orientation = call.argument<String>("orientation")
                 if (orientation == null) {
@@ -123,8 +144,30 @@ class PoseLandmarkerPlugin(
 
     fun dispose() {
         disposeResources(releaseTexture = true)
+        poseLandmarkerHelper?.clearPoseLandmarker()
+        poseLandmarkerHelper = null
+        landmarkerExecutor.shutdown()
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
+    }
+
+    private fun ensurePoseLandmarkerAsync() {
+        if (poseLandmarkerHelper != null || !landmarkerLoading.compareAndSet(false, true)) {
+            return
+        }
+        landmarkerExecutor.execute {
+            try {
+                poseLandmarkerHelper = PoseLandmarkerHelper(
+                    context = activity.applicationContext,
+                    onResult = ::emitResult,
+                    onError = ::emitError,
+                )
+            } catch (error: Throwable) {
+                emitError("pose_landmarker_init", errorMessageForRuntime(error))
+            } finally {
+                landmarkerLoading.set(false)
+            }
+        }
     }
 
     private fun initialize(call: MethodCall, result: MethodChannel.Result) {
@@ -141,13 +184,7 @@ class PoseLandmarkerPlugin(
             if (cameraExecutor == null || cameraExecutor?.isShutdown == true) {
                 cameraExecutor = Executors.newSingleThreadExecutor()
             }
-            if (poseLandmarkerHelper == null) {
-                poseLandmarkerHelper = PoseLandmarkerHelper(
-                    context = activity.applicationContext,
-                    onResult = ::emitResult,
-                    onError = ::emitError,
-                )
-            }
+            ensurePoseLandmarkerAsync()
             poseLandmarkerHelper?.setOrientation(
                 currentOrientationCode,
                 currentOrientationIsFrontCamera,
@@ -256,14 +293,13 @@ class PoseLandmarkerPlugin(
         val surfaceTextureEntry =
             textureEntry ?: throw IllegalStateException("Flutter texture is not initialized.")
         val executor = cameraExecutor ?: throw IllegalStateException("Camera executor is not ready.")
-        val helper =
-            poseLandmarkerHelper ?: throw IllegalStateException("Pose landmarker helper is not initialized.")
 
         val cameraSelector = resolveCameraSelector(provider)
         currentOrientationIsFrontCamera = useFrontCamera
         poseLandmarkerHelper?.setOrientation(currentOrientationCode, useFrontCamera)
         segmentationHelper?.setOrientation(currentOrientationCode, useFrontCamera)
 
+        aeFpsRange = preferredAeFpsRange(provider, cameraSelector)
         val bindingGeneration = previewBindingGeneration.incrementAndGet()
         previewGeometry = null
         provider.unbindAll()
@@ -276,7 +312,8 @@ class PoseLandmarkerPlugin(
         // to display the preview correctly. Re-binding on rotation change
         // (in `setOrientation`) is what keeps that matrix up to date.
         val previewUseCase = Preview.Builder()
-            .setTargetResolution(Size(TARGET_WIDTH, TARGET_HEIGHT))
+            .setTargetResolution(Size(PREVIEW_WIDTH, PREVIEW_HEIGHT))
+            .apply { applyAeFpsRange(this) }
             .build()
             .also { configuredPreview ->
                 currentTargetRotation?.let { configuredPreview.targetRotation = it }
@@ -321,8 +358,10 @@ class PoseLandmarkerPlugin(
             }
 
         val analysisUseCase = ImageAnalysis.Builder()
-            .setTargetResolution(Size(TARGET_WIDTH, TARGET_HEIGHT))
+            .setTargetResolution(Size(ANALYSIS_WIDTH, ANALYSIS_HEIGHT))
+            .apply { applyAeFpsRange(this) }
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+            .setOutputImageRotationEnabled(true)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also { configuredAnalysis ->
@@ -333,10 +372,7 @@ class PoseLandmarkerPlugin(
                         return@setAnalyzer
                     }
 
-                    analyzeFrame(
-                        imageProxy = imageProxy,
-                        helper = helper,
-                    )
+                    analyzeFrame(imageProxy)
                 }
             }
 
@@ -352,19 +388,19 @@ class PoseLandmarkerPlugin(
         boundCamera.cameraControl.setLinearZoom(0.0f)
     }
 
-    private fun analyzeFrame(
-        imageProxy: ImageProxy,
-        helper: PoseLandmarkerHelper,
-    ) {
+    private fun analyzeFrame(imageProxy: ImageProxy) {
+        val helper = poseLandmarkerHelper
         val timestampMs = imageProxy.imageInfo.timestamp / 1_000_000L
         // Thermal guard: cap analysis cadence before decoding the frame so we
         // skip the per-frame bitmap work entirely on dropped frames. No-op on
         // ~30fps sensors; sheds redundant frames on faster ones.
         if (!shouldAnalyzeFrame(timestampMs)) {
+            recordPerf(analyzed = false, convertNs = 0L)
             imageProxy.close()
             return
         }
         try {
+            val convertStartedNs = SystemClock.elapsedRealtimeNanos()
             val rotationDegrees = imageProxy.imageInfo.rotationDegrees
             val rawBitmap = rgbaImageProxyToBitmap(imageProxy)
             val rotationStartedNs = SystemClock.elapsedRealtimeNanos()
@@ -375,6 +411,10 @@ class PoseLandmarkerPlugin(
             if (processedBitmap !== rawBitmap) {
                 rawBitmap.recycle()
             }
+            recordPerf(
+                analyzed = true,
+                convertNs = SystemClock.elapsedRealtimeNanos() - convertStartedNs,
+            )
 
             val frameOwner = SharedBitmapFrame(processedBitmap)
 
@@ -391,7 +431,8 @@ class PoseLandmarkerPlugin(
 
             frameOwner.retain()
             val poseRelease = frameOwner.releaseCallback()
-            val poseStarted = helper.detectLiveStream(
+            helper?.setOrientation(currentOrientationCode, useFrontCamera)
+            val poseStarted = helper?.detectLiveStream(
                 bitmap = processedBitmap,
                 timestampMs = timestampMs,
                 frameWidth = imageProxy.width,
@@ -400,7 +441,7 @@ class PoseLandmarkerPlugin(
                 rotationDurationMs = rotationDurationMs,
                 isFrontCamera = useFrontCamera,
                 onComplete = poseRelease,
-            )
+            ) ?: false
             if (!poseStarted) {
                 poseRelease()
             }
@@ -411,6 +452,57 @@ class PoseLandmarkerPlugin(
         } finally {
             imageProxy.close()
         }
+    }
+
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun preferredAeFpsRange(
+        provider: ProcessCameraProvider,
+        selector: CameraSelector,
+    ): Range<Int>? {
+        val info = selector.filter(provider.availableCameraInfos).firstOrNull() ?: return null
+        val ranges = Camera2CameraInfo.from(info)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            ?: return null
+        return ranges
+            .filter { it.upper <= MAX_CAPTURE_FPS }
+            .maxWithOrNull(compareBy<Range<Int>>({ it.lower }, { it.upper }))
+    }
+
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun <T> applyAeFpsRange(builder: ExtendableBuilder<T>) {
+        val range = aeFpsRange ?: return
+        Camera2Interop.Extender(builder)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, range)
+    }
+
+    private fun recordPerf(analyzed: Boolean, convertNs: Long) {
+        val now = SystemClock.elapsedRealtime()
+        if (perfWindowStartMs == 0L) {
+            perfWindowStartMs = now
+        }
+        perfCameraFrames += 1
+        if (analyzed) {
+            perfAnalyzedFrames += 1
+            perfConvertNs += convertNs
+        }
+        val elapsedMs = now - perfWindowStartMs
+        if (elapsedMs < PERF_LOG_WINDOW_MS) {
+            return
+        }
+        val seconds = elapsedMs / 1000.0
+        val convertMs =
+            if (perfAnalyzedFrames == 0) 0.0 else perfConvertNs / 1_000_000.0 / perfAnalyzedFrames
+        Log.d(
+            TAG,
+            "perf cameraFps=" + String.format("%.1f", perfCameraFrames / seconds) +
+                " analyzedFps=" + String.format("%.1f", perfAnalyzedFrames / seconds) +
+                " convertMs=" + String.format("%.1f", convertMs) +
+                " aeFpsRange=" + aeFpsRange,
+        )
+        perfWindowStartMs = now
+        perfCameraFrames = 0
+        perfAnalyzedFrames = 0
+        perfConvertNs = 0L
     }
 
     private fun shouldAnalyzeFrame(timestampMs: Long): Boolean {
@@ -569,8 +661,7 @@ class PoseLandmarkerPlugin(
         previewSurface?.release()
         previewSurface = null
 
-        poseLandmarkerHelper?.clearPoseLandmarker()
-        poseLandmarkerHelper = null
+        poseLandmarkerHelper?.releasePendingFrames()
 
         cameraExecutor?.shutdown()
         cameraExecutor = null
@@ -607,17 +698,13 @@ class PoseLandmarkerPlugin(
         private const val EVENT_CHANNEL_NAME = "com.vikavn.app/pose_landmarker_stream"
         private const val ROTATION_LOG_SAMPLE_RATE = 30
         private const val ROTATION_SLOW_FRAME_MS = 12.0
-        // Minimum gap between analyzed frames (~30fps cap). A 30ms floor keeps
-        // every frame from a native 30fps stream (period ~33ms) while halving a
-        // 60fps sensor to ~30fps. Pose metrics are timestamp-based, so capping
-        // cadence does not alter rep counts or angles — it only cuts CPU heat
-        // over long sessions. Tune here if a device needs a lower ceiling.
         private const val MIN_FRAME_INTERVAL_MS = 30L
-        // 720p keeps a sharper, wider preview while staying light enough for
-        // live pose analysis on mainstream phones. CameraX picks the closest
-        // supported size when 1280x720 is unavailable.
-        private const val TARGET_WIDTH = 1280
-        private const val TARGET_HEIGHT = 720
+        private const val PREVIEW_WIDTH = 1440
+        private const val PREVIEW_HEIGHT = 1080
+        private const val ANALYSIS_WIDTH = 960
+        private const val ANALYSIS_HEIGHT = 720
+        private const val MAX_CAPTURE_FPS = 30
+        private const val PERF_LOG_WINDOW_MS = 3000L
 
         private fun targetRotationForOrientation(orientation: String): Int {
             // Match Flutter's camera_android_camerax orientation table:

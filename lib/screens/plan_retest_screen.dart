@@ -11,9 +11,9 @@ import '../services/recommendation/models/plan.dart';
 import '../services/recommendation/progression_service.dart';
 import '../services/recommendation/recommendation_service.dart';
 import '../services/recommendation/weekly_check_in_service.dart';
-import '../theme/app_colors.dart';
-import '../theme/responsive.dart';
+import '../services/research/research_preferences.dart';
 import '../utils/exercise_logger.dart';
+import '../widgets/tk/tk.dart';
 import 'exercise/exercise_launch_args.dart';
 import 'weekly_check_in_screen.dart';
 
@@ -207,35 +207,162 @@ class _PlanRetestScreenState extends State<PlanRetestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
+    final showMascot = !ResearchPreferences.cachedConfig.isControl;
     return Scaffold(
-      backgroundColor: c.bg,
+      backgroundColor: Tk.surface,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 240),
-            child: switch (_step) {
-              _RetestStep.intro => _RetestIntro(
-                  busy: _busy,
-                  error: _error,
-                  onStart: _startRetest,
-                ),
-              _RetestStep.result => _RetestResultView(
-                  submitted: _submitted!,
-                  busy: _busy,
-                  error: _error,
-                  onAccept: _acceptSuggestedLevel,
-                  onDecline: _declineSuggestedLevel,
-                  onContinue: _continueWithSameLevel,
-                ),
-              _RetestStep.finalChoice => _NewPlanReadyView(
-                  onStartToday: _startFirstSessionToday,
-                  onTomorrow: () => Navigator.of(context).pop(true),
-                ),
-            },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TkTopBar(
+              onBack: _step == _RetestStep.intro && !_busy
+                  ? () => Navigator.of(context).maybePop()
+                  : null,
+              closeIcon: true,
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                child: switch (_step) {
+                  _RetestStep.intro => _RetestIntro(
+                      key: const ValueKey('intro'),
+                      showMascot: showMascot,
+                      busy: _busy,
+                      error: _error,
+                      onStart: _startRetest,
+                      onLater: () => Navigator.of(context).maybePop(),
+                    ),
+                  _RetestStep.result => _RetestResultView(
+                      key: const ValueKey('result'),
+                      showMascot: showMascot,
+                      submitted: _submitted!,
+                      busy: _busy,
+                      error: _error,
+                      onAccept: _acceptSuggestedLevel,
+                      onDecline: _declineSuggestedLevel,
+                      onContinue: _continueWithSameLevel,
+                    ),
+                  _RetestStep.finalChoice => _NewPlanReadyView(
+                      key: const ValueKey('final'),
+                      showMascot: showMascot,
+                      onStartToday: _startFirstSessionToday,
+                      onTomorrow: () => Navigator.of(context).pop(true),
+                    ),
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Pane extends StatelessWidget {
+  const _Pane({required this.content, required this.actions});
+
+  final List<Widget> content;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: content,
+            ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: actions,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Hero extends StatelessWidget {
+  const _Hero({
+    required this.showMascot,
+    required this.asset,
+    required this.icon,
+    required this.soft,
+    required this.strong,
+  });
+
+  final bool showMascot;
+  final String asset;
+  final IconData icon;
+  final Color soft;
+  final Color strong;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: showMascot ? 220 : 120,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: showMascot ? 196 : 104,
+            height: showMascot ? 196 : 104,
+            decoration: BoxDecoration(color: soft, shape: BoxShape.circle),
+          ),
+          if (showMascot)
+            TkMascot(asset: asset, size: 216)
+          else
+            Icon(icon, size: 52, color: strong),
+        ],
+      ),
+    );
+  }
+}
+
+class _Headline extends StatelessWidget {
+  const _Headline({
+    required this.eyebrow,
+    required this.eyebrowColor,
+    required this.title,
+    required this.body,
+  });
+
+  final String eyebrow;
+  final Color eyebrowColor;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Column(
+        children: [
+          Text(eyebrow,
+              textAlign: TextAlign.center,
+              style: Tk.text(13,
+                  weight: FontWeight.w900,
+                  color: eyebrowColor,
+                  letterSpacing: 1.2)),
+          const SizedBox(height: 8),
+          Text(title,
+              textAlign: TextAlign.center,
+              style: Tk.text(28,
+                  weight: FontWeight.w900, height: 1.15, letterSpacing: -0.4)),
+          const SizedBox(height: 8),
+          Text(body,
+              textAlign: TextAlign.center,
+              style: Tk.text(16,
+                  weight: FontWeight.w700, color: Tk.inkSoft, height: 1.45)),
+        ],
       ),
     );
   }
@@ -243,54 +370,103 @@ class _PlanRetestScreenState extends State<PlanRetestScreen> {
 
 class _RetestIntro extends StatelessWidget {
   const _RetestIntro({
+    super.key,
+    required this.showMascot,
     required this.busy,
     required this.error,
     required this.onStart,
+    required this.onLater,
   });
 
+  final bool showMascot;
   final bool busy;
   final String? error;
   final VoidCallback onStart;
+  final VoidCallback onLater;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final r = Responsive.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(),
-        _Eyebrow('HOÀN THÀNH 7 TUẦN'),
-        const SizedBox(height: 18),
-        Text(
-          'Bạn đã đi hết kế hoạch này.',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: r.sp(38),
-            fontWeight: FontWeight.w800,
-            height: 1.02,
-            color: c.ink,
-          ),
+    const rows = [
+      (Icons.schedule_rounded, Tk.primarySoft, Tk.primary,
+          'Khoảng 5 phút, vài bài quen thuộc'),
+      (Icons.videocam_rounded, Tk.greenSoft, Tk.greenInk,
+          'AI đếm rep như buổi tập thường'),
+      (Icons.trending_up_rounded, Tk.orangeSoft, Tk.orangeLip,
+          'Kết quả quyết định level kế tiếp'),
+    ];
+    return _Pane(
+      content: [
+        _Hero(
+          showMascot: showMascot,
+          asset: Tk.mascotTrophy,
+          icon: Icons.emoji_events_rounded,
+          soft: Tk.orangeSoft,
+          strong: Tk.orangeLip,
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Hãy kiểm tra tiến độ trong vài phút để Vika tạo lộ trình tiếp theo đúng sức hơn.',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: r.sp(15),
-            fontWeight: FontWeight.w600,
-            height: 1.5,
-            color: c.inkSoft,
+        const _Headline(
+          eyebrow: 'HOÀN THÀNH 7 TUẦN',
+          eyebrowColor: Tk.orangeInk,
+          title: 'Bạn đã đi hết kế hoạch này!',
+          body:
+              'Kiểm tra nhanh vài phút để Vika tạo lộ trình tiếp theo vừa sức hơn.',
+        ),
+        const SizedBox(height: 20),
+        TkCard(
+          lip: false,
+          radius: 18,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    border: i == rows.length - 1
+                        ? null
+                        : const Border(
+                            bottom: BorderSide(color: Tk.lineSoft, width: 2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                            color: rows[i].$2,
+                            borderRadius: BorderRadius.circular(10)),
+                        child: Icon(rows[i].$1, size: 18, color: rows[i].$3),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(rows[i].$4,
+                            style: Tk.text(15, weight: FontWeight.w800)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
         if (error != null) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           _ErrorText(error!),
         ],
-        const Spacer(),
-        _PrimaryButton(
-          label: busy ? 'Đang chuẩn bị' : 'Bắt đầu kiểm tra',
-          onPressed: busy ? null : onStart,
+      ],
+      actions: [
+        TkButton(
+          label: 'Bắt đầu kiểm tra',
+          tone: TkButtonTone.orange,
+          busy: busy,
+          onTap: busy ? null : onStart,
+        ),
+        const SizedBox(height: 4),
+        Center(
+          child: TextButton(
+            onPressed: busy ? null : onLater,
+            child: Text('Để sau',
+                style:
+                    Tk.text(15, weight: FontWeight.w900, color: Tk.primary)),
+          ),
         ),
       ],
     );
@@ -299,6 +475,8 @@ class _RetestIntro extends StatelessWidget {
 
 class _RetestResultView extends StatelessWidget {
   const _RetestResultView({
+    super.key,
+    required this.showMascot,
     required this.submitted,
     required this.busy,
     required this.error,
@@ -307,6 +485,7 @@ class _RetestResultView extends StatelessWidget {
     required this.onContinue,
   });
 
+  final bool showMascot;
   final SubmittedFitnessRetest submitted;
   final bool busy;
   final String? error;
@@ -316,115 +495,121 @@ class _RetestResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     final changed = submitted.suggestion.shouldPromptUser;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(),
-        _Eyebrow('KẾT QUẢ'),
-        const SizedBox(height: 22),
+    final message = changed
+        ? 'Vika thấy bạn đã sẵn sàng đổi level. Bạn vẫn là người quyết định.'
+        : 'Bạn đang đúng level. Kế hoạch mới sẽ theo nhịp hiện tại.';
+    return _Pane(
+      content: [
+        const SizedBox(height: 4),
+        Text('KẾT QUẢ', style: Tk.eyebrow()),
+        const SizedBox(height: 6),
+        Text('Level của bạn',
+            style: Tk.text(28, weight: FontWeight.w900, letterSpacing: -0.4)),
+        const SizedBox(height: 18),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             _LevelColumn(
-              label: 'Hiện tại',
+              label: 'HIỆN TẠI',
               level: submitted.suggestion.previousLevel,
             ),
-            Container(width: 1, height: 68, color: c.border),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.arrow_forward_rounded,
+                  color: Tk.inkMuted, size: 26),
+            ),
             _LevelColumn(
-              label: changed ? 'Gợi ý mới' : 'Giữ nguyên',
+              label: changed ? 'GỢI Ý MỚI' : 'GIỮ NGUYÊN',
               level: submitted.suggestion.suggestedLevel,
-              highlighted: changed,
+              highlighted: true,
             ),
           ],
         ),
-        const SizedBox(height: 26),
-        Text(
-          changed
-              ? 'Vika thấy bạn đã sẵn sàng đổi level. Bạn vẫn là người quyết định.'
-              : 'Bạn đang đúng level. Kế hoạch mới đang được tạo theo nhịp hiện tại.',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            height: 1.45,
-            color: c.ink,
-          ),
-        ),
+        const SizedBox(height: 22),
+        if (showMascot)
+          TkSpeechRow(asset: Tk.mascotThink, message: message, mascotSize: 108)
+        else
+          Text(message,
+              style: Tk.text(16,
+                  weight: FontWeight.w700, color: Tk.ink, height: 1.45)),
         if (error != null) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           _ErrorText(error!),
         ],
-        const Spacer(),
-        if (changed) ...[
-          _PrimaryButton(
-            label: busy ? 'Đang tạo kế hoạch' : 'Đồng ý đổi level',
-            onPressed: busy ? null : onAccept,
-          ),
-          const SizedBox(height: 10),
-          _SecondaryButton(
-            label: 'Giữ level cũ',
-            onPressed: busy ? null : onDecline,
-          ),
-        ] else
-          _PrimaryButton(
-            label: busy ? 'Đang tạo kế hoạch' : 'Tạo kế hoạch mới',
-            onPressed: busy ? null : onContinue,
-          ),
       ],
+      actions: changed
+          ? [
+              TkButton(
+                label: 'Đồng ý đổi level',
+                tone: TkButtonTone.green,
+                busy: busy,
+                onTap: busy ? null : onAccept,
+              ),
+              const SizedBox(height: 12),
+              TkButton(
+                label: 'Giữ level cũ',
+                tone: TkButtonTone.outline,
+                onTap: busy ? null : onDecline,
+              ),
+            ]
+          : [
+              TkButton(
+                label: 'Tạo kế hoạch mới',
+                tone: TkButtonTone.green,
+                busy: busy,
+                onTap: busy ? null : onContinue,
+              ),
+            ],
     );
   }
 }
 
 class _NewPlanReadyView extends StatelessWidget {
   const _NewPlanReadyView({
+    super.key,
+    required this.showMascot,
     required this.onStartToday,
     required this.onTomorrow,
   });
 
+  final bool showMascot;
   final VoidCallback onStartToday;
   final VoidCallback onTomorrow;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final r = Responsive.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Spacer(),
-        Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(color: c.yellow, shape: BoxShape.circle),
-          child: Icon(Icons.check_rounded, color: c.yellowInk),
+    return _Pane(
+      content: [
+        const SizedBox(height: 12),
+        _Hero(
+          showMascot: showMascot,
+          asset: Tk.mascotCheer,
+          icon: Icons.check_rounded,
+          soft: Tk.greenSoft,
+          strong: Tk.greenInk,
         ),
-        const SizedBox(height: 24),
-        Text(
-          'Kế hoạch mới đã sẵn sàng.',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: r.sp(36),
-            fontWeight: FontWeight.w800,
-            height: 1.04,
-            color: c.ink,
-          ),
+        const _Headline(
+          eyebrow: 'LỘ TRÌNH MỚI',
+          eyebrowColor: Tk.greenInk,
+          title: 'Kế hoạch mới đã sẵn sàng!',
+          body:
+              'Bạn có thể tập buổi đầu hôm nay, hoặc để cơ thể nghỉ và bắt đầu vào ngày mai.',
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Bạn có thể tập buổi đầu hôm nay, hoặc để cơ thể nghỉ và bắt đầu vào ngày mai.',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            height: 1.5,
-            color: c.inkSoft,
-          ),
+      ],
+      actions: [
+        TkButton(
+          label: 'Có, tập luôn',
+          tone: TkButtonTone.green,
+          icon: Icons.play_arrow_rounded,
+          onTap: onStartToday,
         ),
-        const Spacer(),
-        _PrimaryButton(label: 'Có, tập luôn', onPressed: onStartToday),
-        const SizedBox(height: 10),
-        _SecondaryButton(label: 'Để mai', onPressed: onTomorrow),
+        const SizedBox(height: 12),
+        TkButton(
+          label: 'Để mai',
+          tone: TkButtonTone.outline,
+          onTap: onTomorrow,
+        ),
       ],
     );
   }
@@ -437,48 +622,46 @@ class _VariantUnlockDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Dialog(
-      backgroundColor: c.bg,
-      insetPadding: const EdgeInsets.all(24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      backgroundColor: Tk.surface,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: Padding(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Eyebrow('MỞ KHÓA BÀI MỚI'),
-            const SizedBox(height: 14),
+            Text('MỞ KHÓA BÀI MỚI', style: Tk.eyebrow()),
+            const SizedBox(height: 6),
             Text(
               'Bạn đã sẵn sàng cho bài khó hơn.',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
-                color: c.ink,
-              ),
+              style: Tk.text(22,
+                  weight: FontWeight.w900, height: 1.25, letterSpacing: -0.3),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             for (final notice in notices)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  '${notice.unlockedExerciseName} thay cho ${notice.exerciseName}',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    height: 1.35,
-                    color: c.inkSoft,
-                  ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_open_rounded,
+                        size: 20, color: Tk.greenInk),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${notice.unlockedExerciseName} thay cho ${notice.exerciseName}',
+                        style: Tk.text(15,
+                            weight: FontWeight.w800, height: 1.35),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 12),
-            _PrimaryButton(
+            const SizedBox(height: 10),
+            TkButton(
               label: 'Xem kế hoạch mới',
-              onPressed: () => Navigator.of(context).pop(),
+              onTap: () => Navigator.of(context).pop(),
             ),
           ],
         ),
@@ -500,53 +683,30 @@ class _LevelColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'BeVietnamPro',
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-              color: c.inkSoft,
+      child: TkCard(
+        lip: highlighted,
+        radius: 18,
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+        color: highlighted ? Tk.primarySoft : Tk.surface,
+        borderColor: highlighted ? Tk.primary : Tk.line,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: Tk.text(12,
+                    weight: FontWeight.w900,
+                    color: highlighted ? Tk.primary : Tk.inkSoft,
+                    letterSpacing: 1)),
+            const SizedBox(height: 6),
+            Text(
+              _levelLabel(level),
+              style: Tk.text(22,
+                  weight: FontWeight.w900,
+                  color: highlighted ? Tk.primaryLip : Tk.ink),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _levelLabel(level),
-            style: TextStyle(
-              fontFamily: 'BeVietnamPro',
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: highlighted ? c.yellow : c.ink,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Eyebrow extends StatelessWidget {
-  const _Eyebrow(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Text(
-      text,
-      style: TextStyle(
-        fontFamily: 'BeVietnamPro',
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.8,
-        color: c.yellow,
+          ],
+        ),
       ),
     );
   }
@@ -559,78 +719,10 @@ class _ErrorText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Text(
       text,
-      style: TextStyle(
-        fontFamily: 'BeVietnamPro',
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: c.attention,
-      ),
-    );
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return SizedBox(
-      height: 50,
-      width: double.infinity,
-      child: FilledButton(
-        style: FilledButton.styleFrom(
-          backgroundColor: c.yellow,
-          foregroundColor: c.yellowInk,
-          disabledBackgroundColor: c.border,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        onPressed: onPressed,
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SecondaryButton extends StatelessWidget {
-  const _SecondaryButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return SizedBox(
-      height: 50,
-      width: double.infinity,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: c.ink,
-          side: BorderSide(color: c.borderDark),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        onPressed: onPressed,
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
+      textAlign: TextAlign.center,
+      style: Tk.text(14, weight: FontWeight.w800, color: Tk.redInk),
     );
   }
 }

@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/recommendation/weekly_check_in_service.dart';
-import '../theme/app_colors.dart';
-import '../theme/responsive.dart';
+import '../services/research/research_preferences.dart';
+import '../widgets/tk/tk.dart';
 
 class WeeklyCheckInLaunchArgs {
   const WeeklyCheckInLaunchArgs({
@@ -133,120 +133,110 @@ class _WeeklyCheckInScreenState extends State<WeeklyCheckInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final r = Responsive.of(context);
     final question = _questions[_index];
-    final progress = (_index + 1) / _questions.length;
+    final showMascot = !ResearchPreferences.cachedConfig.isControl;
+    final answered = _answers.containsKey(question.key);
+    final last = _index == _questions.length - 1;
 
     return PopScope(
       onPopInvokedWithResult: (_, __) => unawaited(_savePartial()),
       child: Scaffold(
-        backgroundColor: c.bg,
+        backgroundColor: Tk.surface,
         body: SafeArea(
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             child: _isDone
-                ? _ThankYouView(key: const ValueKey('done'))
-                : Padding(
+                ? _ThankYouView(
+                    key: const ValueKey('done'), showMascot: showMascot)
+                : Column(
                     key: const ValueKey('form'),
-                    padding:
-                        EdgeInsets.fromLTRB(24, 18, 24, 24 + r.bottomInset),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            _RoundIconButton(
-                              icon: Icons.arrow_back_rounded,
-                              onTap: _back,
-                            ),
-                            const Spacer(),
-                            Text(
-                              '${_index + 1}/${_questions.length}',
-                              style: TextStyle(
-                                fontFamily: 'BeVietnamPro',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: c.inkSoft,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TkTopBar(
+                        onBack: _back,
+                        closeIcon: _index == 0,
+                        progress: (_index + 1) / _questions.length,
+                        trailing: '${_index + 1}/${_questions.length}',
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showMascot)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(6, 6, 20, 0),
+                                  child: TkSpeechRow(
+                                    asset: Tk.mascotThink,
+                                    message: question.subtitle,
+                                    mascotSize: 112,
+                                  ),
+                                ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                                child: Text(
+                                  question.title,
+                                  style: Tk.text(26,
+                                      weight: FontWeight.w900,
+                                      height: 1.2,
+                                      letterSpacing: -0.4),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 28),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            minHeight: 4,
-                            value: progress,
-                            color: c.yellow,
-                            backgroundColor: c.border,
-                          ),
-                        ),
-                        const SizedBox(height: 44),
-                        Text(
-                          question.title,
-                          style: TextStyle(
-                            fontFamily: 'BeVietnamPro',
-                            fontSize: r.sp(31),
-                            fontWeight: FontWeight.w800,
-                            height: 1.08,
-                            color: c.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          question.subtitle,
-                          style: TextStyle(
-                            fontFamily: 'BeVietnamPro',
-                            fontSize: r.sp(14),
-                            fontWeight: FontWeight.w600,
-                            height: 1.45,
-                            color: c.inkSoft,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (question.kind == _QuestionKind.scale)
-                          _ScalePicker(
-                            selected: _answers[question.key] as int?,
-                            onChanged: _answer,
-                          )
-                        else
-                          _ChoicePicker(
-                            choices: question.choices,
-                            selected: _answers[question.key] as String?,
-                            onChanged: _answer,
-                          ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 50,
-                          width: double.infinity,
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: c.yellow,
-                              foregroundColor: c.yellowInk,
-                              disabledBackgroundColor: c.border,
-                              disabledForegroundColor: c.inkSoft,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                              if (!showMascot)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(24, 6, 24, 0),
+                                  child: Text(
+                                    question.subtitle,
+                                    style: Tk.text(15,
+                                        weight: FontWeight.w700,
+                                        color: Tk.inkSoft,
+                                        height: 1.4),
+                                  ),
+                                ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                                child: question.kind == _QuestionKind.scale
+                                    ? _ScalePicker(
+                                        selected:
+                                            _answers[question.key] as int?,
+                                        onChanged: _answer,
+                                      )
+                                    : _ChoicePicker(
+                                        choices: question.choices,
+                                        selected:
+                                            _answers[question.key] as String?,
+                                        onChanged: _answer,
+                                      ),
                               ),
-                            ),
-                            onPressed: _answers.containsKey(question.key) &&
-                                    !_isSubmitting
-                                ? _next
-                                : null,
-                            child: Text(
-                              _index == _questions.length - 1
-                                  ? (_isSubmitting ? 'Đang lưu' : 'Hoàn tất')
-                                  : 'Tiếp tục',
-                              style: const TextStyle(
-                                fontFamily: 'BeVietnamPro',
-                                fontWeight: FontWeight.w800,
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                                child: Text(
+                                  'Vika chỉ ghi nhận để hiểu nhịp hồi phục của bạn.',
+                                  style: Tk.text(13,
+                                      weight: FontWeight.w700,
+                                      color: Tk.inkSoft),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                        child: TkButton(
+                          label: last ? 'Hoàn tất' : 'Tiếp tục',
+                          tone: TkButtonTone.green,
+                          busy: _isSubmitting,
+                          onTap: answered && !_isSubmitting ? _next : null,
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ),
@@ -266,39 +256,35 @@ class _ScalePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Row(
       children: [
-        for (var value = 1; value <= 5; value++)
+        for (var value = 1; value <= 5; value++) ...[
+          if (value > 1) const SizedBox(width: 8),
           Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(right: value == 5 ? 0 : 8),
-              child: SizedBox(
-                height: 58,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: selected == value ? c.yellow : c.bgRaised,
-                    foregroundColor: selected == value ? c.yellowInk : c.ink,
-                    side: BorderSide(
-                      color: selected == value ? c.yellow : c.border,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () => onChanged(value),
-                  child: Text(
-                    '$value',
-                    style: const TextStyle(
-                      fontFamily: 'BeVietnamPro',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
+            child: Semantics(
+              button: true,
+              selected: selected == value,
+              child: TkCard(
+                onTap: () => onChanged(value),
+                radius: 16,
+                padding: EdgeInsets.zero,
+                color: selected == value ? Tk.primarySoft : Tk.surface,
+                borderColor: selected == value ? Tk.primary : Tk.line,
+                child: SizedBox(
+                  height: 60,
+                  child: Center(
+                    child: Text(
+                      '$value',
+                      style: Tk.text(22,
+                          weight: FontWeight.w900,
+                          color: selected == value ? Tk.primaryLip : Tk.ink),
                     ),
                   ),
                 ),
               ),
             ),
           ),
+        ],
       ],
     );
   }
@@ -315,113 +301,105 @@ class _ChoicePicker extends StatelessWidget {
   final String? selected;
   final ValueChanged<String> onChanged;
 
+  static (Color, Color) _colors(_Tone tone) => switch (tone) {
+        _Tone.green => (Tk.greenSoft, Tk.greenInk),
+        _Tone.blue => (Tk.primarySoft, Tk.primary),
+        _Tone.orange => (Tk.orangeSoft, Tk.orangeLip),
+      };
+
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Column(
-      children: choices.map((choice) {
-        final active = selected == choice.value;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: SizedBox(
-            height: 54,
-            width: double.infinity,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                alignment: Alignment.centerLeft,
-                backgroundColor: active ? c.yellow : c.bgRaised,
-                foregroundColor: active ? c.yellowInk : c.ink,
-                side: BorderSide(color: active ? c.yellow : c.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+      children: [
+        for (final choice in choices)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Builder(builder: (context) {
+              final active = selected == choice.value;
+              final (soft, strong) = _colors(choice.tone);
+              return Semantics(
+                button: true,
+                selected: active,
+                child: TkCard(
+                  onTap: () => onChanged(choice.value),
+                  radius: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  color: active ? Tk.primarySoft : Tk.surface,
+                  borderColor: active ? Tk.primary : Tk.line,
+                  child: SizedBox(
+                    height: 60,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: active ? Tk.primary : soft,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(choice.icon,
+                              size: 18,
+                              color: active ? Colors.white : strong),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            choice.label,
+                            style: Tk.text(17,
+                                weight: FontWeight.w900,
+                                color: active ? Tk.primaryLip : Tk.ink),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              onPressed: () => onChanged(choice.value),
-              child: Text(
-                choice.label,
-                style: const TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
+              );
+            }),
           ),
-        );
-      }).toList(),
+      ],
     );
   }
 }
 
 class _ThankYouView extends StatelessWidget {
-  const _ThankYouView({super.key});
+  const _ThankYouView({super.key, required this.showMascot});
+
+  final bool showMascot;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(36),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: c.yellow,
-                shape: BoxShape.circle,
+            if (showMascot)
+              const TkMascot(asset: Tk.mascotCheer, size: 190)
+            else
+              Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(
+                    color: Tk.green, shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded,
+                    color: Colors.white, size: 34),
               ),
-              child: Icon(Icons.check_rounded, color: c.yellowInk),
-            ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             Text(
               'Cảm ơn bạn',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                color: c.ink,
-              ),
+              style: Tk.text(28, weight: FontWeight.w900, letterSpacing: -0.4),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               'Vika đã lưu lại cảm nhận tuần này.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: c.inkSoft,
-              ),
+              style:
+                  Tk.text(15, weight: FontWeight.w700, color: Tk.inkSoft),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Material(
-        color: c.bgRaised,
-        shape: CircleBorder(side: BorderSide(color: c.border)),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Icon(icon, color: c.ink, size: 20),
         ),
       ),
     );
@@ -447,11 +425,15 @@ class _Question {
 }
 
 class _Choice {
-  const _Choice(this.value, this.label);
+  const _Choice(this.value, this.label, this.icon, this.tone);
 
   final String value;
   final String label;
+  final IconData icon;
+  final _Tone tone;
 }
+
+enum _Tone { green, blue, orange }
 
 const _questions = [
   _Question(
@@ -484,9 +466,9 @@ const _questions = [
     subtitle: 'So với tuần trước, cơ thể bạn đang nói gì?',
     kind: _QuestionKind.choice,
     choices: [
-      _Choice('better', 'Tốt hơn'),
-      _Choice('same', 'Như cũ'),
-      _Choice('worse', 'Tệ hơn'),
+      _Choice('better', 'Tốt hơn', Icons.arrow_upward_rounded, _Tone.green),
+      _Choice('same', 'Như cũ', Icons.remove_rounded, _Tone.blue),
+      _Choice('worse', 'Tệ hơn', Icons.arrow_downward_rounded, _Tone.orange),
     ],
   ),
   _Question(
@@ -495,9 +477,9 @@ const _questions = [
     subtitle: 'Cảm giác chủ quan cũng là dữ liệu quan trọng.',
     kind: _QuestionKind.choice,
     choices: [
-      _Choice('yes', 'Có'),
-      _Choice('unsure', 'Không chắc'),
-      _Choice('no', 'Không'),
+      _Choice('yes', 'Có', Icons.check_rounded, _Tone.green),
+      _Choice('unsure', 'Không chắc', Icons.help_outline_rounded, _Tone.blue),
+      _Choice('no', 'Không', Icons.close_rounded, _Tone.orange),
     ],
   ),
 ];

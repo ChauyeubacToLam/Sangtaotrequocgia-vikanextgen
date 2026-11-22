@@ -11,6 +11,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+tools/eval/phone_logs/
 claude/
 .claude/
 .claude/worktrees/

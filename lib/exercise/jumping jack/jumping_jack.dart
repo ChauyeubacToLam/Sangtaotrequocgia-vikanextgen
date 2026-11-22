@@ -43,7 +43,8 @@ class JumpingJack extends ExerciseBase {
   @override
   Set<VikaImageOrientation> get supportedOrientations =>
       const <VikaImageOrientation>{
-        VikaImageOrientation.portrait,
+        VikaImageOrientation.landscapeLeft,
+        VikaImageOrientation.landscapeRight,
       };
 
   final int maxRep;
@@ -82,7 +83,6 @@ class JumpingJack extends ExerciseBase {
 
   @override
   ExerciseVoiceCoach createVoiceCoach() {
-    // TODO(voice): fast-movement policy variant — see tier3 note 1
     return PolicyVoiceCoach(
       script: VoiceScript.from(
         VoiceDefaults.repBased,

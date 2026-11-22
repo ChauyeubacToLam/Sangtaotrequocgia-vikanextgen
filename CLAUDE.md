@@ -20,7 +20,7 @@ fvm flutter pub get
 cd ios && pod install && cd ..                    # iOS only
 fvm flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 fvm flutter analyze                               # flutter_lints, constant_identifier_names ignored
-fvm flutter test                                  # 105 files under test/
+fvm flutter test                                  # 108 files under test/
 fvm flutter test test/exercise/presence_gate_test.dart
 ```
 
@@ -90,23 +90,42 @@ debouncer), else angled (`exercise_base.dart:37-49`). `scaleFactor` = shoulder-h
 ## Exercises
 
 Each is `lib/exercise/<name>/` with main class, `metrics/`, `*_report_builder.dart`. Directory names are
-inconsistent (`1.Bird Dog`, `glute bridge`, `push up`); keep existing names. 40 exercise dirs plus the shared `hold/`.
+inconsistent (`1.Bird Dog`, `glute bridge`, `push up`); keep existing names. 43 exercise dirs plus the shared `hold/`.
 - Metrics debounce (`lib/utils/debouncer.dart`), write feedback, record `FaultRecord`s. Real example:
   `plank/metrics/trunk_alignment_metric.dart` (sag > 8/12 deg, pike > 4/8 deg, 5-frame debounce, form
   affected only if fault time > 45% of the hold).
 - Archetypes: rep-based, and hold-based via `RepCountedHoldExercise`
   (`lib/exercise/hold/rep_counted_hold_exercise.dart`; High Plank, Bear Plank, Butterfly, Seated
-  Forward Fold, Side Plank Dip, Sphinx). Plank is a separate hold implementation (15 s hold, 5 s rest).
+  Forward Fold, Side Plank Dip, Sphinx, Neck Side Stretch). Plank is a separate hold implementation
+  (15 s hold, 5 s rest).
 - New exercise touchpoints: `exerciseDefinitions` in `lib/models/exercise_definition.dart` (+ aliases in
-  `exercise_lookup.dart`); `assets/data/exercise_catalog.json` (40 entries, mirrors Supabase
-  `exercise_catalog`); `report_builder_registry.dart` and `calorie_estimator_registry.dart`;
+  `exercise_lookup.dart`); `assets/data/exercise_catalog.json` (43 entries, mirrors Supabase
+  `exercise_catalog`; same rows in `supabase/seed.sql`); `report_builder_registry.dart` (builder +
+  MET) and `calorie_estimator_registry.dart` (only squat has a custom estimator, the rest use the
+  MET fallback); `kExercisePlacementByCatalogId` in `camera_placement_card.dart`; `keptExerciseIds`
+  in `lib/models/kept_exercises.dart`; a row in `lib/data/library_mock.dart`;
   `assets/audio/<slug>/` listed in `pubspec.yaml` plus voice keys
-  (`lib/services/generic_exercise_voice_assets.dart`).
-- 30/40 catalog entries are `isFormChecked: true`. Not form-checked: ashtanga_namaskara, butterfly,
-  downward_dog, low_lunge, prayer_pose, raised_arms, reverse_crunch, russian_twist,
-  standing_knee_to_elbow, surya_namaskar.
+  (`lib/services/generic_exercise_voice_assets.dart`). Only list an audio folder in `pubspec.yaml`
+  once it has files: a listed folder that does not exist fails the build.
+- 30/43 catalog entries are `isFormChecked: true`. Not form-checked: ashtanga_namaskara, butterfly,
+  downward_dog, low_lunge, neck_side_stretch, prayer_pose, pushup_rotation, raised_arms,
+  reverse_crunch, russian_twist, standing_knee_to_elbow, step_up, surya_namaskar. The recommendation
+  engine only picks form-checked rows, so these never enter generated plans.
+- 24 kept exercises (`keptExerciseIds`): the 21 of 2026-11-20 plus step_up, neck_side_stretch and
+  pushup_rotation (added 2026-11-22, counts only, thresholds not measured on a device; see
+  `docs/field-test-log.md` 5.16). 4 are validated (`validatedExerciseIds`).
 - Landscape is on (`kLandscapeRotationEnabled`): OS locked to portrait, UI rotated from the sensor
-  (`lib/pose/vika_image_orientation.dart`). Plank is landscape-only.
+  (`lib/pose/vika_image_orientation.dart`). All 24 kept exercises are landscape-only
+  with one shared placement (`kOnePlacementWhere` in `camera_placement_card.dart`: phone landscape,
+  60–70 cm high, ~3 m away). In landscape the preview uses `BoxFit.contain` so the screen shows the
+  whole frame the AI sees.
+- Android capture (`PoseLandmarkerPlugin.kt`): preview 1440x1080 and analysis 960x720 (both 4:3, full
+  sensor width), CameraX rotates frames natively, AE fps locked to the best range <= 30, landmark
+  pixel size reported with a 1280 long side. MediaPipe tries GPU and falls back to CPU. Logcat tags
+  `PoseLandmarkerPlugin`/`PoseLandmarkerHelper` print `perf` lines every 3 s.
+- The skeleton is drawn by `SmoothedPoseOverlay` (`lib/pose/pose_display_smoother.dart`): display-rate
+  interpolation with a 40 ms velocity lead between detections. Drawing only; rep logic still uses the
+  raw detections.
 
 ## Workout flow and data
 
@@ -145,10 +164,10 @@ the active-exercise screen. One font: Be Vietnam Pro (`assets/fonts/be_vietnam_p
 
 ## Directory map
 
-`lib/` 460 files, ~133k lines, every file reachable from `main.dart` (71 unreachable files were deleted
-on 2026-11-20). `exercise/` 47.5k, `screens/` 35.8k, `widgets/` 20.7k, `services/` 12.1k, `data/` 3.4k,
+`lib/` 466 files, ~134k lines, every file reachable from `main.dart` (71 unreachable files were deleted
+on 2026-11-20; 6 exercise files added 2026-11-22). `exercise/` 48.8k, `screens/` 35.8k, `widgets/` 20.7k, `services/` 12.1k, `data/` 3.4k,
 `voice/` 3k, `models/` 2.5k, `utils/` 1.4k, `debug/` 1.4k, `theme/` 1.3k, `pose/` 0.5k,
-`interpreter/` 0.3k. `test/` 105 files (`exercise/` 63, `services/` 23, plus pose, voice, screens,
+`interpreter/` 0.3k. `test/` 108 files (`exercise/` 66, `services/` 23, plus pose, voice, screens,
 widgets). Native: `android/app/src/main/kotlin/com/vikavn/app/`, `ios/Runner/`. Docs: `docs/README.md`
 is the map (`state.md`, `canonical-numbers.md`, `decisions.md`, `reference/`, `agent-memory/`);
 those docs were not re-verified, trust code over docs.

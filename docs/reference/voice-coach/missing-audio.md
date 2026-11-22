@@ -313,6 +313,18 @@ How to use:
 | 181 | bear_plank/back_sag_reminder.mp3 | Lần này bạn nhớ siết bụng giữ lưng thẳng nhé. | ✅ TTS 07-13 |
 | 182 | bear_plank/back_arch_reminder.mp3 | Lần này bạn nhớ hạ lưng về đường thẳng nhé. | ✅ TTS 07-13 |
 | 183 | bear_plank/weight_reminder.mp3 | Lần này bạn nhớ dồn vai thẳng trên cổ tay nhé. | ✅ TTS 07-13 |
+| 184 | step_up/setup_position.mp3 | Bạn đứng nghiêng với màn hình, ghế chắc ở ngay trước mặt nhé. | NEW 22/11 |
+| 185 | step_up/active_intro.mp3 | Bước một chân lên ghế, đứng thẳng trên ghế rồi bước xuống, lần sau đổi chân nhé. | NEW 22/11 |
+| 186 | step_up/trunk.mp3 | Bạn đứng thẳng người khi ở trên ghế nhé. | NEW 22/11 |
+| 187 | neck_side_stretch/setup_position.mp3 | Bạn đứng thẳng, quay mặt vào màn hình, thả lỏng hai vai nhé. | NEW 22/11 |
+| 188 | neck_side_stretch/active_intro.mp3 | Nghiêng tai về phía vai và giữ yên, xong một bên thì đổi bên nhé. | NEW 22/11 |
+| 189 | neck_side_stretch/shrug.mp3 | Bạn thả hai vai xuống xa tai nhé. | NEW 22/11 |
+| 190 | neck_side_stretch/shoulder.mp3 | Bạn giữ hai vai ngang, chỉ nghiêng đầu thôi nhé. | NEW 22/11 |
+| 191 | neck_side_stretch/shrug_reminder.mp3 | Lần này bạn nhớ thả vai xuống nhé. | NEW 22/11 |
+| 192 | neck_side_stretch/shoulder_reminder.mp3 | Lần này bạn nhớ giữ hai vai ngang nhé. | NEW 22/11 |
+| 193 | push_up_rotation/setup_position.mp3 | Bạn vào tư thế plank cao, nằm nghiêng với màn hình nhé. | NEW 22/11 |
+| 194 | push_up_rotation/active_intro.mp3 | Chống đẩy xuống rồi đẩy lên, xoay người mở một tay lên trần, mỗi lần đổi tay nhé. | NEW 22/11 |
+| 195 | push_up_rotation/body_line.mp3 | Bạn siết bụng, giữ người thành một đường thẳng nhé. | NEW 22/11 |
 
 Bear reminders (rows 179-183, 07-13): the ONLY reachable hold reminders — Bear has 3 internal holds so
 a fault carries into the next hold start (`repStartPhaseKeys{'holding'}`). The other 4 holds are 1-hold

@@ -2,6 +2,8 @@ package com.vikavn.app
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.SystemClock
+import android.util.Log
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.components.containers.Landmark
@@ -12,6 +14,7 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.roundToInt
 
 class PoseLandmarkerHelper(
     context: Context,
@@ -24,6 +27,13 @@ class PoseLandmarkerHelper(
     private val pendingFrames = ConcurrentHashMap<Long, FramePayload>()
     @Volatile private var currentOrientationCode: String? = null
     @Volatile private var currentOrientationIsFrontCamera = true
+    private var perfWindowStartMs = 0L
+    private var perfResults = 0
+    private var perfLatencyMs = 0L
+    @Volatile private var activeDelegate = Delegate.CPU
+    @Volatile private var gpuDisabled = false
+    @Volatile private var gpuVerified = false
+    @Volatile private var pendingCpuFallback = false
 
     init {
         setupPoseLandmarker()
@@ -36,10 +46,27 @@ class PoseLandmarkerHelper(
 
     fun setupPoseLandmarker() {
         clearPoseLandmarker()
+        if (!gpuDisabled) {
+            try {
+                poseLandmarker = createPoseLandmarker(Delegate.GPU)
+                activeDelegate = Delegate.GPU
+                gpuVerified = false
+                Log.d(TAG, "pose landmarker delegate=GPU")
+                return
+            } catch (exception: Exception) {
+                gpuDisabled = true
+                Log.w(TAG, "GPU delegate unavailable, using CPU: " + exception.message)
+            }
+        }
+        poseLandmarker = createPoseLandmarker(Delegate.CPU)
+        activeDelegate = Delegate.CPU
+        Log.d(TAG, "pose landmarker delegate=CPU")
+    }
 
+    private fun createPoseLandmarker(delegate: Delegate): PoseLandmarker {
         val baseOptions = BaseOptions.builder()
             .setModelAssetPath(MODEL_ASSET_NAME)
-            .setDelegate(Delegate.CPU)
+            .setDelegate(delegate)
             .build()
 
         val options = PoseLandmarker.PoseLandmarkerOptions.builder()
@@ -53,15 +80,28 @@ class PoseLandmarkerHelper(
             .setErrorListener(this::returnLivestreamError)
             .build()
 
-        poseLandmarker = PoseLandmarker.createFromOptions(appContext, options)
+        return PoseLandmarker.createFromOptions(appContext, options)
+    }
+
+    private fun scheduleCpuFallbackIfGpuUnverified(reason: String?) {
+        if (activeDelegate != Delegate.GPU || gpuVerified) {
+            return
+        }
+        gpuDisabled = true
+        pendingCpuFallback = true
+        Log.w(TAG, "GPU inference failed before first result, switching to CPU: " + reason)
     }
 
     fun clearPoseLandmarker() {
         poseLandmarker?.close()
         poseLandmarker = null
+        releasePendingFrames()
+        lastSubmittedTimestampMs = Long.MIN_VALUE
+    }
+
+    fun releasePendingFrames() {
         pendingFrames.values.forEach { it.onComplete() }
         pendingFrames.clear()
-        lastSubmittedTimestampMs = Long.MIN_VALUE
     }
 
     fun detectLiveStream(
@@ -76,6 +116,11 @@ class PoseLandmarkerHelper(
     ): Boolean {
         var pendingTimestampMs: Long? = null
 
+        if (pendingCpuFallback) {
+            pendingCpuFallback = false
+            setupPoseLandmarker()
+        }
+
         try {
             val activeLandmarker = poseLandmarker ?: return false
             if (timestampMs <= lastSubmittedTimestampMs) {
@@ -84,15 +129,17 @@ class PoseLandmarkerHelper(
 
             val submittedTimestampMs = timestampMs
             pendingTimestampMs = submittedTimestampMs
+            val reportScale = REPORTED_LONG_SIDE / maxOf(bitmap.width, bitmap.height).toDouble()
             pendingFrames[submittedTimestampMs] = FramePayload(
                 frameWidth = frameWidth,
                 frameHeight = frameHeight,
-                imageWidth = bitmap.width,
-                imageHeight = bitmap.height,
+                imageWidth = (bitmap.width * reportScale).roundToInt(),
+                imageHeight = (bitmap.height * reportScale).roundToInt(),
                 rotationDegrees = rotationDegrees,
                 rotationDurationMs = rotationDurationMs,
                 isFrontCamera = isFrontCamera,
                 orientation = currentOrientationCode,
+                submittedAtMs = SystemClock.elapsedRealtime(),
                 onComplete = onComplete,
             )
             trimPendingFrames()
@@ -105,6 +152,7 @@ class PoseLandmarkerHelper(
             pendingTimestampMs?.let { timestamp ->
                 pendingFrames.remove(timestamp)?.onComplete()
             }
+            scheduleCpuFallbackIfGpuUnverified(exception.message)
             onError("pose_landmarker_detection", exception.message)
             return false
         }
@@ -118,6 +166,8 @@ class PoseLandmarkerHelper(
             if (framePayload == null) {
                 return
             }
+            gpuVerified = true
+            recordPerf(SystemClock.elapsedRealtime() - framePayload.submittedAtMs)
 
             if (result.landmarks().isEmpty()) {
                 onResult(framePayload.toEventPayload(timestampMs, emptyList(), emptyList()))
@@ -144,6 +194,7 @@ class PoseLandmarkerHelper(
     }
 
     private fun returnLivestreamError(exception: RuntimeException) {
+        scheduleCpuFallbackIfGpuUnverified(exception.message)
         onError("pose_landmarker_stream", exception.message)
     }
 
@@ -177,6 +228,28 @@ class PoseLandmarkerHelper(
         )
     }
 
+    private fun recordPerf(latencyMs: Long) {
+        val now = SystemClock.elapsedRealtime()
+        if (perfWindowStartMs == 0L) {
+            perfWindowStartMs = now
+        }
+        perfResults += 1
+        perfLatencyMs += latencyMs
+        val elapsedMs = now - perfWindowStartMs
+        if (elapsedMs < PERF_LOG_WINDOW_MS) {
+            return
+        }
+        Log.d(
+            TAG,
+            "perf resultFps=" + String.format("%.1f", perfResults * 1000.0 / elapsedMs) +
+                " inferenceLatencyMs=" + (perfLatencyMs / perfResults) +
+                " delegate=" + activeDelegate,
+        )
+        perfWindowStartMs = now
+        perfResults = 0
+        perfLatencyMs = 0L
+    }
+
     private fun trimPendingFrames(maxEntries: Int = 4) {
         if (pendingFrames.size <= maxEntries) {
             return
@@ -197,6 +270,7 @@ class PoseLandmarkerHelper(
         val rotationDurationMs: Double,
         val isFrontCamera: Boolean,
         val orientation: String?,
+        val submittedAtMs: Long,
         val onComplete: () -> Unit,
     ) {
         fun toEventPayload(
@@ -221,6 +295,9 @@ class PoseLandmarkerHelper(
     }
 
     companion object {
+        private const val TAG = "PoseLandmarkerHelper"
         private const val MODEL_ASSET_NAME = "pose_landmarker_lite.task"
+        private const val REPORTED_LONG_SIDE = 1280.0
+        private const val PERF_LOG_WINDOW_MS = 3000L
     }
 }

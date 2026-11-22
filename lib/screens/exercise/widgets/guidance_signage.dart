@@ -188,67 +188,67 @@ class _GuidanceSignageState extends State<GuidanceSignage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            _glyphHero(
-              boxWidth: glyphBox * 1.15,
-              boxHeight: glyphBox,
-              glyphSize: glyphSize,
-            ),
-            SizedBox(height: hasStatus ? 10 : 16),
-            if (hasStatus) ...[
-              Container(
-                constraints: const BoxConstraints(maxWidth: 320),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: VikaIvory.heroBg.withValues(alpha: 0.84),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: _border),
+              _glyphHero(
+                boxWidth: glyphBox * 1.15,
+                boxHeight: glyphBox,
+                glyphSize: glyphSize,
+              ),
+              SizedBox(height: hasStatus ? 10 : 16),
+              if (hasStatus) ...[
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: VikaIvory.heroBg.withValues(alpha: 0.84),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: _border),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      status,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: VikaIvory.fontFamily,
+                        fontSize: widget.landscape ? 13 : 14,
+                        fontWeight: FontWeight.w700,
+                        color: _accent,
+                        letterSpacing: 0.1,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
                 ),
+                SizedBox(height: widget.landscape ? 8 : 10),
+              ],
+              SizedBox(
+                width: 340,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    status,
+                    widget.title,
                     maxLines: 1,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: VikaIvory.fontFamily,
-                      fontSize: widget.landscape ? 13 : 14,
-                      fontWeight: FontWeight.w700,
-                      color: _accent,
-                      letterSpacing: 0.1,
-                      height: 1.15,
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.w800,
+                      color: VikaIvory.invInk,
+                      letterSpacing: -1.5,
+                      height: 1.05,
+                      shadows: [
+                        Shadow(
+                          color: VikaIvory.heroBg.withValues(alpha: 0.9),
+                          blurRadius: 14,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              SizedBox(height: widget.landscape ? 8 : 10),
             ],
-            SizedBox(
-              width: 340,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  widget.title,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: VikaIvory.fontFamily,
-                    fontSize: titleSize,
-                    fontWeight: FontWeight.w800,
-                    color: VikaIvory.invInk,
-                    letterSpacing: -1.5,
-                    height: 1.05,
-                    shadows: [
-                      Shadow(
-                        color: VikaIvory.heroBg.withValues(alpha: 0.9),
-                        blurRadius: 14,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
           ),
         ),
       ),

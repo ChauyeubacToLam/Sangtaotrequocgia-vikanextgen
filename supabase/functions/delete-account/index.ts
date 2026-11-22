@@ -20,10 +20,6 @@
 // DEPLOY (Nam): supabase functions deploy delete-account
 //   This does NOT auto-deploy. SUPABASE_SERVICE_ROLE_KEY is read from the
 //   function environment and is never shipped to the client.
-//
-// TODO(siwa): when Sign in with Apple ships, revoke the Apple refresh token
-// via Apple's REST revoke endpoint here. Apple requires token revocation on
-// account deletion (App Store Guideline 5.1.1(v)).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

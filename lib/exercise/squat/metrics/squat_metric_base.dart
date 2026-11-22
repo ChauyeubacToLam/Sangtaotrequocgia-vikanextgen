@@ -43,6 +43,7 @@ class RepContext {
   final double kneeY;
   final double hipY;
   final double shoulderY;
+  final bool trunkMeasured;
 
   /// Shared result container — metrics write feedback here.
   final ResultIssues resultIssues;
@@ -58,6 +59,7 @@ class RepContext {
     required this.kneeY,
     required this.hipY,
     required this.shoulderY,
+    this.trunkMeasured = true,
     required this.resultIssues,
   });
 }

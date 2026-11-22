@@ -40,6 +40,12 @@ dependencies:
   flutter_svg: ^2.3.0
   video_player: ^2.9.5
   posthog_flutter: ^5.28.0
+  flutter_local_notifications: ^22.3.3
+  timezone: ^0.11.2
+  pedometer: ^4.2.0
+  mobile_scanner: ^7.5.0
+  speech_to_text: ^7.4.0
+  google_mlkit_text_recognition: ^0.15.1
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +53,14 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
 
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#160E48"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  remove_alpha_ios: true
+  min_sdk_android: 23
 
 flutter:
   config:
@@ -54,6 +68,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/data/exercise_catalog.json
+    - assets/data/vn_nutrition.json
+    - assets/food/
     - assets/audio/
     - assets/audio/common/
     - assets/audio/bird_dog/
@@ -103,6 +119,8 @@ flutter:
     - assets/habt/
     - assets/env/
     - assets/video/
+    - assets/mascot/
+    - assets/famous/
 #    - assets/images/onboarding/
 
   # ─── Fonts ───
@@ -152,3 +170,5 @@ flutter:
         - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-ExtraBoldItalic.ttf
           weight: 800
           style: italic
+        - asset: assets/fonts/be_vietnam_pro/BeVietnamPro-Black.ttf
+          weight: 900

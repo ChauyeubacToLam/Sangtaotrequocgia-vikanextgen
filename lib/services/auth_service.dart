@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/auth_config.dart';
+import '../nutrition/nutrition_sync.dart';
 
 class AuthFlowCancelledException implements Exception {
   const AuthFlowCancelledException(this.message);
@@ -383,6 +384,7 @@ class AuthService {
 
   Future<void> signOut() async {
     try {
+      await NutritionSync.instance.flush();
       await _supabase.auth.signOut();
     } on AuthException catch (error) {
       throw Exception(

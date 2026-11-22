@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vika/exercise/exercise_base.dart';
-import 'package:vika/exercise/squat/metrics/heel_rise_metric.dart';
 import 'package:vika/exercise/squat/metrics/hip_shoulder_sync.dart';
 import 'package:vika/exercise/squat/metrics/squat_metric_base.dart';
 import 'package:vika/exercise/squat/metrics/trunk_lean_metric.dart';
@@ -30,70 +29,12 @@ RepContext _buildRepContext({
 }
 
 void main() {
-  test('heel rise fault adds a post-rep voice cue with highest priority', () {
-    final metric = HeelRiseMetric();
-
-    for (var i = 0; i < 5; i++) {
-      metric.update(
-        _buildRepContext(
-          squatState: SquatState.bottom,
-          heelDistance: 19,
-          scaleFactor: 100,
-        ),
-      );
-    }
-
-    expect(metric.faults, hasLength(1));
-    expect(metric.faults.single.voiceMessage, 'Giữ gót chân');
-    expect(metric.faults.single.priority, SquatFaultVoicePriority.heelRise);
-  });
-
-  test('heel rise ignores minor heel offset while heel is still on the floor',
-      () {
-    final metric = HeelRiseMetric();
-
-    for (var i = 0; i < 6; i++) {
-      metric.update(
-        _buildRepContext(
-          squatState: SquatState.bottom,
-          heelDistance: 9,
-          scaleFactor: 100,
-        ),
-      );
-    }
-
-    expect(metric.faults, isEmpty);
-  });
-
   test('hip-shoulder sync fault stays live-only for voice', () {
     final metric = HipShoulderSyncMetric();
 
     final contexts = [
-      _buildRepContext(
-        squatState: SquatState.ascending,
-        hipY: 100,
-        shoulderY: 100,
-      ),
-      _buildRepContext(
-        squatState: SquatState.ascending,
-        hipY: 97,
-        shoulderY: 99.5,
-      ),
-      _buildRepContext(
-        squatState: SquatState.ascending,
-        hipY: 94,
-        shoulderY: 99,
-      ),
-      _buildRepContext(
-        squatState: SquatState.ascending,
-        hipY: 91,
-        shoulderY: 98.5,
-      ),
-      _buildRepContext(
-        squatState: SquatState.ascending,
-        hipY: 88,
-        shoulderY: 98,
-      ),
+      for (final lean in [30.0, 33.0, 38.0, 42.0, 44.0, 45.0])
+        _buildRepContext(squatState: SquatState.ascending, trunkLean: lean),
     ];
 
     for (final ctx in contexts) {

@@ -42,6 +42,7 @@ import 'package:vika/services/session_summary_builder.dart';
 import 'package:vika/services/session_trophy_picker.dart';
 import 'package:vika/utils/exercise_logger.dart';
 import 'package:vika/voice/voice_sink.dart';
+import 'package:vika/screens/exercise/widgets/exercise_guide_video.dart';
 import 'package:vika/widgets/exercise/session_satisfaction_dialog.dart';
 
 class _FakeResearchLogStorage extends ResearchLogStorage {
@@ -147,7 +148,7 @@ void main() {
       expect(find.text('Cài đặt nghiên cứu'), findsOneWidget);
       expect(find.text('Mã đang ghi vào tệp: anon'), findsOneWidget);
       expect(find.text('Số tệp nhật ký đang lưu: 2'), findsOneWidget);
-      expect(find.text('Chia sẻ tất cả tệp nhật ký'), findsOneWidget);
+      expect(find.text('CHIA SẺ TẤT CẢ TỆP NHẬT KÝ'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'P07');
       await tester.pump();
@@ -243,13 +244,13 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('REP chuẩn'), findsOneWidget);
+      expect(find.text('REP CHUẨN FORM'), findsOneWidget);
       expect(
         find.textContaining('Tốt lắm! Cứ giữ form đẹp như vậy.'),
         findsOneWidget,
       );
       expect(find.textContaining('Dồn lực qua gót chân.'), findsOneWidget);
-      expect(find.text('Cần chú ý (1)'), findsOneWidget);
+      expect(find.text('CẦN CHÚ Ý (1)'), findsOneWidget);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -274,7 +275,7 @@ void main() {
         find.text('Nghỉ ngơi một chút trước khi sang hiệp tiếp theo.'),
         findsOneWidget,
       );
-      expect(find.text('REP chuẩn'), findsNothing);
+      expect(find.text('REP CHUẨN FORM'), findsNothing);
       expect(
         find.textContaining('Tốt lắm! Cứ giữ form đẹp như vậy.'),
         findsNothing,
@@ -331,10 +332,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('AI nhìn rõ 92% thời gian tập'), findsOneWidget);
 
-      await tester.ensureVisible(find.text('Cần chú ý (1)'));
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.tap(find.text('Cần chú ý (1)'));
-      await tester.pump(const Duration(milliseconds: 300));
       await tester.ensureVisible(find.text('Báo sai'));
       await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(find.text('Báo sai'));
@@ -544,7 +541,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('AI THEO DÕI'), findsOneWidget);
+      expect(find.textContaining('AI chấm form'), findsOneWidget);
       expect(find.text('Đã kiểm chứng'), findsOneWidget);
 
       await tester.pumpWidget(
@@ -582,7 +579,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('AI THEO DÕI'), findsNothing);
+      expect(find.textContaining('AI chấm form'), findsNothing);
       expect(find.text('Đã kiểm chứng'), findsNothing);
       expect(find.text('Chỉ đếm, chưa kiểm chứng'), findsNothing);
       expect(find.textContaining('Video hướng dẫn'), findsOneWidget);
@@ -1107,6 +1104,8 @@ void main() {
         SharedPreferences.setMockInitialValues(<String, Object>{
           ResearchPreferences.participantIdKey: 'P07',
           ResearchPreferences.conditionKey: 'control',
+          '${kGuideVideoSeenPrefix}wall_push_up': true,
+          '${kGuideVideoSeenPrefix}wall_pushup': true,
         });
         ResearchPreferences.resetCacheForTesting();
 
@@ -1129,7 +1128,7 @@ void main() {
         expect(CatalogSource.instance.lookup('wall_push_up'), isNull);
 
         // Start set from ExerciseIntroPage immediately (no sleep workaround)
-        await tester.tap(find.text('Bắt đầu tập'));
+        await tester.tap(find.text('BẮT ĐẦU TẬP'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 1700));
         await tester.pump();

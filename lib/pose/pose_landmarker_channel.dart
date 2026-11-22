@@ -54,6 +54,8 @@ class PoseLandmarkerChannel {
 
   Future<void> dispose() => _methodChannel.invokeMethod<void>('dispose');
 
+  Future<void> warmUp() => _methodChannel.invokeMethod<void>('warmUp');
+
   Future<void> startDetection() =>
       _methodChannel.invokeMethod<void>('startDetection');
 

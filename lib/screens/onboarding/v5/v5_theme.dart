@@ -14,42 +14,42 @@ class V5 {
   // ─────────────────────────────────────────────────────────────
 
   // Surfaces (warm cream paper, slightly varied for layering)
-  static const bg = Color(0xFFF3ECDE); // canvas
-  static const bgSoft = Color(0xFFEBE3D2); // recessed
-  static const surface = Color(0xFFFAF4E6); // raised card
-  static const surfaceSoft = Color(0xFFF6EFDE); // secondary card
-  static const surfaceRaised = Color(0xFFFFFBF1); // floating card
+  static const bg = Color(0xFFFFFFFF); // canvas
+  static const bgSoft = Color(0xFFF1F2F9); // recessed
+  static const surface = Color(0xFFF6F7FC); // raised card
+  static const surfaceSoft = Color(0xFFF6F7FC); // secondary card
+  static const surfaceRaised = Color(0xFFFFFFFF); // floating card
 
   // Dark espresso (richer, less brown than before)
-  static const heroBg = Color(0xFF1C1610);
-  static const heroBgDeep = Color(0xFF120D08);
-  static const heroSurface = Color(0xFF26201A); // raised on dark
+  static const heroBg = Color(0xFF231E5C);
+  static const heroBgDeep = Color(0xFF1A1648);
+  static const heroSurface = Color(0xFF2E2880); // raised on dark
 
   // Ink (text + outlines on light)
-  static const ink = Color(0xFF1B1410);
+  static const ink = Color(0xFF1E1B4B);
   static Color get inkSoft => ink.withValues(alpha: 0.62);
   static Color get inkFaint => ink.withValues(alpha: 0.38);
   static Color get inkDim => ink.withValues(alpha: 0.20);
   static Color get inkHair => ink.withValues(alpha: 0.06);
 
   // Inverted ink (text + outlines on dark)
-  static const invInk = Color(0xFFFAF4E6);
+  static const invInk = Color(0xFFFFFFFF);
   static Color get invInkSoft => invInk.withValues(alpha: 0.66);
   static Color get invInkFaint => invInk.withValues(alpha: 0.42);
   static Color get invInkDim => invInk.withValues(alpha: 0.22);
 
   // Accent — refined gold-amber (warmer, less neon than #FFB701)
-  static const yellow = Color(0xFFE5B33A);
-  static const yellowDeep = Color(0xFFB7831E);
-  static const yellowSpark = Color(0xFFF4D77E); // highlight variant
+  static const yellow = Color(0xFF2B5CE6);
+  static const yellowDeep = Color(0xFF1B44B8);
+  static const yellowSpark = Color(0xFF6E8BFF); // highlight variant
   static Color get yellowSoft => yellow.withValues(alpha: 0.16);
   static Color get yellowMist => yellow.withValues(alpha: 0.08);
-  static const yellowInk = Color(0xFF1B1410); // text on accent
+  static const yellowInk = Color(0xFFFFFFFF); // text on accent
 
   // Semantic (used sparingly)
-  static const success = Color(0xFF4F9F76);
-  static const danger = Color(0xFFC85746);
-  static const info = Color(0xFF6B89C0);
+  static const success = Color(0xFF3CC35A);
+  static const danger = Color(0xFFE5484D);
+  static const info = Color(0xFF2B5CE6);
 
   // Borders + shadows
   static Color get border => ink.withValues(alpha: 0.06);

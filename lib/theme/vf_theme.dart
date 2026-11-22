@@ -1,30 +1,29 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class VFTheme {
   const VFTheme._();
 
-  static const Color background = Color(0xFFF0EDE6);
-  static const Color surface = Color(0xFFFEFCF7);
+  static const Color background = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFFFFFFF);
   static const Color white = Color(0xFFFFFFFF);
 
-  static const Color jade = Color(0xFF1B6B52);
-  static const Color jadeDark = Color(0xFF0F4435);
-  static const Color jadeMid = Color(0xFF18594A);
-  static const Color jadeGlow = Color(0xFF5CEAA8);
-  static const Color jadeMist = Color(0xFFD4E8DF);
-  static const Color jadeLight = Color(0xFFEAF3EE);
+  static const Color jade = Color(0xFF2B5CE6);
+  static const Color jadeDark = Color(0xFF1B44B8);
+  static const Color jadeMid = Color(0xFF2450D0);
+  static const Color jadeGlow = Color(0xFF6E8BFF);
+  static const Color jadeMist = Color(0xFFC9D4FA);
+  static const Color jadeLight = Color(0xFFEEF2FF);
 
-  static const Color text = Color(0xFF181B19);
-  static const Color textSecondary = Color(0xFF4A4D47);
-  static const Color textMuted = Color(0xFF97958D);
+  static const Color text = Color(0xFF1E1B4B);
+  static const Color textSecondary = Color(0xFF4F4C75);
+  static const Color textMuted = Color(0xFF8E8BAE);
 
-  static const Color amber = Color(0xFFB87320);
-  static const Color amberBg = Color(0xFFFDF3E2);
-  static const Color coral = Color(0xFFB84435);
-  static const Color coralBg = Color(0xFFFAECE8);
+  static const Color amber = Color(0xFFD96A00);
+  static const Color amberBg = Color(0xFFFFF1E3);
+  static const Color coral = Color(0xFFE5484D);
+  static const Color coralBg = Color(0xFFFFECEC);
   static const Color blue = Color(0xFF2B5EA6);
   static const Color blueBg = Color(0xFFE8EFF8);
   static const Color purple = Color(0xFF7040B8);
@@ -32,8 +31,8 @@ class VFTheme {
   static const Color purpleBg = Color(0xFFEDE4F8);
 
   static const Color bg = background;
-  static const Color bgDeep = Color(0xFFECE7DE);
-  static const Color surfaceAlt = Color(0xFFF6F2EB);
+  static const Color bgDeep = Color(0xFFF1F2F9);
+  static const Color surfaceAlt = Color(0xFFF6F7FC);
   static const Color accent = jade;
   static const Color accentBg = jadeMist;
   static const Color accentText = jadeDark;
@@ -171,7 +170,8 @@ class VFTheme {
     double? height,
     FontStyle? fontStyle,
   }) {
-    return GoogleFonts.dmSans(
+    return TextStyle(
+      fontFamily: 'BeVietnamPro',
       fontSize: sp(context, size),
       fontWeight: weight,
       color: color,
@@ -262,7 +262,7 @@ class VFTheme {
       ),
     );
 
-    final textTheme = GoogleFonts.dmSansTextTheme(base.textTheme)
+    final textTheme = base.textTheme.apply(fontFamily: 'BeVietnamPro')
         .apply(bodyColor: text, displayColor: text);
 
     return base.copyWith(
@@ -278,7 +278,8 @@ class VFTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         foregroundColor: text,
-        titleTextStyle: GoogleFonts.dmSans(
+        titleTextStyle: TextStyle(
+          fontFamily: 'BeVietnamPro',
           fontSize: 22,
           fontWeight: FontWeight.w800,
           color: text,
@@ -287,6 +288,12 @@ class VFTheme {
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
     );
   }
@@ -419,27 +426,27 @@ class VikaIvory {
   // ─── Page & scaffold ───
 
   /// Page background (outside the camera view). JSX: pageBg '#EBE3D2'
-  static const Color bg = Color(0xFFEBE3D2);
+  static const Color bg = Color(0xFFF6F7FC);
 
   /// Soft page bg variant.
-  static const Color bgSoft = Color(0xFFF5F0E5);
+  static const Color bgSoft = Color(0xFFF1F2F9);
 
   /// White surface for cards / pause overlay. JSX: surface '#FFFFFF'
   static const Color surface = Color(0xFFFFFFFF);
 
   /// Soft surface, cream. JSX: surfaceSoft '#FBF6EA'
-  static const Color surfaceSoft = Color(0xFFFBF6EA);
+  static const Color surfaceSoft = Color(0xFFF6F7FC);
 
   /// Dark scaffold behind camera. JSX: scaffoldBg '#15110D'
-  static const Color heroBg = Color(0xFF15110D);
+  static const Color heroBg = Color(0xFF17152F);
 
   /// Slightly lighter scaffold. JSX: scaffoldMid '#1F1812'
-  static const Color heroBgDeep = Color(0xFF1F1812);
+  static const Color heroBgDeep = Color(0xFF231E5C);
 
   // ─── Ink (light-on-dark) ───
 
   /// Inverted ink, near-white cream. JSX: invInk '#FBF6EA'
-  static const Color ink = Color(0xFF2A1F12);
+  static const Color ink = Color(0xFF1E1B4B);
 
   /// Dark ink at 0.62 opacity. JSX: inkSoft 'rgba(42, 31, 18, 0.62)'
   static Color get inkSoft => ink.withValues(alpha: 0.62);
@@ -448,7 +455,7 @@ class VikaIvory {
   static Color get inkFaint => ink.withValues(alpha: 0.38);
 
   /// Inverted ink (cream white on dark). JSX: invInk '#FBF6EA'
-  static const Color invInk = Color(0xFFFBF6EA);
+  static const Color invInk = Color(0xFFFFFFFF);
 
   /// Inverted ink at 0.70 opacity.
   static Color get invInkSoft => invInk.withValues(alpha: 0.70);
@@ -477,10 +484,10 @@ class VikaIvory {
   // ─── Yellow / Amber accent ───
 
   /// Primary yellow. JSX: yellow '#FFB701'
-  static const Color yellow = Color(0xFFFFB701);
+  static const Color yellow = Color(0xFF2B5CE6);
 
   /// Deep yellow. JSX: yellowDeep '#C18800'
-  static const Color yellowDeep = Color(0xFFC18800);
+  static const Color yellowDeep = Color(0xFF1B44B8);
 
   /// Yellow at 0.18 opacity. JSX: yellowSoft
   static Color get yellowSoft => yellow.withValues(alpha: 0.18);
@@ -492,18 +499,18 @@ class VikaIvory {
   static Color get yellowGlowWeak => yellow.withValues(alpha: 0.18);
 
   /// Dark ink on yellow buttons. JSX: yellowInk '#1F1812'
-  static const Color yellowInk = Color(0xFF1F1812);
+  static const Color yellowInk = Color(0xFFFFFFFF);
 
   // ─── Semantic ───
 
   /// Attention / fault color. JSX: attention '#D67B3E'
-  static const Color attention = Color(0xFFD67B3E);
+  static const Color attention = Color(0xFFFF8A1F);
 
   /// Attention at 0.18 opacity.
   static Color get attentionSoft => attention.withValues(alpha: 0.18);
 
   /// Live / active color. JSX: live '#22C55E'
-  static const Color live = Color(0xFF22C55E);
+  static const Color live = Color(0xFF3CC35A);
 
   /// Live at 0.22 opacity.
   static Color get liveSoft => live.withValues(alpha: 0.22);
@@ -550,42 +557,42 @@ class VikaIvoryMain {
   const VikaIvoryMain._();
 
   // ─── Surfaces ───
-  static const Color bg = Color(0xFFF4EEE2);
-  static const Color bgRaised = Color(0xFFFBF7EE);
-  static const Color bgInverse = Color(0xFF1F1812);
-  static const Color bgInverseHi = Color(0xFF2A1F12);
-  static const Color powder = Color(0xFFEDE2CD);
+  static const Color bg = Color(0xFFFFFFFF);
+  static const Color bgRaised = Color(0xFFF6F7FC);
+  static const Color bgInverse = Color(0xFF231E5C);
+  static const Color bgInverseHi = Color(0xFF2E2880);
+  static const Color powder = Color(0xFFF1F2F9);
 
   // ─── Ink (always warm, never pure black) ───
-  static const Color ink = Color(0xFF1F1812);
-  static const Color inkSoft = Color(0xFF5A4A3A);
-  static const Color inkFaint = Color(0xFF8B7A66);
-  static const Color inkGhost = Color(0xFFC9BBA6);
+  static const Color ink = Color(0xFF1E1B4B);
+  static const Color inkSoft = Color(0xFF6B6890);
+  static const Color inkFaint = Color(0xFF8E8BAE);
+  static const Color inkGhost = Color(0xFFD3D5E3);
 
   // ─── Inverse ink (on warm-dark surfaces) ───
-  static const Color invInk = Color(0xFFF4EEE2);
+  static const Color invInk = Color(0xFFFFFFFF);
   static Color get invInkSoft => invInk.withValues(alpha: 0.72);
   static Color get invInkFaint => invInk.withValues(alpha: 0.42);
 
   // ─── Borders (warm, ivory-aware) ───
-  static const Color border = Color(0xFFE6DCC8);
-  static const Color borderHi = Color(0xFFD4C8B0);
+  static const Color border = Color(0xFFE3E4F0);
+  static const Color borderHi = Color(0xFFD3D5E3);
   static Color get borderDark => invInk.withValues(alpha: 0.10);
 
   // ─── Yellow — RESERVED for 4 uses only (stat / dot / underline / CTA) ───
-  static const Color yellow = Color(0xFFFFB701);
-  static const Color yellowInk = Color(0xFF1F1812);
+  static const Color yellow = Color(0xFF2B5CE6);
+  static const Color yellowInk = Color(0xFFFFFFFF);
   static Color get yellowGhost => yellow.withValues(alpha: 0.14);
 
   // ─── Status (used outside Plan, but lives here for completeness) ───
-  static const Color attention = Color(0xFFD67B3E);
-  static const Color live = Color(0xFF22C55E);
+  static const Color attention = Color(0xFFFF8A1F);
+  static const Color live = Color(0xFF3CC35A);
 
   // ─── Phase-distinct accents (used SPARINGLY, only for phase identity) ───
-  static const Color phase1 = Color(0xFFA8C5B1); // sage — Khởi đầu
-  static const Color phase2 = Color(0xFFE89A4B); // amber — Củng cố
-  static const Color phase3 = Color(0xFFD67B3E); // earth — Đẩy mạnh
-  static const Color phase4 = Color(0xFF7DA3D9); // dusk — Đỉnh cao
+  static const Color phase1 = Color(0xFF3CC35A); // sage — Khởi đầu
+  static const Color phase2 = Color(0xFF2B5CE6); // amber — Củng cố
+  static const Color phase3 = Color(0xFFFF8A1F); // earth — Đẩy mạnh
+  static const Color phase4 = Color(0xFF7C5CFF); // dusk — Đỉnh cao
 
   // ─── Typography ───
   // Two-family pairing — see DESIGN.md § Typography.

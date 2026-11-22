@@ -6,6 +6,7 @@ import 'package:vika/exercise/plank/metrics/knee_extension_metric.dart';
 import 'package:vika/exercise/plank/metrics/plank_metric_base.dart';
 import 'package:vika/exercise/plank/metrics/trunk_alignment_metric.dart';
 import 'package:vika/exercise/plank/plank.dart';
+import 'package:vika/services/research/set_recorder.dart';
 
 const _pairs = <String, (PoseLandmarkType, PoseLandmarkType)>{
   'ear': (PoseLandmarkType.leftEar, PoseLandmarkType.rightEar),
@@ -55,6 +56,30 @@ Map<PoseLandmarkType, PoseLandmark> _plank({
   return pose;
 }
 
+Map<PoseLandmarkType, PoseLandmark> _slopedPlank() {
+  const points = <String, (double, double)>{
+    'ear': (270, 170),
+    'shoulder': (300, 180),
+    'elbow': (300, 250),
+    'wrist': (230, 250),
+    'hip': (400, 220),
+    'knee': (500, 260),
+    'ankle': (600, 300),
+    'heel': (615, 300),
+    'foot': (625, 308),
+  };
+  final pose = <PoseLandmarkType, PoseLandmark>{};
+  for (final entry in points.entries) {
+    final (left, right) = _pairs[entry.key]!;
+    final (x, y) = entry.value;
+    pose[left] =
+        PoseLandmark(type: left, x: x, y: y, z: -0.1, likelihood: 0.99);
+    pose[right] =
+        PoseLandmark(type: right, x: x, y: y, z: 0.1, likelihood: 0.99);
+  }
+  return pose;
+}
+
 Plank _activePlank({required bool leftNear, int maxRep = 3}) {
   final plank = Plank(maxRep: maxRep)..exerciseState = ExerciseState.activated;
   var facing = CameraFacing.undefined;
@@ -100,6 +125,39 @@ List<String> _after(PlankMetricBase metric, RepContext ctx, int frames) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('a sloped forearm plank with the hips well above the toes holds', () {
+    final plank = _activePlank(leftNear: true);
+    _hold(plank, _slopedPlank(), fromMs: 0, toMs: 1000);
+    expect(plank.plankState, PlankState.holding);
+  });
+
+  test('the set log traces each phase change with its numbers', () {
+    final plank = _activePlank(leftNear: true);
+    final recorder = SetRecorder(
+      sessionId: 's',
+      participantId: 'p',
+      condition: 'ai',
+      exerciseId: 'plank',
+      setIndex: 1,
+      appVersion: 'v',
+      platform: 'android',
+      osVersion: '13',
+    );
+    for (var t = 0; t <= 600; t += 100) {
+      _pump(plank, _slopedPlank(), t);
+      recorder.onFrame(plank, hasPose: true);
+    }
+    final phases = [
+      for (final e in recorder.events)
+        if (e['type'] == 'phase') e,
+    ];
+    expect(phases.map((e) => e['to']), ['setup', 'holding']);
+    final numbers = phases.last['m']! as Map<String, Object?>;
+    expect(numbers['elbowAngle'], '90.0');
+    expect(numbers['isForearmPlank'], isTrue);
+    expect(numbers['isStanding'], isTrue);
+  });
 
   group('same physical posture, both camera facings', () {
     for (final leftNear in [true, false]) {

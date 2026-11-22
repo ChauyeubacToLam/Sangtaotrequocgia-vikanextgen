@@ -24,6 +24,7 @@ import 'package:vika/services/catalog/catalog_source.dart';
 import 'package:vika/services/recommendation/fitness_retest_service.dart';
 import 'package:vika/services/recommendation/models/plan.dart';
 import 'package:vika/services/recommendation/recommendation_service.dart';
+import 'package:vika/screens/exercise/widgets/exercise_guide_video.dart';
 import 'package:vika/theme/typography.dart';
 import 'package:vika/widgets/library/library_card.dart';
 import 'package:vika/widgets/library/library_rail.dart';
@@ -88,7 +89,9 @@ void main() {
   late List<String> keptIds;
 
   setUpAll(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      for (final id in keptExerciseIds) '$kGuideVideoSeenPrefix$id': true,
+    });
     await _loadBeVietnamProFont();
     await Supabase.initialize(
       url: 'https://example.supabase.co',
@@ -303,8 +306,8 @@ void main() {
       },
     );
 
-    test('all 21 kept exercises build ExerciseExperienceSpec cleanly', () {
-      expect(keptIds, hasLength(21));
+    test('all 24 kept exercises build ExerciseExperienceSpec cleanly', () {
+      expect(keptIds, hasLength(24));
       for (final keptId in keptIds) {
         final def = lookupExerciseDefinition(keptId);
         final info = CatalogSource.instance.lookup(keptId);
@@ -320,12 +323,12 @@ void main() {
     });
 
     testWidgets(
-      'all 21 kept exercises launch onto ExerciseIntroPage and show the right status label',
+      'all 24 kept exercises launch onto ExerciseIntroPage and show the right status label',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
-        expect(keptIds, hasLength(21));
+        expect(keptIds, hasLength(24));
         final navKey = GlobalKey<NavigatorState>();
         await tester.pumpWidget(_guardedNavHost(navKey: navKey));
         await tester.pump();
@@ -419,20 +422,36 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
 
+          ExerciseDefinition? started;
           await tester.pumpWidget(
             MaterialApp(
               home: Scaffold(
                 body: LibraryScreen(
                   bottomPadding: 80,
-                  onSelectExercise: (_) {},
+                  onSelectExercise: (def) => started = def,
                 ),
               ),
             ),
           );
           await tester.pump(const Duration(milliseconds: 200));
           expect(tester.takeException(), isNull);
-          // Featured card in LibraryCatalogEntry is Squat -> validated.
+          await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+          await tester.pump(const Duration(milliseconds: 600));
           expect(find.text('Đã kiểm chứng'), findsWidgets);
+          expect(tester.takeException(), isNull);
+
+          await tester.ensureVisible(find.text('Đã kiểm chứng').first);
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.tap(find.text('Đã kiểm chứng').first);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
+          final zoomError = tester.takeException();
+          expect(zoomError, isNull);
+          expect(find.text('TẬP NGAY'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.text('TẬP NGAY'));
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(started, isNotNull);
 
           await tester.pumpWidget(const SizedBox.shrink());
         },
@@ -666,9 +685,9 @@ void main() {
           ),
         );
         await tester.pump();
-        expect(find.text('Bắt đầu kiểm tra'), findsOneWidget);
+        expect(find.text('BẮT ĐẦU KIỂM TRA'), findsOneWidget);
 
-        await tester.tap(find.text('Bắt đầu kiểm tra'));
+        await tester.tap(find.text('BẮT ĐẦU KIỂM TRA'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
         expect(find.byType(ExerciseIntroPage), findsOneWidget);

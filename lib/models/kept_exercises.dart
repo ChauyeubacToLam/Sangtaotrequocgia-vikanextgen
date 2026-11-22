@@ -1,11 +1,11 @@
 import '../services/catalog/catalog_source.dart';
 import 'exercise_lookup.dart';
 
-/// Single source of truth for the 21 exercises kept visible for the 2026-11
+/// Single source of truth for the 24 exercises kept visible for the 2026-11
 /// submission, stored in canonical catalog-id space (`catalogId` in
 /// `assets/data/exercise_catalog.json` and `id` in Supabase `exercise_catalog`).
 ///
-/// To expose a 22nd exercise: add its `catalogId` here (and to
+/// To expose a 25th exercise: add its `catalogId` here (and to
 /// [validatedExerciseIds] once its form checking is empirically validated).
 const Set<String> keptExerciseIds = {
   'squat',
@@ -29,6 +29,9 @@ const Set<String> keptExerciseIds = {
   'seated_forward_fold',
   'butterfly',
   'sphinx',
+  'step_up',
+  'neck_side_stretch',
+  'pushup_rotation',
 };
 
 /// Subset of [keptExerciseIds] whose real-time form checking is validated.
@@ -97,7 +100,7 @@ String? _resolveKeptCatalogId(String rawId) {
 }
 
 /// Returns true iff [id] (catalog id, definition id, class key, alias, or
-/// assessment variant) resolves to one of the 21 [keptExerciseIds].
+/// assessment variant) resolves to one of the 24 [keptExerciseIds].
 bool isKeptExercise(String id) => _resolveKeptCatalogId(id) != null;
 
 /// Returns the [ExerciseValidationStatus] for [id] (in any id form), or `null`

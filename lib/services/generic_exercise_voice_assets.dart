@@ -78,7 +78,6 @@ class GenericExerciseVoiceAssets {
   static const Map<String, GenericExerciseVoiceScript> scriptsByExerciseName = {
     'Squat': GenericExerciseVoiceScript(
       slug: 'squat',
-      setupIntroCueId: 'common.thang_intro',
       faultIds: ['heel', 'depth', 'trunk', 'tempo', 'sync'],
     ),
     'Plank': GenericExerciseVoiceScript(
@@ -96,7 +95,6 @@ class GenericExerciseVoiceAssets {
     ),
     'Jumping Jack': GenericExerciseVoiceScript(
       slug: 'jumping_jack',
-      setupIntroCueId: 'common.thang_intro',
       faultIds: ['arms', 'legs', 'tempo_fast', 'tempo_slow'],
     ),
     'Push Up': GenericExerciseVoiceScript(
@@ -200,7 +198,6 @@ class GenericExerciseVoiceAssets {
     ),
     'Butterfly Stretch': GenericExerciseVoiceScript(
       slug: 'butterfly_stretch',
-      setupIntroCueId: 'common.thang_intro',
       cleanCueId: 'hold_good',
       faultIds: ['foot', 'knee', 'posture', 'shoulder'],
     ),
@@ -223,7 +220,6 @@ class GenericExerciseVoiceAssets {
     ),
     'Jump Squat': GenericExerciseVoiceScript(
       slug: 'jump_squat',
-      setupIntroCueId: 'common.thang_intro',
       faultIds: [
         'too_fast',
         'landing_stiff',
@@ -234,7 +230,6 @@ class GenericExerciseVoiceAssets {
     ),
     'Russian Twist': GenericExerciseVoiceScript(
       slug: 'russian_twist',
-      setupIntroCueId: 'common.thang_intro',
       faultIds: ['knee', 'too_upright', 'too_low', 'spine', 'thoracic', 'rom'],
     ),
     'Seated Forward Fold': GenericExerciseVoiceScript(
@@ -244,7 +239,6 @@ class GenericExerciseVoiceAssets {
     ),
     'Side Plank with Hip Dip': GenericExerciseVoiceScript(
       slug: 'side_plank_dip',
-      setupIntroCueId: 'common.thang_intro',
       faultIds: ['shoulder', 'rotation', 'amplitude'],
     ),
     'Sphinx Pose': GenericExerciseVoiceScript(
@@ -333,6 +327,18 @@ class GenericExerciseVoiceAssets {
       cleanCueId: 'hold_good',
       faultIds: ['arms', 'cervical', 'lumbar', 'stability'],
     ),
+    'Step-Up': GenericExerciseVoiceScript(
+      slug: 'step_up',
+      faultIds: ['trunk'],
+    ),
+    'Neck Side Stretch': GenericExerciseVoiceScript(
+      slug: 'neck_side_stretch',
+      faultIds: ['shrug', 'shoulder'],
+    ),
+    'Push-Up with Rotation': GenericExerciseVoiceScript(
+      slug: 'push_up_rotation',
+      faultIds: ['body_line'],
+    ),
   };
 
   static GenericExerciseVoiceScript scriptForExerciseName(String exerciseName) {
@@ -407,6 +413,9 @@ class GenericExerciseVoiceAssets {
       'step_back_burpee',
       'tricep_dip',
       'walking_lunge',
+      'step_up',
+      'neck_side_stretch',
+      'push_up_rotation',
     };
     return plainCueSlugs.contains(slug);
   }

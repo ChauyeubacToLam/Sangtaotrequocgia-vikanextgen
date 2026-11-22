@@ -47,6 +47,9 @@ class TempoConfig {
 
   /* --- Ascent Struggle Detection --- */
   static const double ASCENT_STRUGGLE_MULTIPLIER = 2.0;
+
+  static const double KNEE_TOP_TOLERANCE = 10.0;
+  static const double DEEPEST_TOLERANCE = 5.0;
 }
 
 /* =========================================================================
@@ -59,7 +62,9 @@ class TempoMetric extends SquatMetricBase {
   final List<FaultRecord> _faults = [];
   final Map<String, dynamic> _debugData = {};
 
-  // --- Timestamps (milliseconds) ---
+  int? _lastTopMs;
+  double? _deepestKnee;
+  int? _deepestReachedMs;
   int? _descentStartMs;
   int? _bottomReachedMs;
   int? _ascentStartMs;
@@ -96,26 +101,39 @@ class TempoMetric extends SquatMetricBase {
   @override
   MetricStatus get status => _status;
 
-  /* -----------------------------------------------------------------------
-     STATE TRANSITIONS — record timestamps + compute durations.
-     ----------------------------------------------------------------------- */
+  void trackKnee(double kneeAngle, int timestampMs, {required bool atTop}) {
+    if (atTop) {
+      _lastTopMs = timestampMs;
+      _deepestKnee = null;
+      _deepestReachedMs = null;
+      return;
+    }
+    final deepest = _deepestKnee;
+    if (deepest == null || kneeAngle < deepest - TempoConfig.DEEPEST_TOLERANCE) {
+      _deepestKnee = kneeAngle;
+      _deepestReachedMs = timestampMs;
+    }
+  }
+
   @override
   void onStateTransition(SquatState from, SquatState to, int timestampMs) {
     switch (to) {
       case SquatState.descending:
-        _descentStartMs = timestampMs;
+        _descentStartMs = _lastTopMs ?? timestampMs;
         break;
 
       case SquatState.bottom:
         _bottomReachedMs = timestampMs;
-        if (_descentStartMs != null) {
-          _descentDuration = (timestampMs - _descentStartMs!) / 1000.0;
-          _debugData['descentDur'] = _descentDuration ?? '-';
-        }
         break;
 
       case SquatState.ascending:
         _ascentStartMs = timestampMs;
+        final descentStart = _descentStartMs;
+        if (descentStart != null) {
+          _descentDuration =
+              ((_deepestReachedMs ?? timestampMs) - descentStart) / 1000.0;
+          _debugData['descentDur'] = _descentDuration ?? '-';
+        }
         if (_bottomReachedMs != null) {
           _bottomHoldDuration = (timestampMs - _bottomReachedMs!) / 1000.0;
           _debugData['bottomHold'] = _bottomHoldDuration ?? '-';
@@ -137,14 +155,10 @@ class TempoMetric extends SquatMetricBase {
     }
   }
 
-  /* -----------------------------------------------------------------------
-     PER-FRAME UPDATE — Live feedback (null-gated, fires once data exists).
-     ----------------------------------------------------------------------- */
   @override
   void update(RepContext ctx) {
     _status = MetricStatus.pass;
 
-    // Live check: descent speed (available after entering bottom)
     if (_descentDuration != null) {
       if (_descentDuration! < TempoConfig.DESCENT_MIN_ERROR) {
         _status = MetricStatus.fault;
@@ -282,6 +296,8 @@ class TempoMetric extends SquatMetricBase {
   void reset() {
     _faults.clear();
     _debugData.clear();
+    _deepestKnee = null;
+    _deepestReachedMs = null;
     _descentStartMs = null;
     _bottomReachedMs = null;
     _ascentStartMs = null;

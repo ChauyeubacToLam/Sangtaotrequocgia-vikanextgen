@@ -1,5 +1,52 @@
+import 'dart:async';
 import 'dart:ui' show Size;
 import 'package:native_device_orientation/native_device_orientation.dart';
+
+VikaImageOrientation lastSensorOrientation = VikaImageOrientation.portrait;
+
+const kLandscapeExitHold = Duration(milliseconds: 2500);
+
+Stream<VikaImageOrientation> settledSensorOrientation(
+  Stream<NativeDeviceOrientation> source, {
+  Duration hold = kLandscapeExitHold,
+}) {
+  late final StreamController<VikaImageOrientation> out;
+  StreamSubscription<NativeDeviceOrientation>? sub;
+  Timer? pending;
+  var current = lastSensorOrientation;
+
+  void emit(VikaImageOrientation o) {
+    pending?.cancel();
+    pending = null;
+    lastSensorOrientation = o;
+    if (o == current) return;
+    current = o;
+    out.add(o);
+  }
+
+  out = StreamController<VikaImageOrientation>(
+    onListen: () {
+      sub = source.listen(
+        (native) {
+          if (native == NativeDeviceOrientation.unknown) return;
+          final o = VikaImageOrientation.fromNative(native);
+          if (o.isLandscape || !current.isLandscape) {
+            emit(o);
+            return;
+          }
+          pending?.cancel();
+          pending = Timer(hold, () => emit(o));
+        },
+        onError: out.addError,
+      );
+    },
+    onCancel: () async {
+      pending?.cancel();
+      await sub?.cancel();
+    },
+  );
+  return out.stream;
+}
 
 enum VikaImageOrientation {
   portrait,
@@ -108,6 +155,9 @@ extension VikaImageOrientationCodes on VikaImageOrientation {
   /// portrait-locked. Rotating the camera subtree again would cancel that page
   /// rotation and leave the preview portrait while the controls are landscape.
   int get androidNativeCameraSceneQuarterTurns => 0;
+
+  int get androidPreviewTextureQuarterTurns =>
+      isLandscape ? (4 - uiQuarterTurns) % 4 : 0;
 
   bool get isLandscape {
     switch (this) {

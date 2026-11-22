@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -26,12 +27,12 @@ import '../../exercise/jumping jack/metrics/leg_spread_metric.dart' as jj_leg;
 import '../../exercise/jumping jack/metrics/tempo_metric.dart' as jj_tempo;
 import '../../exercise/lunge/lunge.dart';
 import '../../exercise/lunge/metrics/lunge_depth_metric.dart' as lunge_depth;
-import '../../exercise/lunge/metrics/lunge_heel_lift_metric.dart' as lunge_heel;
 import '../../exercise/lunge/metrics/lunge_lumbar_proxy_metric.dart'
     as lunge_core;
 import '../../exercise/lunge/metrics/lunge_trunk_lean_metric.dart'
     as lunge_trunk;
 import '../../exercise/plank/plank.dart';
+import '../../pose/pose_landmarker_channel.dart';
 import '../../exercise/plank/metrics/head_neck_metric.dart' as plank_neck;
 import '../../exercise/plank/metrics/knee_extension_metric.dart' as plank_knee;
 import '../../exercise/plank/metrics/trunk_alignment_metric.dart'
@@ -48,7 +49,6 @@ import '../../exercise/curl_up/metrics/curl_up_knee_extension.dart'
 import '../../exercise/curl_up/metrics/curl_up_neck_pulling.dart' as curl_neck;
 import '../../exercise/curl_up/metrics/curl_up_trunk_elevation.dart'
     as curl_trunk;
-import '../../exercise/squat/metrics/heel_rise_metric.dart';
 import '../../exercise/squat/metrics/tempo_metric.dart';
 import '../../exercise/squat/metrics/trunk_lean_metric.dart';
 import '../../exercise/squat/squat.dart';
@@ -76,6 +76,7 @@ import 'exercise_intro_page.dart';
 import 'exercise_transition_moment.dart';
 import 'rest_screen.dart';
 import 'widgets/reviewer_tracking_demo_overlay.dart';
+import 'widgets/sensor_rotated_box.dart';
 import 'widgets/skeleton_annotation.dart';
 import 'workout_summary_screen.dart';
 import 'package:vika/services/session_persistence.dart';
@@ -189,6 +190,7 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
     }
     return CatalogSource.instance.lookup(definitionId)?.id ?? definitionId;
   }
+
   bool get _isWorkoutSequence => widget.sequence.length > 1;
   bool get _isContinuationSlot =>
       _isWorkoutSequence && widget.sequenceIndex > 0;
@@ -256,6 +258,11 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
   void initState() {
     super.initState();
     unawaited(OrientationLock.portraitOnly());
+    if (Platform.isAndroid) {
+      unawaited(
+        PoseLandmarkerChannel().warmUp().catchError((Object _) {}),
+      );
+    }
     _spec = _ExerciseExperienceSpec.fromDefinition(
       widget.definition,
       prescription: widget.prescription,
@@ -658,9 +665,7 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
 
     final report = _buildReport();
 
-    // Last set: skip the rest screen entirely and route straight to the
-    // cinematic transition moment. Earlier sets still get the rest screen.
-    if (_currentSet >= _spec.sets) {
+    if (_currentSet >= _spec.sets && _researchConfig.isControl) {
       final completedDuration =
           DateTime.now().difference(_startedAt ?? DateTime.now());
       final calories = _estimateCalories(
@@ -688,13 +693,32 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
     });
   }
 
-  /// "Báo sai" on the rest screen: the set log is already written, so the
-  /// report rides on the session log (`fault_reports`).
   void _handleFaultReport(String faultType, bool reported) {
     final session = _researchSession;
     final slot = _activeSetSlot;
     if (session == null || slot == null) return;
     session.setFaultReported(slot, faultType, reported: reported);
+  }
+
+  Future<bool> _exportLogsSoFar(BuildContext buttonContext) async {
+    final pending = _pendingSetFlushes;
+    if (pending != null) await pending;
+    final session = _researchSession;
+    if (session == null || session.setFiles.isEmpty) return false;
+    final origin = buttonContext.mounted
+        ? _shareOriginRect(buttonContext)
+        : const Rect.fromLTWH(0, 0, 1, 1);
+    if (session.isEnded) {
+      return ResearchLogExporter.shareSessionLogs(
+        session.allExportFileNames,
+        sharePositionOrigin: origin,
+      );
+    }
+    await ResearchSessionTracker.instance.writeSessionSnapshot(session);
+    return ResearchLogExporter.shareSessionLogs(
+      <String>[...session.setFiles, session.expectedSessionFileName],
+      sharePositionOrigin: origin,
+    );
   }
 
   Future<void> _persistDifficultyLog(Map<String, dynamic> payload) async {
@@ -1073,9 +1097,7 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
               // _pendingOverallDifficulty if the rating beats the save).
               _handleOverallDifficulty(d);
             },
-            onSessionRpe: (_) {
-              // TODO(wiring): persist session-level RPE separately.
-            },
+            onSessionRpe: (_) {},
             onDone: () => Navigator.of(summaryContext).pop({'completed': true}),
           ),
         ),
@@ -1194,8 +1216,9 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
           aiVisibleRatio: _researchConfig.isControl
               ? null
               : _activeSetRecorder?.visibleRatio,
-          onReportFault:
-              _researchConfig.isControl ? null : _handleFaultReport,
+          onReportFault: _researchConfig.isControl ? null : _handleFaultReport,
+          onExportLogs:
+              _researchConfig.hasParticipantId ? _exportLogsSoFar : null,
         ),
       _WorkoutFlowPhase.transition => ExerciseTransitionMoment(
           exerciseName: widget.definition.displayName,
@@ -1212,7 +1235,18 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: phaseBody,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        switchInCurve: Curves.easeOutCubic,
+        layoutBuilder: (current, previous) =>
+            current ?? const SizedBox.shrink(),
+        child: KeyedSubtree(
+          key: ValueKey(_phase),
+          child: _phase == _WorkoutFlowPhase.active
+              ? phaseBody
+              : SensorRotatedBox(child: phaseBody),
+        ),
+      ),
     );
   }
 }
@@ -1350,14 +1384,6 @@ class _ExerciseExperienceSpec {
               alignment: const Alignment(0.90, -0.02),
               anchor: const Offset(0.16, 0.72),
             ),
-            SkeletonCallout(
-              title: 'Gót chân',
-              value:
-                  'Nhấc < ${(HeelRiseConfig.LIFT_THRESHOLD * 100).round()}% chiều dài lưng',
-              color: const Color(0xFFB84435),
-              alignment: const Alignment(0.90, 0.34),
-              anchor: const Offset(0.20, 0.88),
-            ),
           ],
           createExercise: (repsPerSet) => Squat(maxRep: repsPerSet),
         );
@@ -1427,14 +1453,6 @@ class _ExerciseExperienceSpec {
               color: const Color(0xFF1B6B52),
               alignment: const Alignment(0.90, -0.02),
               anchor: const Offset(0.16, 0.72),
-            ),
-            SkeletonCallout(
-              title: 'Gót chân',
-              value:
-                  'Nhấc < ${(HeelRiseConfig.LIFT_THRESHOLD * 100).round()}% chiều dài lưng',
-              color: const Color(0xFFB84435),
-              alignment: const Alignment(0.90, 0.34),
-              anchor: const Offset(0.20, 0.88),
             ),
           ],
           createExercise: (repsPerSet) => Squat(maxRep: repsPerSet),
@@ -1697,19 +1715,10 @@ class _ExerciseExperienceSpec {
         ),
         SkeletonCallout(
           title: 'Độ sâu gối',
-          value:
-              '${lunge_depth.LungeDepthConfig.GOOD_DEPTH_RANGE[0]}° — ${lunge_depth.LungeDepthConfig.GOOD_DEPTH_RANGE[1]}°',
+          value: '≤ ${lunge_depth.LungeDepthConfig.GOOD_DEPTH_MAX}°',
           color: const Color(0xFF1B6B52),
           alignment: const Alignment(0.90, -0.05),
           anchor: const Offset(0.18, 0.73),
-        ),
-        SkeletonCallout(
-          title: 'Gót chân',
-          value:
-              'Nhấc < ${(lunge_heel.LungeHeelLiftConfig.WARNING_THRESHOLD * 100).round()}% thân',
-          color: const Color(0xFFB84435),
-          alignment: const Alignment(0.90, 0.34),
-          anchor: const Offset(0.20, 0.88),
         ),
         SkeletonCallout(
           title: 'Core & hông',

@@ -37,8 +37,52 @@ Map<PoseLandmarkType, PoseLandmark> _pose(
   };
 }
 
+Map<PoseLandmarkType, PoseLandmark> _rightWristAt(
+        Map<PoseLandmarkType, PoseLandmark> pose, double x, double y) =>
+    {...pose, PoseLandmarkType.rightWrist: _lm(PoseLandmarkType.rightWrist, x, y)};
+
+BirdDog _repWith(List<Map<PoseLandmarkType, PoseLandmark>> holdFrames) {
+  final e = BirdDog(maxRep: 8)
+    ..cameraFacing = CameraFacing.left
+    ..exerciseState = ExerciseState.activated;
+  var t = 0;
+  void pump(Map<PoseLandmarkType, PoseLandmark> p) {
+    t += 100;
+    e.frameTimestamp = DateTime.fromMillisecondsSinceEpoch(t);
+    e.checkingPose(p);
+  }
+
+  for (var i = 0; i < 3; i++) {
+    pump(_pose());
+  }
+  holdFrames.forEach(pump);
+  for (var i = 0; i < 6; i++) {
+    pump(_pose());
+  }
+  return e;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('lowering the arm at the end of a straight hold is not an alignment fault',
+      () {
+    final extended = _pose(extended: true);
+    final e = _repWith([
+      for (var i = 0; i < 25; i++) extended,
+      for (var i = 0; i < 3; i++) _rightWristAt(extended, 60, 380),
+    ]);
+    expect(e.repCount, 1);
+    expect(e.logger.repLogs.single.data['fault_types'],
+        isNot(contains('alignment')));
+  });
+
+  test('an arm held 36 deg above horizontal for the whole hold is a fault', () {
+    final raised = _rightWristAt(_pose(extended: true), 40, 230);
+    final e = _repWith([for (var i = 0; i < 25; i++) raised]);
+    expect(e.repCount, 1);
+    expect(e.logger.repLogs.single.data['fault_types'], contains('alignment'));
+  });
 
   test('faults from a rejected (short-hold) attempt are not counted', () {
     final e = BirdDog(maxRep: 8)

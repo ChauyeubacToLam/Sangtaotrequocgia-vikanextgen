@@ -109,6 +109,7 @@ one frame carry the same `t_ms`. Events are in non-decreasing `t_ms` order.
 | `unseen_end` | none | The guidance signal becomes null, or changes kind (then it is followed at the same `t_ms` by a new `unseen_start`). |
 | `fault_start` / `fault_end` | `fault`, `message` | A (type, message) pair enters or leaves the exercise's `liveFaults`. Used mainly by hold exercises, where a fault has a duration. |
 | `pause_start` / `pause_end` | none | The exercise's paused state turns on or off. |
+| `phase` | `from`, `to`, `m`, `fb` | While activated and not paused, the exercise's `currentPhaseKey` changes (`from` is null on the first one). `m` is a snapshot of the exercise's `debugData` on that frame, primitives only: numbers rounded to 2 decimals, booleans, and strings up to 24 characters. `fb` is the frame's feedback map (Vietnamese strings, e.g. `Result`/`Error` when an attempt is not counted). Added 2026-11-21 to diagnose rep counting from device tests. |
 | `set_complete` | none | The set ended. Always the last event of a set that finished; absent if the user quit. |
 
 A reader must ignore event types and fields it does not know.
@@ -142,5 +143,6 @@ A reader must ignore event types and fields it does not know.
 
 `fault_reports` (added 2026-11-20) lists the faults the user marked "Báo sai" on the rest screen
 after a set, in the `ai` condition only. The set log is already written by then, so the report
-lives here and points at the set by `file`. It is empty when nothing was reported. The last set of
-an exercise has no rest screen, so it cannot be reported.
+lives here and points at the set by `file`. It is empty when nothing was reported. Since
+2026-11-20 the last set of an exercise also gets a rest screen in the `ai` condition, so every set
+can be reported.

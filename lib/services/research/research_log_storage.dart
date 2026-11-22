@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 
 import 'json_sanitizer.dart';
@@ -30,7 +30,48 @@ class ResearchLogStorage {
     final override = _testDirectoryOverride;
     if (override != null) return override();
     final docs = await getApplicationDocumentsDirectory();
-    return Directory('${docs.path}${Platform.pathSeparator}$subdirectoryName');
+    final legacy =
+        Directory('${docs.path}${Platform.pathSeparator}$subdirectoryName');
+    final external = Platform.isAndroid ? await _androidExternalFiles() : null;
+    if (external == null) return legacy;
+    final dir = Directory(
+      '${external.path}${Platform.pathSeparator}$subdirectoryName',
+    );
+    await (_legacyMove ??= moveLogFiles(from: legacy, to: dir));
+    return dir;
+  }
+
+  static Future<void>? _legacyMove;
+
+  @visibleForTesting
+  static Future<void> moveLogFiles({
+    required Directory from,
+    required Directory to,
+  }) async {
+    try {
+      if (!await from.exists()) return;
+      await to.create(recursive: true);
+      await for (final entity in from.list(followLinks: false)) {
+        if (entity is! File) continue;
+        final name = _fileNameOf(entity);
+        if (!_isResearchLogFile(name)) continue;
+        final target = File('${to.path}${Platform.pathSeparator}$name');
+        if (!await target.exists()) {
+          await entity.copy(target.path);
+        }
+        await entity.delete();
+      }
+    } catch (error) {
+      debugPrint('[ResearchLog] Failed to move old log files: $error');
+    }
+  }
+
+  static Future<Directory?> _androidExternalFiles() async {
+    try {
+      return await getExternalStorageDirectory();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Directory> resolveDirectory() => _directoryProvider();

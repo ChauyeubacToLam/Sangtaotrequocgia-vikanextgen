@@ -29,7 +29,7 @@
 
 import 'glute_bridge_metric_base.dart';
 import '../glute_bridge.dart';
-import '../../../../utils/debouncer.dart';
+import '../../../utils/debouncer.dart';
 
 class HipExtensionConfig {
   // Shoulder-hip-knee angle thresholds (Vietnamese adjusted)

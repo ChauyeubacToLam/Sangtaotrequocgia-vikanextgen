@@ -79,7 +79,7 @@ class GuidanceSignal {
       : this(
           GuidanceClass.phoneLandscape,
           title: 'Xoay ngang máy',
-          body: 'Bài này cần điện thoại nằm ngang để AI thấy rõ toàn thân bạn.',
+          body: 'Vika dùng điện thoại nằm ngang cho mọi bài để thấy rõ toàn thân bạn.',
         );
 
   const GuidanceSignal.phonePortrait()

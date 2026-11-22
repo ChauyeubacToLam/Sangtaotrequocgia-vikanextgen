@@ -198,6 +198,17 @@
     "englishName": "Mountain Climber"
   },
   {
+    "catalogId": "neck_side_stretch",
+    "definitionId": "neck_side_stretch",
+    "classKey": "neck_side_stretch",
+    "isFormChecked": false,
+    "sets": 2,
+    "reps": 2,
+    "seconds": 20,
+    "vietnameseName": "Giãn cổ nghiêng",
+    "englishName": "Neck Side Stretch"
+  },
+  {
     "catalogId": "plank",
     "definitionId": "plank",
     "classKey": "plank",
@@ -251,6 +262,17 @@
     "seconds": null,
     "vietnameseName": "Chống đẩy",
     "englishName": "Push-Up"
+  },
+  {
+    "catalogId": "pushup_rotation",
+    "definitionId": "push_up_rotation",
+    "classKey": "pushup_rotation",
+    "isFormChecked": false,
+    "sets": 3,
+    "reps": 6,
+    "seconds": null,
+    "vietnameseName": "Chống đẩy xoay người",
+    "englishName": "Push-Up with Rotation"
   },
   {
     "catalogId": "raised_arms",
@@ -361,6 +383,17 @@
     "seconds": null,
     "vietnameseName": "Burpee bước lùi",
     "englishName": "Step-Back Burpee"
+  },
+  {
+    "catalogId": "step_up",
+    "definitionId": "step_up",
+    "classKey": "step_up",
+    "isFormChecked": false,
+    "sets": 3,
+    "reps": 10,
+    "seconds": null,
+    "vietnameseName": "Bước lên ghế",
+    "englishName": "Step-Up"
   },
   {
     "catalogId": "superman",

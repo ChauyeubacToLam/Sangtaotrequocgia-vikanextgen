@@ -86,7 +86,6 @@ class AshtangaNamaskara extends ExerciseBase {
 
   @override
   ExerciseVoiceCoach createVoiceCoach() {
-    // TODO(voice): fast-movement policy variant — see tier3 note 1
     return PolicyVoiceCoach(
       script: VoiceScript.from(
         VoiceDefaults.repBased,

@@ -34,7 +34,7 @@
 
 import 'glute_bridge_metric_base.dart';
 import '../glute_bridge.dart';
-import '../../../../utils/debouncer.dart';
+import '../../../utils/debouncer.dart';
 
 class SpeedControlConfig {
   // Minimum acceptable eccentric-to-concentric duration ratio.

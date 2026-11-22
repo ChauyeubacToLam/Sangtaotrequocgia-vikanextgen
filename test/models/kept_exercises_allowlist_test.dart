@@ -142,6 +142,9 @@ const Map<String, List<String>> _extraClassKeyForms = {
   'seated_forward_fold': ['SeatedForwardFold'],
   'butterfly': ['ButterflyStretch', 'butterfly_stretch'],
   'sphinx': ['SphinxStretch', 'sphinx_stretch', 'SPHINX'],
+  'step_up': ['StepUp', 'step_ups', 'Chair Step-Up'],
+  'neck_side_stretch': ['NeckSideStretch', 'neck_stretch'],
+  'pushup_rotation': ['PushUpRotation', 'push_up_rotation', 'T Push-Up'],
 };
 
 const Map<String, List<String>> _extraHiddenClassForms = {
@@ -188,16 +191,16 @@ void main() {
   });
 
   group('single source of truth (kept_exercises.dart)', () {
-    test('partitions the 40-exercise catalog into 21 kept (4 validated + 17 counts-only) and 19 hidden', () {
-      expect(catalogRows, hasLength(40));
-      expect(keptExerciseIds, hasLength(21));
+    test('partitions the 43-exercise catalog into 24 kept (4 validated + 20 counts-only) and 19 hidden', () {
+      expect(catalogRows, hasLength(43));
+      expect(keptExerciseIds, hasLength(24));
       expect(validatedExerciseIds, hasLength(4));
       expect(keptExerciseIds.containsAll(validatedExerciseIds), isTrue);
       expect(allCatalogIds.containsAll(keptExerciseIds), isTrue);
       expect(hiddenCatalogIds, hasLength(19));
     });
 
-    test('resolves isKeptExercise and exerciseValidationStatus for all 21 kept exercises across catalogId, definitionId, and classKey forms', () {
+    test('resolves isKeptExercise and exerciseValidationStatus for all 24 kept exercises across catalogId, definitionId, and classKey forms', () {
       for (final row in catalogRows) {
         final catalogId = row['catalogId'] as String;
         if (!keptExerciseIds.contains(catalogId)) continue;
@@ -308,19 +311,18 @@ void main() {
   });
 
   group('Library & album routes', () {
-    test('libraryMockAllExercises exposes exactly the 21 kept exercises and zero hidden exercises', () {
+    test('libraryMockAllExercises exposes exactly the 24 kept exercises and zero hidden exercises', () {
       final exposedIds = {
         for (final row in libraryMockAllExercises) row.definitionName!,
       };
-      expect(libraryMockAllExercises, hasLength(21));
+      expect(libraryMockAllExercises, hasLength(24));
       expect(exposedIds, equals(keptExerciseIds));
       for (final hidden in hiddenCatalogIds) {
         expect(exposedIds, isNot(contains(hidden)));
       }
-      // Sequential 1..21 indices.
       expect(
         [for (final row in libraryMockAllExercises) row.idx],
-        List<int>.generate(21, (i) => i + 1),
+        List<int>.generate(24, (i) => i + 1),
       );
     });
 
@@ -350,9 +352,9 @@ void main() {
       }
 
       final byId = {for (final f in libraryFilters) f.id: f.count};
-      expect(byId['exercise'], 21);
+      expect(byId['exercise'], 24);
       expect(byId['album'], vikaAlbumCards.length);
-      expect(byId['all'], 21 + vikaAlbumCards.length);
+      expect(byId['all'], 24 + vikaAlbumCards.length);
       expect(byId['yoga'], 3);
     });
 
@@ -375,7 +377,7 @@ void main() {
   group('RecommendationEngine, ProgressionService, and stored plans/history', () {
     test('RecommendationEngine never selects a hidden exercise across all 8 templates, 3 levels, single pains, and unlocked hidden variants', () {
       final fullSeedCatalog = _loadSeedCatalogEntries();
-      expect(fullSeedCatalog, hasLength(40));
+      expect(fullSeedCatalog, hasLength(43));
       final formCheckedSeed =
           fullSeedCatalog.where((e) => e.isFormChecked && !e.isCorrective).toList();
       expect(formCheckedSeed, hasLength(29));
@@ -774,7 +776,7 @@ void main() {
       final keptSeq = await launches.buildSequenceFromCatalogIds(
         keptExerciseIds.toList(),
       );
-      expect(keptSeq, hasLength(21));
+      expect(keptSeq, hasLength(24));
 
       // buildSequenceFromCatalogIds filters out hidden ids at the service boundary.
       final mixedSeq = await launches.buildSequenceFromCatalogIds([

@@ -1947,5 +1947,50 @@ class TestEndToEndCLI(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
 
 
+class TestFaultReports(unittest.TestCase):
+    def test_reported_fault_checked_against_coach(self) -> None:
+        events = [
+            {"t_ms": 3000, "type": "rep", "n": 1, "correct": False, "faults": ["heel"], "data": {}},
+            {"t_ms": 6000, "type": "rep", "n": 2, "correct": False, "faults": ["heel"], "data": {}},
+            {"t_ms": 9000, "type": "rep", "n": 3, "correct": False, "faults": ["depth"], "data": {}},
+            {"t_ms": 20000, "type": "set_complete"},
+        ]
+        set_name = "vika_20261120T090000Z-P01_01_squat_set1.json"
+        res = _run_synthetic(
+            {set_name: _make_set_json(events=events)},
+            [
+                ["C1", "P01", "ai", "squat", "1", "1", "", "1", "", ""],
+                ["C1", "P01", "ai", "squat", "1", "2", "", "1", "", ""],
+                ["C1", "P01", "ai", "squat", "1", "3", "", "1", "depth", ""],
+            ],
+            session_jsons={
+                "vika_20261120T090000Z-P01_session.json": {
+                    "schema": 1,
+                    "kind": "session",
+                    "session_id": "20261120T090000Z-P01",
+                    "participant_id": "P01",
+                    "condition": "ai",
+                    "satisfaction": None,
+                    "fault_reports": [
+                        {"exercise_id": "squat", "set_index": 1, "file": set_name, "fault": "Heel"},
+                        {"exercise_id": "squat", "fault": "depth"},
+                    ],
+                    "files": [set_name],
+                }
+            },
+        )
+        heel = _find_row(res.fault_report_rows, fault="heel")
+        self.assertEqual(heel["reported"], 1)
+        self.assertEqual(heel["app_matched_reps_with_fault"], 2)
+        self.assertEqual(heel["coach_confirmed"], 0)
+        self.assertEqual(heel["verdict"], "app_false_alarm")
+        depth = _find_row(res.fault_report_rows, fault="depth")
+        self.assertEqual(depth["reported"], 0)
+        self.assertEqual(depth["verdict"], "coach_confirmed")
+        self.assertTrue(any(i.code == "invalid_fault_report" for i in res.issues))
+        md = evaluate.render_summary_markdown_vi(res)
+        self.assertIn("100.0% [", md.split("### 6.3.")[1].split("## 7.")[0])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,9 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:vika/exercise/exercise_base.dart';
 import 'package:vika/exercise/lunge/lunge.dart';
-import 'package:vika/exercise/lunge/lunge_report_builder.dart';
 import 'package:vika/exercise/lunge/metrics/lunge_depth_metric.dart';
-import 'package:vika/exercise/lunge/metrics/lunge_heel_lift_metric.dart';
 import 'package:vika/exercise/lunge/metrics/lunge_lumbar_proxy_metric.dart';
 import 'package:vika/exercise/lunge/metrics/lunge_metric_base.dart';
 import 'package:vika/exercise/lunge/metrics/lunge_trunk_lean_metric.dart';
@@ -130,7 +128,6 @@ List<String> _faultTypes(Lunge lunge) =>
 LungeRepContext _ctx({
   double leadKneeAngle = 90,
   double trunkLean = 0,
-  double heelDistance = 0,
   double shAngle = 160,
   LungeState state = LungeState.bottom,
 }) =>
@@ -138,7 +135,6 @@ LungeRepContext _ctx({
       leadKneeAngle: leadKneeAngle,
       trailKneeAngle: 120,
       trunkLean: trunkLean,
-      heelDistance: heelDistance,
       shoulderHipTrailKneeAngle: shAngle,
       lungeState: state,
       isLeftLegLead: true,
@@ -215,20 +211,15 @@ void main() {
     ];
     expect(messages, isNotEmpty);
 
-    final depth = LungeDepthMetric()..update(_ctx(leadKneeAngle: 40));
     final forward = LungeTrunkLeanMetric();
     final backward = LungeTrunkLeanMetric();
-    final heelBad = LungeHeelLiftMetric();
-    final heelWarn = LungeHeelLiftMetric();
     final lumbar = LungeLumbarProxyMetric();
     for (var i = 0; i < 12; i++) {
       forward.update(_ctx(trunkLean: 70));
       backward.update(_ctx(trunkLean: -20));
-      heelBad.update(_ctx(heelDistance: 0.3));
-      heelWarn.update(_ctx(heelDistance: 0.12));
       lumbar.update(_ctx(shAngle: 100));
     }
-    for (final metric in [depth, forward, backward, heelBad, heelWarn, lumbar]) {
+    for (final metric in [forward, backward, lumbar]) {
       expect(metric.faults, isNotEmpty, reason: metric.name);
       messages.addAll(metric.faults.map((f) => f.message));
     }
@@ -237,8 +228,25 @@ void main() {
     }
   });
 
-  test('depth report copy describes the fault that can fire (too deep)', () {
-    final tip = LungeReportBuilder().faultToTipMap()['depth_fails_count']!;
-    expect(tip.watch, contains('quá sâu'));
+  test('a knee-to-floor lunge is never faulted or told to go lower', () {
+    final depth = LungeDepthMetric();
+    for (final angle in [90.0, 60.0, 43.0, 30.0]) {
+      final ctx = _ctx(leadKneeAngle: angle);
+      depth.update(ctx);
+      expect(ctx.resultIssues.feedback['Depth'], 'Độ sâu tốt!',
+          reason: '$angle');
+    }
+    expect(depth.faults, isEmpty);
+    expect(depth.minKneeAngle, 30.0);
+  });
+
+  test('a rep logs no depth or heel fault and keeps both set-log keys', () {
+    final lunge = _lunge(true);
+    _rep(lunge, true);
+    lunge.onSetComplete();
+    expect(_faultTypes(lunge), isNot(contains('depth')));
+    expect(_faultTypes(lunge), isNot(contains('heel')));
+    expect(lunge.logger.setLogs['depth_fails_count'], 0);
+    expect(lunge.logger.setLogs['heel_lift_fails_count'], 0);
   });
 }

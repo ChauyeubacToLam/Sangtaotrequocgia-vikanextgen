@@ -17,8 +17,8 @@ Chỉ kiểm chứng 4 bài: `squat`, `push_up`, `glute_bridge`, `plank`.
 
 - [ ] Supabase mới chạy được (đăng ký, đăng nhập), đã tắt "Confirm email".
 - [ ] APK bản release cài trên **máy A**. Bản debug chạy chậm, số FPS sẽ sai.
-- [ ] Nút "Báo sai" trong lúc tập và dòng "AI nhìn rõ X%" ở màn tổng kết. **Hai thứ này chưa có trong
-      code.**
+- [x] Nút "Báo sai" và dòng "AI nhìn rõ X%": có trên màn nghỉ sau **mọi** hiệp, kể cả hiệp cuối, ở
+      điều kiện `ai` (20/11). `evaluate.py` đối chiếu "Báo sai" với nhãn HLV (`fault_reports.csv`).
 - [ ] **Buổi chạy thử với 1 người trong nhóm (mã `P00`)**, đi trọn đường ống: quay, xuất log, gán nhãn
       thử 1 hiệp mỗi bài, chạy `evaluate.py` ra được `summary.md`. Bước nào hỏng thì sửa trước khi mời
       người thật. Log của `P00` không đưa vào báo cáo.
@@ -27,8 +27,9 @@ Chỉ kiểm chứng 4 bài: `squat`, `push_up`, `glute_bridge`, `plank`.
 
 ## 2. Bố trí chỗ quay (giữ y nguyên cho mọi người)
 
-- **Máy A (chạy Vika):** đặt theo thẻ "Đặt máy" trong app của từng bài. Dùng **một máy duy nhất** cho
-  mọi người để FPS so sánh được.
+- **Máy A (chạy Vika):** từ 20/11 mọi bài dùng **một vị trí đặt máy duy nhất**: điện thoại **nằm
+  ngang**, cao khoảng 60–70 cm (mặt ghế kê thêm sách), cách chỗ tập khoảng 3 m. Không xoay, không di
+  chuyển máy giữa các bài. Dùng **một máy duy nhất** cho mọi người để FPS so sánh được.
 - **Máy B (quay video cho HLV):** quay nghiêng, cùng phía với máy A, cao ngang hông, thấy toàn thân,
   1080p 30 fps, **bật tiếng** để nghe tiếng bíp. **Không để màn hình máy A lọt vào khung**, để HLV không
   nhìn thấy kết quả của AI.
@@ -86,15 +87,15 @@ rất rộng. Báo cáo phải tách riêng "lỗi tự nhiên" và "lỗi cố 
 
 ## 5. Bài thử an toàn camera (Yêu cầu 2, khoảng 45 phút)
 
-Người trong nhóm thực hiện, mã `T01`, `T02`, điều kiện **ai**. Hai bài: **squat** (máy dọc) và **plank**
-(máy ngang). Bật **ghi màn hình** của Android trên máy A để có luôn cảnh quay demo cho Yêu cầu 2.
+Người trong nhóm thực hiện, mã `T01`, `T02`, điều kiện **ai**. Hai bài: **squat** và **plank**, máy
+ngang như mục 2. Bật **ghi màn hình** của Android trên máy A để có luôn cảnh quay demo cho Yêu cầu 2.
 
 | # | Tình huống | Cách tạo |
 |---|---|---|
 | 1 | Ra khỏi khung một phần | Bước sang ngang cho mất cẳng chân |
 | 2 | Ra hẳn khỏi khung | Đi ra khỏi tầm camera |
 | 3 | Thiếu sáng | Tắt đèn chính, chỉ để đèn phụ |
-| 4 | Sai chiều máy | Plank với máy dọc, squat với máy ngang |
+| 4 | Sai chiều máy | Xoay điện thoại sang dọc giữa chừng |
 | 5 | Sai góc nhìn | Squat quay mặt vào camera thay vì nghiêng |
 | 6 | Bị che khuất | Người khác đi ngang qua, hoặc giơ khăn che |
 
@@ -114,7 +115,16 @@ Mỗi lần thử, đánh giá 4 thứ:
 3. Số rep hoặc lỗi bị ghi trong khoảng không nhìn rõ. Mong muốn bằng 0.
 4. Thời gian hồi phục: từ "HẾT" đến khi app chấm lại.
 
-Bảng này hiện phải tính bằng bảng tính. Script tính tự động **chưa có**, viết thêm nếu còn thời gian.
+`start_video_t_s` và `end_video_t_s` tính bằng giây **từ tiếng bíp đầu tiên của hiệp**, giống cột
+`video_t_s` của nhãn HLV. Script tính cả 4 thứ trên:
+
+```bash
+python tools/eval/camera_safety.py --trials data/an_toan_camera.csv --logs data/logs --out data/camera_safety
+```
+
+Ra `camera_safety.csv` (một dòng một lần thử) và `camera_safety_summary.md` (bảng theo tình huống).
+Cột `right_prompt` so lý do trong log với danh sách lý do hợp lệ của từng tình huống
+(`EXPECTED_REASONS` trong script). Người xem vẫn phải đối chiếu với video ghi màn hình.
 
 Ngoài bài thử này, mọi buổi quay ở mục 4 đều tự ghi thời gian AI không nhìn rõ. `evaluate.py` xuất ra
 `unseen_time.csv` (tỉ lệ trên tổng thời gian tập) và `unseen_reasons.csv` (chia theo lý do).

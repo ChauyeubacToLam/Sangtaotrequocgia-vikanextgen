@@ -54,6 +54,7 @@ class WallPushUpConfig {
       135.0; // < this → entering descent
   static const double BOTTOM_ANGLE_MAX = 132.0; // ≤ this → bottom
   static const double BOTTOM_EXIT = 136.0; // > this from bottom → ascending
+  static const double RETURN_ROM = 25.0;
 
   // Start position gates (hold-still).
   static const double START_ELBOW_MIN = 135.0; // arms extended enough
@@ -307,6 +308,13 @@ class TempoMetric extends WallPushUpMetricBase {
 // --- Wall Push Up ---
 
 class WallPushUp extends ExerciseBase {
+  @override
+  Set<VikaImageOrientation> get supportedOrientations =>
+      const <VikaImageOrientation>{
+        VikaImageOrientation.landscapeLeft,
+        VikaImageOrientation.landscapeRight,
+      };
+
   static const List<String> _voiceFaultIds = [
     'body_line',
     'foot',
@@ -408,8 +416,6 @@ class WallPushUp extends ExerciseBase {
   double? _baselineNeckTilt;
   double? _baselineFootAnchorX;
   double? _baselineFootAnchorY;
-  double? _baselineWristAnchorX;
-  double? _baselineWristAnchorY;
   double? _baselineBodyFootAngle;
   double? _baselineScaleFactor;
   bool _trunkInclinationInvalidThisRep = false;
@@ -588,8 +594,6 @@ class WallPushUp extends ExerciseBase {
     final footAnchor = _averagePoint([ankle, heel, footIndex]);
     _baselineFootAnchorX = footAnchor?.x;
     _baselineFootAnchorY = footAnchor?.y;
-    _baselineWristAnchorX = wrist.x;
-    _baselineWristAnchorY = wrist.y;
     _baselineScaleFactor = shoulderToHip;
     if (footIndex != null) {
       _baselineBodyFootAngle = calculateAngleNormalized(
@@ -610,10 +614,6 @@ class WallPushUp extends ExerciseBase {
         _baselineFootAnchorX, _baselineFootAnchorY);
     footStationaryMetric.captureBaseline(_baselineBodyFootAngle);
     footStationaryMetric.captureScaleBaseline(_baselineScaleFactor);
-    wallContactMetric.capturePointBaseline(
-        _baselineWristAnchorX, _baselineWristAnchorY);
-    wallContactMetric.captureFootBaseline(
-        _baselineFootAnchorX, _baselineFootAnchorY);
     wallContactMetric.captureBaseline(_baselineScaleFactor);
   }
 
@@ -1022,16 +1022,20 @@ class WallPushUp extends ExerciseBase {
     final bool isEntering =
         elbowAngle < WallPushUpConfig.DESCEND_ANGLE_THRESHOLD;
     final bool confirmedEntry = _entryDebouncer.update(isEntering);
+    final double standingAngle = math.max(
+        WallPushUpConfig.STANDING_ANGLE_THRESHOLD,
+        (_repMinElbow ?? 0) + WallPushUpConfig.RETURN_ROM);
 
     if (confirmedEntry && wallPushUpState == WallPushUpState.standing) {
       _transitionState(WallPushUpState.descending, timestampMs);
     } else if (elbowAngle <= WallPushUpConfig.BOTTOM_ANGLE_MAX &&
-        wallPushUpState == WallPushUpState.descending) {
+        (wallPushUpState == WallPushUpState.descending ||
+            wallPushUpState == WallPushUpState.ascending)) {
       _transitionState(WallPushUpState.bottom, timestampMs);
     } else if (elbowAngle > WallPushUpConfig.BOTTOM_EXIT &&
         wallPushUpState == WallPushUpState.bottom) {
       _transitionState(WallPushUpState.ascending, timestampMs);
-    } else if (elbowAngle > WallPushUpConfig.STANDING_ANGLE_THRESHOLD &&
+    } else if (elbowAngle > standingAngle &&
         (wallPushUpState == WallPushUpState.ascending ||
             wallPushUpState == WallPushUpState.descending)) {
       _transitionState(WallPushUpState.standing, timestampMs);

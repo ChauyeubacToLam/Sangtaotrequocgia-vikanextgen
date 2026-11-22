@@ -1,39 +1,3 @@
-// RestScreen — between-sets pause. Premium Ivory v2.
-//
-// Data wiring is identical to the legacy jade-green version (same
-// constructor params, same SetReportData, same difficulty mechanic,
-// same fault grouping from ExerciseLogger). Only the visual grammar
-// changed: cream / ink / yellow editorial palette, italic display
-// typography, refined ring, no emojis.
-//
-// Layout:
-//   ┌────────────────────────────────────────────┐
-//   │ ✕              HIỆP 02 / 03 · Squat        │  ← editorial header
-//   │                                             │
-//   │             ╱ ─ ─ ─ ╲                      │
-//   │            │   42    │   ← yellow arc      │
-//   │            │  GIÂY   │     + italic 96pt   │
-//   │             ╲ _ _ _ ╱                      │
-//   │                                             │
-//   │           8 / 10 reps chuẩn form            │  ← italic display
-//   │        ●●●●●●●●○○                            │  ← rep dots
-//   │                                             │
-//   │      ✦ "Tốt lắm! Cứ giữ form đẹp như vậy."   │  ← praise
-//   │                                             │
-//   │      ◆  GỢI Ý CHO SET SAU                   │
-//   │      Dồn lực qua gót, giữ bàn chân          │  ← coach tip
-//   │      bám sàn chắc hơn nhé.                  │
-//   │                                             │
-//   │      Cần cải thiện (2)  ▾                   │  ← faults
-//   │                                             │
-//   ├ ─────────────────────────────────────── ──┤
-//   │       SET NÀY CẢM THẤY THẾ NÀO?                     │
-//   │   [ Nhẹ ]  [ Vừa ]  [ Nặng ]               │  ← italic pills
-//   │       Set sau tăng 2 reps                  │  ← adjustment
-//   │                                             │
-//   │   [ Bắt đầu set tiếp                  → ]  │  ← yellow halo CTA
-//   └────────────────────────────────────────────┘
-
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -42,9 +6,8 @@ import 'package:flutter/services.dart';
 
 import '../../models/post_exercise_data.dart';
 import '../../services/session_persistence.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/vf_theme.dart';
 import '../../utils/exercise_logger.dart';
+import '../../widgets/tk/tk.dart';
 
 class RestScreen extends StatefulWidget {
   const RestScreen({
@@ -63,6 +26,7 @@ class RestScreen extends StatefulWidget {
     this.controlCondition = false,
     this.aiVisibleRatio,
     this.onReportFault,
+    this.onExportLogs,
   });
 
   final SetReportData setReport;
@@ -78,12 +42,11 @@ class RestScreen extends StatefulWidget {
   final List<PreviousSessionSummary>? previousSession;
   final bool controlCondition;
 
-  /// Share of the set the AI could judge (`1 - unseen/active`). Hidden in the
-  /// control condition and when null.
   final double? aiVisibleRatio;
 
-  /// "Báo sai" toggle on a detected fault row. Null hides the button.
   final void Function(String faultType, bool reported)? onReportFault;
+
+  final Future<bool> Function(BuildContext buttonContext)? onExportLogs;
 
   @override
   State<RestScreen> createState() => _RestScreenState();
@@ -92,9 +55,9 @@ class RestScreen extends StatefulWidget {
 class _RestScreenState extends State<RestScreen> with TickerProviderStateMixin {
   Timer? _timer;
   String? _selectedDifficulty;
-  bool _showFaults = false;
   final Set<String> _reportedFaults = <String>{};
   bool _didAdvance = false;
+  bool _exporting = false;
   late int _restDuration;
   late int _remaining;
   late final AnimationController _dotController;
@@ -185,6 +148,32 @@ class _RestScreenState extends State<RestScreen> with TickerProviderStateMixin {
     });
   }
 
+  Future<void> _exportLogs(BuildContext buttonContext) async {
+    final export = widget.onExportLogs;
+    if (export == null || _exporting || _didAdvance) return;
+    HapticFeedback.selectionClick();
+    _timer?.cancel();
+    setState(() => _exporting = true);
+    var shared = false;
+    try {
+      shared = await export(buttonContext);
+    } catch (_) {
+      shared = false;
+    }
+    if (!mounted) return;
+    setState(() => _exporting = false);
+    if (!shared) {
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Chưa xuất được tệp nhật ký. Vui lòng thử lại.'),
+          ),
+        );
+    }
+    if (!_didAdvance) _startTimer();
+  }
+
   void _advance() {
     if (_didAdvance) return;
     _didAdvance = true;
@@ -218,363 +207,268 @@ class _RestScreenState extends State<RestScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     final goodReps = widget.setReport.goodReps ??
         widget.setReport.repResults.where((isGood) => isGood).length;
     final totalReps = widget.setReport.totalReps ?? widget.currentReps;
-    return Scaffold(
-      backgroundColor: c.bg,
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              c.bgRaised,
-              c.bg,
-            ],
-            stops: const [0.0, 0.55],
+    final faults = _faultObservations;
+    final control = widget.controlCondition;
+    final tip = (widget.setReport.coachTip ?? '').trim();
+    final praise = (widget.setReport.praiseSentence ?? '').trim();
+    final bubble = tip.isNotEmpty
+        ? tip
+        : praise.isNotEmpty
+            ? praise
+            : 'Hít thở sâu, uống ngụm nước rồi mình tập tiếp nhé!';
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 20, 0),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Bỏ qua nghỉ',
+            onPressed: _advance,
+            icon: const Icon(Icons.close_rounded, color: Tk.inkSoft, size: 28),
           ),
-        ),
-        child: Stack(
-          children: [
-            // Soft yellow halo behind the timer.
-            Positioned(
-              top: -120,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: Container(
-                    width: 380,
-                    height: 380,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          c.yellow.withValues(alpha: 0.18),
-                          c.yellow.withValues(alpha: 0),
+          Expanded(
+            child: Text(
+              '${_exerciseLabel.toUpperCase()} · HIỆP ${widget.setIndex + 1}/${widget.totalSets} XONG',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Tk.eyebrow(color: Tk.greenLip),
+            ),
+          ),
+        ],
+      ),
+    );
+    final summary = Row(
+      children: [
+        _TimerRing(progress: _progress, remaining: _remaining),
+        const SizedBox(width: 18),
+        Expanded(
+          child: control
+              ? Text(
+                  'Đã hoàn thành hiệp ${widget.setIndex + 1}',
+                  style: Tk.text(22, weight: FontWeight.w900, height: 1.2),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                              text: '$goodReps',
+                              style: Tk.text(34, weight: FontWeight.w900)),
+                          TextSpan(
+                              text: '/$totalReps',
+                              style: Tk.text(20,
+                                  weight: FontWeight.w900, color: Tk.inkSoft)),
                         ],
-                        stops: const [0.0, 0.7],
                       ),
                     ),
+                    Text('REP CHUẨN FORM',
+                        style: Tk.eyebrow(color: Tk.greenInk)),
+                    if (praise.isNotEmpty && bubble != praise) ...[
+                      const SizedBox(height: 4),
+                      Text(praise,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Tk.text(13.5,
+                              weight: FontWeight.w800, color: Tk.greenInk)),
+                    ],
+                    if (widget.setReport.repResults.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (var i = 0;
+                              i < widget.setReport.repResults.length;
+                              i++)
+                            ScaleTransition(
+                              scale: _dotAnimations[i],
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: widget.setReport.repResults[i]
+                                      ? Tk.green
+                                      : Tk.orange,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ],
+    );
+    List<Widget> coach({required double mascotSize}) => [
+          if (control)
+            Text(
+              'Nghỉ ngơi một chút trước khi sang hiệp tiếp theo.',
+              style: Tk.text(15, weight: FontWeight.w700, color: Tk.inkSoft),
+            )
+          else
+            TkSpeechRow(
+              asset: faults.isEmpty ? Tk.mascotThumbsUp : Tk.mascotEncourage,
+              mascotSize: mascotSize,
+              message: bubble,
+            ),
+          if (!control && faults.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _FaultsCard(
+              faults: faults,
+              reported: _reportedFaults,
+              aiVisibleRatio: widget.aiVisibleRatio,
+              onReport: widget.onReportFault == null ? null : _toggleReport,
+            ),
+          ] else if (!control && widget.aiVisibleRatio != null) ...[
+            const SizedBox(height: 10),
+            _VisibilityLine(ratio: widget.aiVisibleRatio!),
+          ],
+          if (widget.onExportLogs != null) ...[
+            const SizedBox(height: 12),
+            Builder(
+              builder: (buttonContext) => TkButton(
+                label: 'Xuất tệp nhật ký',
+                tone: TkButtonTone.outline,
+                height: 46,
+                busy: _exporting,
+                onTap: () => _exportLogs(buttonContext),
+              ),
+            ),
+          ],
+        ];
+    final difficulty = <Widget>[
+      Text('HIỆP NÀY THẤY THẾ NÀO?', style: Tk.eyebrow()),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          for (final (value, label) in const [
+            ('light', 'Nhẹ'),
+            ('medium', 'Vừa'),
+            ('heavy', 'Nặng')
+          ]) ...[
+            if (value != 'light') const SizedBox(width: 8),
+            Expanded(
+              child: TkCard(
+                onTap:
+                    _lockedDifficulty ? null : () => _selectDifficulty(value),
+                lip: false,
+                radius: 14,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                color:
+                    _selectedDifficulty == value ? Tk.primarySoft : Tk.surface,
+                borderColor:
+                    _selectedDifficulty == value ? Tk.primary : Tk.line,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: Tk.text(
+                    15.5,
+                    weight: FontWeight.w900,
+                    color: _selectedDifficulty == value
+                        ? Tk.primaryLip
+                        : (_lockedDifficulty ? Tk.inkMuted : Tk.ink),
                   ),
                 ),
               ),
             ),
-            const Positioned.fill(
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: 0.04,
-                  child: CustomPaint(painter: _PaperGrainPainter()),
-                ),
-              ),
-            ),
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight:
-                            math.max(0, constraints.maxHeight - 32).toDouble(),
-                      ),
-                      child: Column(
+          ],
+        ],
+      ),
+      if (_adjustmentText != null) ...[
+        const SizedBox(height: 8),
+        Text(_adjustmentText!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Tk.text(13.5, weight: FontWeight.w800, color: Tk.inkSoft)),
+      ],
+    ];
+    final next = TkButton(
+      label: widget.isLastSet ? 'Xem tổng kết' : 'Bắt đầu hiệp tiếp',
+      onTap: _advance,
+    );
+    return Scaffold(
+      backgroundColor: Tk.surface,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, box) {
+            if (box.maxWidth > box.maxHeight) {
+              return Column(
+                children: [
+                  header,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _TopBar(
-                            setIndex: widget.setIndex,
-                            totalSets: widget.totalSets,
-                            exerciseLabel: _exerciseLabel,
-                            onClose: _advance,
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          Expanded(
+                            flex: 5,
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                _TimerRing(
-                                  progress: _progress,
-                                  remaining: _remaining,
-                                ),
-                                const SizedBox(height: 22),
-                                if (widget.controlCondition) ...[
-                                  Text(
-                                    'Đã hoàn thành hiệp ${widget.setIndex + 1}',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: VikaIvory.fontFamily,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      color: c.ink,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Nghỉ ngơi một chút trước khi sang hiệp tiếp theo.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: VikaIvory.fontFamily,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.inkSoft,
-                                    ),
-                                  ),
-                                ] else ...[
-                                  _ScoreLine(
-                                    goodReps: goodReps,
-                                    totalReps: totalReps,
-                                  ),
-                                  if (widget.aiVisibleRatio != null) ...[
-                                    const SizedBox(height: 10),
-                                    _VisibilityLine(
-                                      ratio: widget.aiVisibleRatio!,
-                                    ),
-                                  ],
-                                  if (widget.setReport.repResults.isNotEmpty) ...[
-                                    const SizedBox(height: 16),
-                                    Wrap(
-                                      alignment: WrapAlignment.center,
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        for (var i = 0;
-                                            i <
-                                                widget
-                                                    .setReport.repResults.length;
-                                            i++)
-                                          _RepResultDot(
-                                            isGood:
-                                                widget.setReport.repResults[i],
-                                            animation: _dotAnimations[i],
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                  if ((widget.setReport.praiseSentence ?? '')
-                                      .trim()
-                                      .isNotEmpty) ...[
-                                    const SizedBox(height: 20),
-                                    _PraiseLine(
-                                      text: widget.setReport.praiseSentence!,
-                                    ),
-                                  ],
-                                  if ((widget.setReport.coachTip ?? '')
-                                      .trim()
-                                      .isNotEmpty) ...[
-                                    const SizedBox(height: 20),
-                                    ConstrainedBox(
-                                      constraints:
-                                          const BoxConstraints(maxWidth: 340),
-                                      child: _CoachTipCard(
-                                        text: widget.setReport.coachTip!,
-                                      ),
-                                    ),
-                                  ],
-                                  if (_faultObservations.isNotEmpty) ...[
-                                    const SizedBox(height: 18),
-                                    _FaultsToggle(
-                                      open: _showFaults,
-                                      count: _faultObservations.length,
-                                      onTap: () => setState(
-                                          () => _showFaults = !_showFaults),
-                                    ),
-                                    AnimatedSize(
-                                      duration: const Duration(milliseconds: 240),
-                                      curve: Curves.easeOutCubic,
-                                      child: _showFaults
-                                          ? Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 10),
-                                              child: ConstrainedBox(
-                                                constraints: const BoxConstraints(
-                                                  maxWidth: 340,
-                                                ),
-                                                child: Column(
-                                                  children: [
-                                                    for (final fault
-                                                        in _faultObservations)
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.only(
-                                                                bottom: 8),
-                                                        child: _FaultRow(
-                                                          fault: fault,
-                                                          totalReps: totalReps,
-                                                          reported:
-                                                              _reportedFaults
-                                                                  .contains(
-                                                                      fault
-                                                                          .type),
-                                                          onReport: widget
-                                                                      .onReportFault ==
-                                                                  null
-                                                              ? null
-                                                              : () => _toggleReport(
-                                                                  fault.type),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            )
-                                          : const SizedBox.shrink(),
-                                    ),
-                                  ],
-                                ],
+                                summary,
+                                const Spacer(),
+                                ...difficulty,
+                                const SizedBox(height: 12),
+                                next,
                               ],
                             ),
                           ),
-                          _BottomSection(
-                            selectedDifficulty: _selectedDifficulty,
-                            lockedDifficulty: _lockedDifficulty,
-                            adjustmentText: _adjustmentText,
-                            isLastSet: widget.isLastSet,
-                            onSelectDifficulty: _selectDifficulty,
-                            onAdvance: _advance,
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 6,
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: coach(mascotSize: 76),
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-          ],
+                  ),
+                ],
+              );
+            }
+            return Column(
+              children: [
+                header,
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        summary,
+                        const SizedBox(height: 10),
+                        ...coach(mascotSize: 100),
+                        const SizedBox(height: 16),
+                        ...difficulty,
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: next,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════════════
-// TOP BAR — editorial header: close + italic "Hiệp X / Y · Name"
-// ═══════════════════════════════════════════════════════════════
-
-class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.setIndex,
-    required this.totalSets,
-    required this.exerciseLabel,
-    required this.onClose,
-  });
-
-  final int setIndex;
-  final int totalSets;
-  final String exerciseLabel;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Row(
-      children: [
-        _CloseButton(onTap: onClose),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.fromLTRB(10, 5, 12, 5),
-          decoration: BoxDecoration(
-            color: c.yellow.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: c.yellow.withValues(alpha: 0.35),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'HIỆP ${(setIndex + 1).toString().padLeft(2, '0')} / ${totalSets.toString().padLeft(2, '0')}',
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.6,
-                  color: c.inkSoft,
-                  fontFeatures: VikaIvoryMain.tabularFigures,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 3,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: c.inkFaint,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                exerciseLabel,
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: -0.2,
-                  color: c.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CloseButton extends StatefulWidget {
-  const _CloseButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  State<_CloseButton> createState() => _CloseButtonState();
-}
-
-class _CloseButtonState extends State<_CloseButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        widget.onTap();
-      },
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedScale(
-        scale: _pressed ? 0.92 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: c.bgRaised,
-            shape: BoxShape.circle,
-            border: Border.all(color: c.border),
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            Icons.close_rounded,
-            size: 17,
-            color: c.inkSoft,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TIMER RING — single clean ring + halo + big italic numeral
-// ═══════════════════════════════════════════════════════════════
 
 class _TimerRing extends StatelessWidget {
   const _TimerRing({required this.progress, required this.remaining});
@@ -584,959 +478,207 @@ class _TimerRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
     return SizedBox(
-      width: 220,
-      height: 220,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Soft glow ring behind the arc.
-          Container(
-            width: 220,
-            height: 220,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  c.yellow.withValues(alpha: 0.10),
-                  c.yellow.withValues(alpha: 0),
-                ],
-                stops: const [0.55, 1.0],
-              ),
-            ),
-          ),
-          // The arc.
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _TimerArcPainter(
-                progress: progress,
-                trackColor: c.border,
-                fillColor: c.yellow,
-              ),
-            ),
-          ),
-          // Inside: italic seconds + "GIÂY NGHỈ" eyebrow.
-          Column(
+      width: 128,
+      height: 128,
+      child: CustomPaint(
+        painter: _RingPainter(1 - progress),
+        child: Center(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                '$remaining',
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 92,
-                  fontWeight: FontWeight.w800,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: -4.5,
-                  height: 0.92,
-                  color: c.ink,
-                  fontFeatures: VikaIvoryMain.tabularFigures,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                width: 18,
-                height: 1.5,
-                color: c.yellow.withValues(alpha: 0.55),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'GIÂY NGHỈ',
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.2,
-                  color: c.inkSoft,
-                ),
-              ),
+              Text('$remaining',
+                  style: Tk.text(40, weight: FontWeight.w900, height: 1)),
+              Text('GIÂY NGHỈ',
+                  style: Tk.text(10.5,
+                      weight: FontWeight.w900,
+                      color: Tk.inkSoft,
+                      letterSpacing: 1)),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _TimerArcPainter extends CustomPainter {
-  _TimerArcPainter({
-    required this.progress,
-    required this.trackColor,
-    required this.fillColor,
-  });
+class _RingPainter extends CustomPainter {
+  const _RingPainter(this.value);
 
-  final double progress; // 0..1
-  final Color trackColor;
-  final Color fillColor;
+  final double value;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (math.min(size.width, size.height) / 2) - 10;
-    const stroke = 8.0;
-
-    // Track — full circle, hairline cream.
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..color = trackColor,
-    );
-
-    // Tick marks every 30° — subtle, on the track.
-    for (var i = 0; i < 12; i++) {
-      final angle = (i / 12) * 2 * math.pi - math.pi / 2;
-      final inner = Offset(
-        center.dx + math.cos(angle) * (radius - stroke / 2 - 2),
-        center.dy + math.sin(angle) * (radius - stroke / 2 - 2),
-      );
-      final outer = Offset(
-        center.dx + math.cos(angle) * (radius - stroke / 2 - 6),
-        center.dy + math.sin(angle) * (radius - stroke / 2 - 6),
-      );
-      canvas.drawLine(
-        inner,
-        outer,
-        Paint()
-          ..color = trackColor
-          ..strokeWidth = 1,
-      );
-    }
-
-    if (progress <= 0.001) return;
-
-    // Yellow fill arc — sweep from top clockwise.
-    final sweep = progress.clamp(0.0, 1.0) * 2 * math.pi;
-    final fillPaint = Paint()
+    const stroke = 12.0;
+    final rect = Offset.zero & size;
+    final ring = rect.deflate(stroke / 2);
+    final track = Paint()
+      ..color = const Color(0xFFEEF0F7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+    canvas.drawArc(ring, 0, math.pi * 2, false, track);
+    final arc = Paint()
+      ..color = Tk.primary
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: -math.pi / 2,
-        endAngle: -math.pi / 2 + 2 * math.pi,
-        colors: [
-          fillColor.withValues(alpha: 0.5),
-          fillColor,
-          fillColor,
-        ],
-        stops: const [0.0, 0.6, 1.0],
-      ).createShader(
-        Rect.fromCircle(center: center, radius: radius),
-      );
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      sweep,
-      false,
-      fillPaint,
-    );
-
-    // Bright tip dot.
-    final tipAngle = -math.pi / 2 + sweep;
-    final tip = Offset(
-      center.dx + math.cos(tipAngle) * radius,
-      center.dy + math.sin(tipAngle) * radius,
-    );
-    canvas.drawCircle(
-      tip,
-      stroke / 2 + 5,
-      Paint()
-        ..color = fillColor.withValues(alpha: 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    canvas.drawCircle(tip, stroke / 2 + 1, Paint()..color = fillColor);
-  }
-
-  @override
-  bool shouldRepaint(covariant _TimerArcPainter old) =>
-      old.progress != progress ||
-      old.fillColor != fillColor ||
-      old.trackColor != trackColor;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SCORE LINE — italic display "8 / 10 reps chuẩn form"
-// ═══════════════════════════════════════════════════════════════
-
-class _ScoreLine extends StatelessWidget {
-  const _ScoreLine({required this.goodReps, required this.totalReps});
-  final int goodReps;
-  final int totalReps;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              '$goodReps',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 38,
-                fontWeight: FontWeight.w800,
-                fontStyle: FontStyle.italic,
-                letterSpacing: -1.8,
-                height: 0.95,
-                color: c.ink,
-                fontFeatures: VikaIvoryMain.tabularFigures,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '/ $totalReps',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                fontStyle: FontStyle.italic,
-                letterSpacing: -0.4,
-                color: c.inkSoft,
-                fontFeatures: VikaIvoryMain.tabularFigures,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'REP chuẩn',
-          style: TextStyle(
-            fontFamily: 'BeVietnamPro',
-            fontSize: 9.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.8,
-            color: c.inkSoft,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// REP RESULT DOT — yellow check / hairline outline
-// ═══════════════════════════════════════════════════════════════
-
-class _RepResultDot extends StatelessWidget {
-  const _RepResultDot({required this.isGood, required this.animation});
-
-  final bool isGood;
-  final Animation<double> animation;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    const size = 22.0;
-    return ScaleTransition(
-      scale: animation,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isGood ? c.yellow : Colors.transparent,
-          border: Border.all(
-            color: isGood ? c.yellow : c.borderHi,
-            width: isGood ? 0 : 2,
-          ),
-          boxShadow: isGood
-              ? [
-                  BoxShadow(
-                    color: c.yellow.withValues(alpha: 0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: isGood
-            ? Icon(
-                Icons.check_rounded,
-                size: 12,
-                color: c.yellowInk,
-              )
-            : null,
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PRAISE — italic editorial quote with sparkle prefix
-// ═══════════════════════════════════════════════════════════════
-
-class _PraiseLine extends StatelessWidget {
-  const _PraiseLine({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: SizedBox.square(
-              dimension: 12,
-              child: CustomPaint(painter: _SparklePainter(color: c.yellow)),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '"$text"',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 14.5,
-                fontWeight: FontWeight.w600,
-                fontStyle: FontStyle.italic,
-                letterSpacing: -0.2,
-                height: 1.5,
-                color: c.ink,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SparklePainter extends CustomPainter {
-  const _SparklePainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = color;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(w * 0.5, 0)
-      ..lineTo(w * 0.58, h * 0.42)
-      ..lineTo(w, h * 0.5)
-      ..lineTo(w * 0.58, h * 0.58)
-      ..lineTo(w * 0.5, h)
-      ..lineTo(w * 0.42, h * 0.58)
-      ..lineTo(0, h * 0.5)
-      ..lineTo(w * 0.42, h * 0.42)
-      ..close();
-    canvas.drawPath(path, p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklePainter old) => old.color != color;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COACH TIP — yellow ghost card with coach mark + italic text
-// ═══════════════════════════════════════════════════════════════
-
-class _CoachTipCard extends StatelessWidget {
-  const _CoachTipCard({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: c.yellowGhost,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: c.yellow.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CoachMark(yellow: c.yellow, ink: c.ink),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: c.yellow,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'GỢI Ý CHO SET SAU',
-                      style: TextStyle(
-                        fontFamily: 'BeVietnamPro',
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.6,
-                        color: c.inkSoft,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    fontStyle: FontStyle.italic,
-                    letterSpacing: -0.1,
-                    height: 1.5,
-                    color: c.ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CoachMark extends StatelessWidget {
-  const _CoachMark({required this.yellow, required this.ink});
-  final Color yellow;
-  final Color ink;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 22,
-      height: 22,
-      child: CustomPaint(painter: _CoachPainter(yellow: yellow, ink: ink)),
-    );
-  }
-}
-
-class _CoachPainter extends CustomPainter {
-  const _CoachPainter({required this.yellow, required this.ink});
-  final Color yellow;
-  final Color ink;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 18;
-    Offset p(double x, double y) => Offset(x * scale, y * scale);
-    canvas.drawCircle(p(9, 9), 8.5 * scale, Paint()..color = yellow);
-    canvas.drawCircle(
-      p(9, 9),
-      8.5 * scale,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8 * scale
-        ..color = ink,
-    );
-    final inkPaint = Paint()
-      ..color = ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.9 * scale
       ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(p(9, 5.5), 1.1 * scale, Paint()..color = ink);
-    canvas.drawLine(p(9, 6.6), p(9, 10), inkPaint);
-    canvas.drawLine(p(6.5, 8), p(11.5, 8), inkPaint);
-    canvas.drawLine(p(9, 10), p(7.5, 13), inkPaint);
-    canvas.drawLine(p(9, 10), p(10.5, 13), inkPaint);
+    canvas.drawArc(
+        ring, -math.pi / 2, math.pi * 2 * value.clamp(0, 1), false, arc);
   }
 
   @override
-  bool shouldRepaint(covariant _CoachPainter old) =>
-      old.yellow != yellow || old.ink != ink;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// FAULTS — collapsible, ink-soft (no red)
-// ═══════════════════════════════════════════════════════════════
-
-class _FaultsToggle extends StatelessWidget {
-  const _FaultsToggle({
-    required this.open,
-    required this.count,
-    required this.onTap,
-  });
-  final bool open;
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            open
-                ? Icons.keyboard_arrow_down_rounded
-                : Icons.keyboard_arrow_right_rounded,
-            size: 16,
-            color: c.inkFaint,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Cần chú ý ($count)',
-            style: TextStyle(
-              fontFamily: 'BeVietnamPro',
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              fontStyle: FontStyle.italic,
-              letterSpacing: -0.1,
-              color: c.inkFaint,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  bool shouldRepaint(_RingPainter oldDelegate) => oldDelegate.value != value;
 }
 
 class _VisibilityLine extends StatelessWidget {
   const _VisibilityLine({required this.ratio});
+
   final double ratio;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final percent = (ratio * 100).round();
-    final low = ratio < 0.8;
-    return Text(
-      low
-          ? 'AI nhìn rõ $percent% thời gian · kiểm tra lại vị trí máy'
-          : 'AI nhìn rõ $percent% thời gian tập',
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        fontFamily: 'BeVietnamPro',
-        fontSize: 12.5,
-        fontWeight: FontWeight.w600,
-        color: low ? c.attention : c.inkSoft,
-        fontFeatures: VikaIvoryMain.tabularFigures,
-      ),
-    );
-  }
-}
-
-class _FaultRow extends StatelessWidget {
-  const _FaultRow({
-    required this.fault,
-    required this.totalReps,
-    this.reported = false,
-    this.onReport,
-  });
-  final _FaultObservation fault;
-  final int totalReps;
-  final bool reported;
-  final VoidCallback? onReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: c.bgRaised,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: c.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: c.inkSoft,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              fault.title,
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.1,
-                color: c.inkSoft,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: c.bg,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: c.border),
-            ),
-            child: Text(
-              '${fault.reps.length} / $totalReps',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.1,
-                color: c.inkFaint,
-                fontFeatures: VikaIvoryMain.tabularFigures,
-              ),
-            ),
-          ),
-          if (onReport != null) ...[
-            const SizedBox(width: 6),
-            Semantics(
-              button: true,
-              toggled: reported,
-              child: InkWell(
-                onTap: onReport,
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  alignment: Alignment.center,
-                  child: Text(
-                    reported ? 'Đã báo sai' : 'Báo sai',
-                    style: TextStyle(
-                      fontFamily: 'BeVietnamPro',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: reported ? c.attention : c.inkSoft,
-                      decoration:
-                          reported ? null : TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// BOTTOM SECTION — difficulty pills + adjustment + CTA
-// ═══════════════════════════════════════════════════════════════
-
-class _BottomSection extends StatelessWidget {
-  const _BottomSection({
-    required this.selectedDifficulty,
-    required this.lockedDifficulty,
-    required this.adjustmentText,
-    required this.isLastSet,
-    required this.onSelectDifficulty,
-    required this.onAdvance,
-  });
-
-  final String? selectedDifficulty;
-  final bool lockedDifficulty;
-  final String? adjustmentText;
-  final bool isLastSet;
-  final ValueChanged<String> onSelectDifficulty;
-  final VoidCallback onAdvance;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    const options = [
-      (id: 'light', label: 'Nhẹ'),
-      (id: 'medium', label: 'Vừa'),
-      (id: 'heavy', label: 'Nặng'),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final percent = (ratio * 100).round().clamp(0, 100);
+    final low = percent < 80;
+    return Row(
       children: [
-        Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 4,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: c.yellow,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'SET NÀY CẢM THẤY THẾ NÀO?',
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.8,
-                  color: c.inkSoft,
-                ),
-              ),
-            ],
+        Icon(Icons.visibility_rounded,
+            size: 17, color: low ? Tk.orangeLip : Tk.inkSoft),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            low
+                ? 'AI nhìn rõ $percent% thời gian · kiểm tra lại vị trí máy'
+                : 'AI nhìn rõ $percent% thời gian tập',
+            style: Tk.text(13,
+                weight: FontWeight.w800,
+                color: low ? Tk.orangeInk : const Color(0xFF4F4C75)),
           ),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            for (var i = 0; i < options.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Expanded(
-                child: _DifficultyOption(
-                  label: options[i].label,
-                  selected: selectedDifficulty == options[i].id,
-                  locked: lockedDifficulty,
-                  onTap: () => onSelectDifficulty(options[i].id),
-                ),
-              ),
-            ],
-          ],
-        ),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 240),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeOutCubic,
-          child: adjustmentText == null
-              ? const SizedBox(height: 14, key: ValueKey('empty-adjustment'))
-              : Padding(
-                  key: ValueKey(adjustmentText),
-                  padding: const EdgeInsets.only(top: 12, bottom: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.tune_rounded,
-                        size: 12,
-                        color: c.yellow,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        adjustmentText!,
-                        style: TextStyle(
-                          fontFamily: 'BeVietnamPro',
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          fontStyle: FontStyle.italic,
-                          letterSpacing: -0.1,
-                          color: c.ink,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-        ),
-        const SizedBox(height: 14),
-        _CtaButton(
-          label: isLastSet ? 'Xem tổng kết' : 'Bắt đầu set tiếp',
-          onTap: onAdvance,
         ),
       ],
     );
   }
 }
 
-class _DifficultyOption extends StatelessWidget {
-  const _DifficultyOption({
-    required this.label,
-    required this.selected,
-    required this.locked,
-    required this.onTap,
+class _FaultsCard extends StatelessWidget {
+  const _FaultsCard({
+    required this.faults,
+    required this.reported,
+    required this.aiVisibleRatio,
+    required this.onReport,
   });
 
-  final String label;
-  final bool selected;
-  final bool locked;
-  final VoidCallback onTap;
+  final List<_FaultObservation> faults;
+  final Set<String> reported;
+  final double? aiVisibleRatio;
+  final void Function(String type)? onReport;
 
   @override
   Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    final dimmed = locked && !selected;
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 180),
-      opacity: dimmed ? 0.32 : 1,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: locked ? null : onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: selected ? c.ink : c.bgRaised,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected ? c.ink : c.border,
-                width: 1.2,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: c.ink.withValues(alpha: 0.18),
-                        blurRadius: 12,
-                        offset: const Offset(0, 5),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Center(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'BeVietnamPro',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: -0.3,
-                  color: selected ? c.yellow : c.ink,
-                ),
-              ),
-            ),
-          ),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Tk.line, width: 2),
       ),
-    );
-  }
-}
-
-class _CtaButton extends StatefulWidget {
-  const _CtaButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  State<_CtaButton> createState() => _CtaButtonState();
-}
-
-class _CtaButtonState extends State<_CtaButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = VikaColors.of(context);
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        widget.onTap();
-      },
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedScale(
-        scale: _pressed ? 0.98 : 1.0,
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 0, 6, 0),
-          height: 56,
-          decoration: BoxDecoration(
-            color: c.yellow,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: c.yellow.withValues(alpha: 0.36),
-                blurRadius: 32,
-                offset: const Offset(0, 12),
-              ),
-              BoxShadow(
-                color: c.yellow.withValues(alpha: 0.18),
-                blurRadius: 60,
-                offset: const Offset(0, 26),
-              ),
-            ],
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: const Color(0xFFFFF6EC),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('CẦN CHÚ Ý (${faults.length})',
+                    style: Tk.eyebrow(color: Tk.orangeInk)),
+                if (aiVisibleRatio != null) ...[
+                  const SizedBox(height: 4),
+                  _VisibilityLine(ratio: aiVisibleRatio!),
+                ],
+              ],
+            ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    color: c.yellowInk,
+          for (final fault in faults)
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+              decoration: const BoxDecoration(
+                  border:
+                      Border(top: BorderSide(color: Tk.lineSoft, width: 2))),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(fault.title,
+                            style: Tk.text(15, weight: FontWeight.w900)),
+                        if (fault.reps.isNotEmpty)
+                          Text('Rep ${fault.reps.join(', ')}',
+                              style: Tk.text(12.5,
+                                  weight: FontWeight.w700, color: Tk.inkSoft)),
+                        if (fault.tip.trim().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(fault.tip,
+                              style: Tk.text(13,
+                                  weight: FontWeight.w700,
+                                  color: const Color(0xFF4F4C75),
+                                  height: 1.35)),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
+                  if (onReport != null) ...[
+                    const SizedBox(width: 8),
+                    _ReportButton(
+                      reported: reported.contains(fault.type),
+                      onTap: () => onReport!(fault.type),
+                    ),
+                  ],
+                ],
               ),
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: c.ink,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 18,
-                  color: c.yellow,
-                ),
-              ),
-            ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportButton extends StatelessWidget {
+  const _ReportButton({required this.reported, required this.onTap});
+
+  final bool reported;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: reported,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: reported ? Tk.primarySoft : Tk.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: reported ? Tk.primary : const Color(0xFFE1E3F0),
+                width: 2),
+          ),
+          child: Text(
+            reported ? 'Đã báo sai' : 'Báo sai',
+            style: Tk.text(13,
+                weight: FontWeight.w900,
+                color: reported ? Tk.primaryLip : const Color(0xFF4F4C75)),
           ),
         ),
       ),
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════════════
-// PAPER GRAIN — kept from the legacy screen, retoned to ink.
-// ═══════════════════════════════════════════════════════════════
-
-class _PaperGrainPainter extends CustomPainter {
-  const _PaperGrainPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF1F1812)
-      ..style = PaintingStyle.fill;
-    for (var i = 0; i < 1500; i++) {
-      final x = _noise(i * 0.17) * size.width;
-      final y = _noise((i * 0.31) + 17) * size.height;
-      final dotSize = 0.35 + (_noise((i * 0.13) + 43) * 0.9);
-      canvas.drawRect(Rect.fromLTWH(x, y, dotSize, dotSize), paint);
-    }
-  }
-
-  double _noise(double seed) {
-    final value = math.sin(seed * 12.9898) * 43758.5453;
-    return value - value.floorToDouble();
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// FAULT GROUPING — identical to the legacy version. Pure data
-// transform from ExerciseLogger.repLogs.
-// ═══════════════════════════════════════════════════════════════
 
 class _FaultObservation {
   const _FaultObservation({

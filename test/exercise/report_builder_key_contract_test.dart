@@ -231,6 +231,18 @@ const _loggedFaultKeysByExercise = <String, Set<String>>{
     'spine_fails_count',
     'plank_form_fails_count',
   },
+  'step_up': {
+    'trunk_fails_count',
+    'alternate_fails_count',
+  },
+  'neck_side_stretch': {
+    'shrug_fails_count',
+    'shoulder_fails_count',
+  },
+  'push_up_rotation': {
+    'body_line_fails_count',
+    'alternate_fails_count',
+  },
 };
 
 const _secondBasedExerciseIds = {

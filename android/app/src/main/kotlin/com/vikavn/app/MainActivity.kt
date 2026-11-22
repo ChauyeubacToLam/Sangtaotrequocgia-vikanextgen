@@ -27,6 +27,17 @@ class MainActivity : FlutterActivity() {
         ).also { channel ->
             channel.setStreamHandler(segmentationHelper)
         }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SCHEDULE_WIDGET_CHANNEL_NAME,
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "update") {
+                ScheduleWidgetProvider.save(applicationContext, call.arguments as? Map<*, *> ?: emptyMap<Any, Any>())
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -44,5 +55,6 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val SEGMENTATION_METHOD_CHANNEL_NAME = "com.vikavn.app/segmentation"
         private const val SEGMENTATION_EVENT_CHANNEL_NAME = "com.vikavn.app/segmentation_stream"
+        private const val SCHEDULE_WIDGET_CHANNEL_NAME = "com.vikavn.app/schedule_widget"
     }
 }

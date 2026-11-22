@@ -35,6 +35,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -63,6 +64,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".dev"
+        }
+        getByName("profile") {
+            applicationIdSuffix = ".dev"
+        }
         release {
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
@@ -90,6 +97,7 @@ flutter {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("com.google.mediapipe:tasks-vision:0.20230731")
     implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
     implementation("androidx.camera:camera-core:1.3.4")

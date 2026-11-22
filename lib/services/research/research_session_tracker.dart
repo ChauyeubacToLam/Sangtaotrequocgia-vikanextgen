@@ -45,8 +45,6 @@ class ResearchSession {
 
   String get expectedSessionFileName => 'vika_${_sessionId}_session.json';
 
-  // Faults the user marked "Báo sai" on the rest screen, keyed by the set's
-  // slot so a late exercise-id rekey is still reflected at session end.
   final Map<ResearchSetSlot, Set<String>> _faultReports =
       <ResearchSetSlot, Set<String>>{};
 
@@ -284,21 +282,43 @@ class ResearchSessionTracker {
     final ended = (endedAtUtc ?? DateTime.now()).toUtc();
     final fileName = target.expectedSessionFileName;
     target.sessionFileName = fileName;
-    final payload = <String, Object?>{
-      'schema': 1,
-      'kind': 'session',
-      'session_id': target.sessionId,
-      'participant_id': target.config.participantId,
-      'condition': target.config.condition.storageValue,
-      'started_at_utc': formatUtcIsoMillis(target.startedAtUtc),
-      'ended_at_utc': formatUtcIsoMillis(ended),
-      'satisfaction': satisfaction,
-      'fault_reports': target.faultReportsJson,
-      'files': List<String>.from(target.setFiles),
-    };
     return _storage.writeJsonFile(
       fileName: fileName,
-      payload: payload,
+      payload: _sessionPayload(
+        target,
+        endedAtUtc: ended,
+        satisfaction: satisfaction,
+      ),
     );
+  }
+
+  Future<File?> writeSessionSnapshot(ResearchSession session) {
+    if (session.isEnded || session.setFiles.isEmpty) {
+      return Future<File?>.value(null);
+    }
+    return _storage.writeJsonFile(
+      fileName: session.expectedSessionFileName,
+      payload: _sessionPayload(session, endedAtUtc: null, satisfaction: null),
+    );
+  }
+
+  static Map<String, Object?> _sessionPayload(
+    ResearchSession session, {
+    required DateTime? endedAtUtc,
+    required int? satisfaction,
+  }) {
+    return <String, Object?>{
+      'schema': 1,
+      'kind': 'session',
+      'session_id': session.sessionId,
+      'participant_id': session.config.participantId,
+      'condition': session.config.condition.storageValue,
+      'started_at_utc': formatUtcIsoMillis(session.startedAtUtc),
+      'ended_at_utc':
+          endedAtUtc == null ? null : formatUtcIsoMillis(endedAtUtc),
+      'satisfaction': satisfaction,
+      'fault_reports': session.faultReportsJson,
+      'files': List<String>.from(session.setFiles),
+    };
   }
 }

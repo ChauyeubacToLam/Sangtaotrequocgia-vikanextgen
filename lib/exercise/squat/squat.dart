@@ -12,7 +12,6 @@ import '../side_tracked_exercise_mixin.dart';
 import 'metrics/squat_metric_base.dart';
 import 'metrics/squat_depth_metric.dart';
 import 'metrics/trunk_lean_metric.dart';
-import 'metrics/heel_rise_metric.dart';
 import 'metrics/tempo_metric.dart';
 import 'metrics/hip_shoulder_sync.dart';
 import '../../services/generic_exercise_voice_assets.dart';
@@ -64,7 +63,8 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
   @override
   Set<VikaImageOrientation> get supportedOrientations =>
       const <VikaImageOrientation>{
-        VikaImageOrientation.portrait,
+        VikaImageOrientation.landscapeLeft,
+        VikaImageOrientation.landscapeRight,
       };
 
   static const String standingStatus = 'Xuống';
@@ -141,14 +141,12 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
   // Metrics
   final DepthMetric depthMetric = DepthMetric();
   final TrunkLeanMetric trunkLeanMetric = TrunkLeanMetric();
-  final HeelRiseMetric heelRiseMetric = HeelRiseMetric();
   final TempoMetric tempoMetric = TempoMetric();
   final HipShoulderSyncMetric hipShoulderSyncMetric = HipShoulderSyncMetric();
 
   late final List<SquatMetricBase> _metrics = [
     depthMetric,
     trunkLeanMetric,
-    heelRiseMetric,
     tempoMetric,
     hipShoulderSyncMetric,
   ];
@@ -316,7 +314,7 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
   @override
   void onSetComplete() {
     // Fault counts per metric
-    logger.pushKey("heel_fails_count", heelRiseMetric.faultsCount);
+    logger.pushKey("heel_fails_count", 0);
     logger.pushKey("depth_fails_count", depthMetric.faultsCount);
     logger.pushKey("trunk_lean_fails_count", trunkLeanMetric.faultsCount);
     logger.pushKey("tempo_fails_count", tempoMetric.faultsCount);
@@ -398,6 +396,8 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
       kneeY: knee.y,
       hipY: hip.y,
       shoulderY: shoulder.y,
+      trunkMeasured: cameraFacing == CameraFacing.left ||
+          cameraFacing == CameraFacing.right,
       resultIssues: resultIssues,
     );
 
@@ -423,6 +423,9 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
       "heelDistance": heelDistanceToFloor,
     }, timeStamp: now));
 
+    tempoMetric.trackKnee(kneeAngle, now,
+        atTop: squatState == SquatState.standing &&
+            kneeAngle >= _baselineKneeAngle - TempoConfig.KNEE_TOP_TOLERANCE);
     _updateStateBuffer(kneeAngle, now);
 
     // 6. Handle rep completion immediately when the return-to-standing is detected.
@@ -528,6 +531,7 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
         "trunk_lean_at_bottom": _repTrunkLeanAtBottom ?? 0,
         "ascending_time": tempoMetric.ascentDuration ?? 0.0,
         "descending_time": tempoMetric.descentDuration ?? 0.0,
+        "ascent_lean_rise": hipShoulderSyncMetric.peakLeanRise,
         "fault_types": allFaults.map((f) => f.type).toSet().toList(),
         "fault_affects_form": faultAffectsForm,
         "fault_priorities": faultPriorities,

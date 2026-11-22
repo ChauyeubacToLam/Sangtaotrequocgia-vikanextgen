@@ -175,18 +175,17 @@ void main() {
     );
   });
 
-  test('supports upright and landscape phone orientations', () {
+  test('runs only with the phone in landscape like every kept exercise', () {
     final exercise = ButterflyStretch(maxHolds: 1, holdSeconds: 30);
 
     expect(
       exercise.supportedOrientations,
-      containsAll(<VikaImageOrientation>{
-        VikaImageOrientation.portrait,
+      <VikaImageOrientation>{
         VikaImageOrientation.landscapeLeft,
         VikaImageOrientation.landscapeRight,
-      }),
+      },
     );
-    expect(exercise.setupOrientationIntroVoiceKey, 'common.thang_intro');
+    expect(exercise.setupOrientationIntroVoiceKey, 'common.ngang_intro');
   });
 
   test('safety rejects missing or low-confidence hip and heel landmarks', () {

@@ -1,11 +1,3 @@
-// Render smoke-tests for the redesigned WorkoutSummaryScreen ("Form Reel").
-//
-// These pump the real screen with representative session data and assert it
-// lays out without throwing (overflow / unbounded-constraint errors throw in
-// debug and are captured by takeException). Setting the LAST report's
-// userDifficulty skips the on-entry rating popup so the reveal cascade — and
-// thus the full passive layout — renders directly.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vika/models/exercise_definition.dart';
@@ -28,9 +20,8 @@ void main() {
     await _settle(tester);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('TỔNG KẾT BUỔI TẬP'), findsOneWidget);
-    expect(find.text('Hoàn thành buổi tập'), findsOneWidget);
-    expect(find.text('HẾT'), findsOneWidget);
+    expect(find.text('Hoàn thành buổi tập!'), findsOneWidget);
+    expect(find.text('XONG'), findsOneWidget);
     await _dispose(tester);
   });
 
@@ -53,7 +44,7 @@ void main() {
     await _pumpSummary(tester, reports);
     await _settle(tester);
     expect(tester.takeException(), isNull);
-    expect(find.text('GIÂY'), findsOneWidget);
+    expect(find.text('THỜI GIAN'), findsOneWidget);
     await _dispose(tester);
   });
 

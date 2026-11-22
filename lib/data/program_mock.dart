@@ -8,7 +8,7 @@
 //   done · current (the single next-up) · upcoming
 //
 // This mock MIRRORS the real recommendation-engine shape so wiring later is a
-// single provider swap (see loadMockProgramPlan + its TODO(wiring) seam):
+// single provider swap (see loadMockProgramPlan):
 //
 //   ProgramPlan      ⇄  Plan            (lib/services/recommendation/models/plan.dart)
 //   ProgramBlock     ⇄  WeekPlan        (blockNumber⇄weekNumber, phaseNumber, phaseName, isDeload)
@@ -273,22 +273,6 @@ class ProgramPlan {
 // ═══════════════════════════════════════════════════════════════
 
 /// The redesigned PlanScreen consumes a [ProgramPlan] and nothing else.
-///
-/// TODO(wiring): replace the body with a real mapper, e.g.
-/// ```dart
-/// final snapshot = await RecommendationService().ensurePlanForCurrentUser(...);
-/// final completion = await SessionPersistence().fetchCompletion(...);
-/// final pendingRetest = await FitnessRetestService().fetchPendingRetest...();
-/// return ProgramPlanMapper.fromSnapshot(snapshot, completion, pendingRetest);
-/// ```
-/// Mapping is mechanical because this model mirrors the engine shape:
-///   WeekPlan → ProgramBlock, SessionPlan → PlanSession,
-///   SlotAssignment+VolumePrescription → SessionExercise.
-/// `status` comes from the completion record; `formScore`/`difficulty` from
-/// logged session results; `coachNote` from the coaching copy layer.
-/// Swapping this single function for the real mapper is the entire wiring task.
-/// The legacy real-data loading + workout-launch code lives in
-/// plan_screen_legacy.dart for reference.
 ProgramPlan loadMockProgramPlan() => ProgramPlan(
       programTitle: kMockProgramPlan.programTitle,
       blocks: [

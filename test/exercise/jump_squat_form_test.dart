@@ -64,8 +64,27 @@ void _landAndStand(JumpSquat exercise) {
   _pump(exercise, _standing, 3);
 }
 
+Map<PoseLandmarkType, PoseLandmark> _torso(double shoulderWidth) => {
+      PoseLandmarkType.leftShoulder:
+          _lm(PoseLandmarkType.leftShoulder, 200, 100),
+      PoseLandmarkType.rightShoulder:
+          _lm(PoseLandmarkType.rightShoulder, 200 + shoulderWidth, 100),
+      PoseLandmarkType.leftHip: _lm(PoseLandmarkType.leftHip, 200, 200),
+    };
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('an angled reading mid-set keeps the side view, facing the camera does not',
+      () {
+    final exercise = JumpSquat(maxRep: 4);
+    final side = exercise.detectCameraFacing(_torso(10));
+    expect(side, anyOf(CameraFacing.left, CameraFacing.right));
+    expect(exercise.detectCameraFacing(_torso(45)), CameraFacing.angled);
+    exercise.exerciseState = ExerciseState.activated;
+    expect(exercise.detectCameraFacing(_torso(45)), side);
+    expect(exercise.detectCameraFacing(_torso(80)), CameraFacing.front);
+  });
 
   test('a squat without a jump returns to standing and is not counted', () {
     final exercise = _active();

@@ -3,6 +3,9 @@ allprojects {
         google()
         mavenCentral()
     }
+    configurations.all {
+        resolutionStrategy.force("com.posthog:posthog-android:3.77.1")
+    }
 }
 
 val newBuildDir: Directory =

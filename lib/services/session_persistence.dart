@@ -870,9 +870,7 @@ class SessionPersistence {
   ///
   /// [recommendationId] is the active plan; [weekNumbers] restricts to those
   /// plan weeks (the active week for the `week` tab, every week of the active
-  /// phase for the `phase` tab). `null` = the whole program. Scoping by
-  /// recommendation_id (rather than `now - N days`) is what closed the old
-  /// single-program TODO(wiring).
+  /// phase for the `phase` tab). `null` = the whole program.
   ///
   ///   average    — rounded mean of the window scores (the gauge headline),
   ///                or null when the window is empty

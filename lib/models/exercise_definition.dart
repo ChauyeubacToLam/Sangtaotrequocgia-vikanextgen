@@ -42,6 +42,9 @@ import '../exercise/ashtanga_namaskara/ashtanga_namaskara.dart';
 import '../exercise/low_lunge/low_lunge.dart';
 import '../exercise/prayer_pose/prayer_pose.dart';
 import '../exercise/raised_arms/raised_arms.dart';
+import '../exercise/step_up/step_up.dart';
+import '../exercise/neck_side_stretch/neck_side_stretch.dart';
+import '../exercise/push_up_rotation/push_up_rotation.dart';
 
 typedef ExerciseFactory = ExerciseBase Function({int? reps, int? seconds});
 
@@ -163,7 +166,7 @@ final squatAssessmentDefinition = ExerciseDefinition(
   cameraHint: 'Đứng nghiêng người so với camera.',
   framingHint: 'Giữ vai, hông, gối, mắt cá và bàn chân trong khung hình.',
   setupTips: [
-    'Đặt camera ngang hông, cách bạn khoảng 2–3 mét.',
+    'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
     'Quay nghiêng 90° để AI thấy rõ độ sâu và thân người.',
     'Giữ đủ ánh sáng ở chân và thân trên trước khi bắt đầu.',
   ],
@@ -192,7 +195,7 @@ final wallPushupAssessmentDefinition = ExerciseDefinition(
   cameraHint: 'Đứng nghiêng người so với camera.',
   framingHint: 'Giữ vai, hông, gối, mắt cá và bàn chân trong khung hình.',
   setupTips: [
-    'Đặt camera ngang hông, cách bạn khoảng 2–3 mét.',
+    'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
     'Quay nghiêng 90° để AI thấy rõ độ sâu và thân người.',
     'Giữ đủ ánh sáng ở chân và thân trên trước khi bắt đầu.',
   ],
@@ -221,7 +224,7 @@ final warriorOneAssessmentDefinition = ExerciseDefinition(
   cameraHint: 'Quay nghiêng người so với camera.',
   framingHint: 'Giữ vai, hông, tai, hai tay và cả hai chân trong khung hình.',
   setupTips: [
-    'Đặt camera ngang hông, cách bạn khoảng 2–3 mét.',
+    'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
     'Quay nghiêng 90° để AI thấy rõ chân trước, chân sau và thân người.',
     'Chừa khoảng trống phía trên đầu vì hai tay sẽ vươn cao.',
   ],
@@ -289,7 +292,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Đứng nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, gối, mắt cá và bàn chân trong khung hình.',
     setupTips: [
-      'Đặt camera ngang hông, cách bạn khoảng 2–3 mét.',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ độ sâu và thân người.',
       'Giữ đủ ánh sáng ở chân và thân trên trước khi bắt đầu.',
     ],
@@ -319,7 +322,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     framingHint:
         'Đặt điện thoại nằm ngang; giữ trọn từ đầu, cẳng tay đến mắt cá trong khung hình.',
     setupTips: [
-      'Đặt điện thoại thấp ngang thân người để thấy rõ thân plank.',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Giữ phần thân trên sáng và không che khuất vai/hông.',
       'Lùi máy đủ xa để thấy trọn từ đầu, khuỷu tay đến mắt cá chân.',
     ],
@@ -347,7 +350,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, gối và bàn chân trong khung hình.',
     setupTips: [
-      'Đặt camera ngang hông, cách bạn khoảng 2–3 mét.',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ độ sâu đầu gối.',
       'Giữ đủ ánh sáng ở chân và thân trên trước khi bắt đầu.',
     ],
@@ -404,7 +407,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     framingHint:
         'Đặt điện thoại nằm ngang; giữ vai, khuỷu tay, cổ tay, hông, gối và cổ chân trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân để thấy rõ đường vai–hông.',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Giữ thân trên và khuỷu tay đủ sáng trước khi bắt đầu.',
       'Lùi camera thêm nếu cổ tay hoặc đầu dễ bị cắt khung.',
     ],
@@ -433,7 +436,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, gối và bàn chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ chuyển động hông.',
       'Đảm bảo đủ ánh sáng dọc theo thân người trước khi bắt đầu.',
     ],
@@ -462,7 +465,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, đầu gối và tai trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân để thấy rõ đường vai–hông.',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Giữ đầu, vai và đầu gối đủ sáng trước khi bắt đầu.',
       'Nằm ngang trên sàn, gập một đầu gối theo đúng tư thế McGill.',
     ],
@@ -490,7 +493,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, tai, hai tay và cả hai chân trong khung hình.',
     setupTips: [
-      'Đặt camera ngang hông, cách bạn khoảng 2–3 mét.',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ chân trước, chân sau và thân người.',
       'Chừa khoảng trống phía trên đầu vì hai tay sẽ vươn cao.',
     ],
@@ -520,7 +523,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, tay và chân duỗi luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ tay và chân duỗi thẳng hàng.',
       'Chống tay và gối xuống sàn, giữ lưng phẳng trước khi bắt đầu.',
     ],
@@ -549,7 +552,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ tay, vai, hông và bàn chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ tay và chân khép thành chữ V.',
       'Nằm ngửa trên sàn, duỗi thẳng tay và chân trước khi bắt đầu.',
     ],
@@ -578,7 +581,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, tay và chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ tay và chân duỗi ra.',
       'Nằm ngửa, tay vươn lên và gối gập vuông trước khi bắt đầu.',
     ],
@@ -607,7 +610,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, khuỷu tay và cổ tay luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ chuyển động lên xuống của tay.',
       'Vào tư thế plank, giữ thân thẳng từ vai đến gót trước khi bắt đầu.',
     ],
@@ -638,7 +641,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, đầu gối và cổ tay luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ đường lưng và đầu gối.',
       'Chống tay và mũi chân, nhấc gối cao vài phân trước khi bắt đầu.',
     ],
@@ -673,7 +676,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, đầu gối và bàn chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ góc gập thân.',
       'Nằm ngửa, gập gối và đặt bàn chân chạm sàn trước khi bắt đầu.',
     ],
@@ -702,7 +705,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, đầu gối và cổ tay luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ đường vai đến gót.',
       'Chống thẳng tay, xếp vai trên cổ tay trước khi bắt đầu.',
     ],
@@ -743,7 +746,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     framingHint:
         'Giữ vai, khuỷu tay, cổ tay, hông, đầu gối và cổ chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ đầu gối kéo lên.',
       'Vào tư thế plank cao, vai trên cổ tay trước khi bắt đầu.',
     ],
@@ -773,7 +776,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, tay và chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ tay và chân nâng lên.',
       'Nằm sấp, duỗi thẳng tay về trước trước khi bắt đầu.',
     ],
@@ -804,7 +807,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, khuỷu tay và cổ tay luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ tay nhấc lên chạm vai.',
       'Vào tư thế plank cao, mở rộng hai chân để giữ vững trước khi bắt đầu.',
     ],
@@ -835,7 +838,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, tay, hông, đầu gối và cổ chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ chân nâng lên và hạ xuống.',
       'Nằm ngửa, duỗi thẳng hai chân và ép lưng sát sàn trước khi bắt đầu.',
     ],
@@ -864,7 +867,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, đầu gối và bàn chân luôn trong khung hình.',
     setupTips: [
-      'Đặt camera thấp ngang thân (khoảng 30–50 cm so với mặt sàn).',
+      'Đặt điện thoại nằm ngang, cao khoảng 60–70 cm, cách bạn khoảng 3 mét.',
       'Quay nghiêng 90° để AI thấy rõ hông cuộn lên.',
       'Nằm ngửa, gập gối và nâng nhẹ chân trước khi bắt đầu.',
     ],
@@ -893,7 +896,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, hông, gối và cổ chân trong khung hình.',
     setupTips: [
-      'Nằm sấp, đặt camera thấp ngang thân, quay nghiêng 90°.',
+      'Nằm sấp, quay nghiêng 90° so với camera.',
       'Gập gối, đưa tay ra sau nắm lấy cổ chân.',
       'Hít vào, nâng ngực và đùi lên cùng lúc như một khối.',
     ],
@@ -922,7 +925,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     framingHint:
         'Ngồi trọn trong khung hình, thấy rõ hai vai, hông, hai gối và hai bàn chân.',
     setupTips: [
-      'Ngồi đối diện camera; có thể đặt điện thoại thẳng đứng hoặc nằm ngang.',
+      'Ngồi đối diện camera; đặt điện thoại nằm ngang.',
       'Chụm hai lòng bàn chân, kéo gót về gần hông.',
       'Giữ lưng thẳng, thả lỏng để hai gối rơi đều xuống sàn.',
     ],
@@ -955,7 +958,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     cameraHint: 'Quay nghiêng người so với camera.',
     framingHint: 'Giữ vai, khuỷu tay, hông và cổ trong khung hình.',
     setupTips: [
-      'Nằm sấp, đặt camera thấp ngang thân (30–50 cm so với sàn).',
+      'Nằm sấp, quay nghiêng người so với camera.',
       'Quay nghiêng 90° để AI thấy rõ độ cong lưng.',
       'Đặt hai tay dưới vai, khuỷu tay sát thân trước khi nâng ngực.',
     ],
@@ -1128,7 +1131,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
         'Đặt điện thoại nằm ngang, thấy rõ từ đầu, vai, cẳng tay đến hông, gối và cổ chân.',
     setupTips: [
       'Nằm sấp, chống hai cẳng tay xuống sàn, khuỷu ngay dưới vai.',
-      'Đặt camera thấp ngang thân, quay nghiêng 90°.',
+      'Quay nghiêng 90° so với camera.',
       'Thả lỏng thân dưới và kéo dài cổ trước khi nâng ngực.',
     ],
     safetyWarning:
@@ -1200,9 +1203,9 @@ final List<ExerciseDefinition> exerciseDefinitions = [
   ExerciseDefinition(
     id: 'tricep__dip_(_floor)',
     name: 'Tricep Dip (Floor)',
-    subtitle: 'Nhấc hông với tay sau chống sàn',
+    subtitle: 'Gập duỗi khuỷu với tay chống sau',
     description:
-        'Ngồi chạm mông xuống sàn, giữ bàn tay và bàn chân chống chắc; mỗi lần nhấc mông đủ cao được tính một rep.',
+        'Ngồi trên sàn, hai tay chống phía sau, bàn chân chống sàn; mỗi lần gập khuỷu hạ người xuống rồi đẩy thẳng tay lên được tính một rep.',
     icon: Icons.fitness_center,
     primaryColor: const Color(0xFF00E5FF),
     secondaryColor: const Color(0xFF0091EA),
@@ -1214,7 +1217,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     setupTips: [
       'Ngồi nghiêng với camera, mông chạm sàn, hai tay chống phía sau.',
       'Giữ bàn tay và bàn chân cùng chống chắc xuống sàn.',
-      'Nhấc mông lên rõ ràng, sau đó hạ chạm sàn trước rep tiếp theo.'
+      'Gập khuỷu hạ người xuống rồi đẩy thẳng tay lên, mông không cần chạm sàn.'
     ],
     videoAsset: 'assets/video/trace_dip.mp4',
     createExercise: ({int? reps, int? seconds}) =>
@@ -1407,6 +1410,100 @@ final List<ExerciseDefinition> exerciseDefinitions = [
         _withReps(reps, (target) => RaisedArms(maxRep: target)),
     phaseColors: {
       'default': const Color(0xFF00E676),
+    },
+  ),
+  ExerciseDefinition(
+    id: 'step_up',
+    name: 'Step-Up',
+    subtitle: 'Bước lên ghế, đổi chân',
+    description:
+        'Bước một chân lên ghế, đẩy người đứng thẳng trên ghế rồi bước xuống. Mỗi rep đổi chân bước lên.',
+    icon: Icons.fitness_center,
+    primaryColor: const Color(0xFF00E5FF),
+    secondaryColor: const Color(0xFF0091EA),
+    difficulty: 'Trung bình',
+    targetMuscles: ['Đùi', 'Mông'],
+    duration: 'Tùy chọn',
+    cameraHint: 'Quay nghiêng người so với camera, ghế ở phía trước mặt bạn.',
+    framingHint: 'Thấy trọn người và mặt ghế trong khung hình.',
+    setupTips: [
+      'Dùng ghế chắc, không có bánh xe, kê sát tường.',
+      'Đứng nghiêng với camera, ghế ở phía trước mặt.',
+      'Bước hẳn lên, đứng thẳng gối trên ghế rồi bước xuống về sàn.',
+    ],
+    safetyWarning: 'Dùng ghế chắc chắn, không trượt. Dừng nếu đau gối.',
+    createExercise: ({int? reps, int? seconds}) =>
+        _withReps(reps, (target) => StepUp(maxRep: target)),
+    phaseColors: {
+      'standing': const Color(0xFF00E676),
+      'rising': const Color(0xFFFFD600),
+      'top': const Color(0xFFFF6D00),
+      'lowering': const Color(0xFF00B0FF),
+    },
+  ),
+  ExerciseDefinition(
+    id: 'neck_side_stretch',
+    name: 'Neck Side Stretch',
+    subtitle: 'Nghiêng đầu giãn cổ hai bên',
+    description:
+        'Mỗi lần giữ nghiêng đầu về một bên, lần sau đổi bên. Đồng hồ chỉ chạy khi đầu nghiêng đủ, hai vai ngang và thả lỏng.',
+    icon: Icons.self_improvement,
+    primaryColor: const Color(0xFF00E5FF),
+    secondaryColor: const Color(0xFF0091EA),
+    difficulty: 'Người mới',
+    targetMuscles: ['Cổ', 'Vai'],
+    duration: '2 × 20s',
+    cameraHint: 'Quay mặt thẳng vào camera.',
+    framingHint: 'Thấy rõ đầu, hai vai và hông trong khung hình.',
+    setupTips: [
+      'Đứng hoặc ngồi thẳng, mặt hướng về camera.',
+      'Thả hai vai xuống, nghiêng tai về phía vai, không nhún vai.',
+      'Giữ xong một bên thì đổi sang bên kia.',
+    ],
+    safetyWarning:
+        'Nghiêng nhẹ nhàng, không kéo mạnh. Dừng nếu tê tay hoặc chóng mặt.',
+    createExercise: ({int? reps, int? seconds}) => NeckSideStretch(
+      maxHolds: reps ?? 2,
+      holdSeconds: seconds ?? 20,
+    ),
+    targetType: ExerciseTargetType.seconds,
+    phaseColors: {
+      'setup': const Color(0xFFFF6D00),
+      'holding': const Color(0xFF00E676),
+      'dropping': const Color(0xFF00B0FF),
+      'resting': const Color(0xFFFFD600),
+      'reArming': const Color(0xFFFFD600),
+    },
+  ),
+  ExerciseDefinition(
+    id: 'push_up_rotation',
+    name: 'Push-Up with Rotation',
+    subtitle: 'Chống đẩy rồi xoay người mở tay',
+    description:
+        'Mỗi rep: chống đẩy xuống rồi đẩy lên, sau đó xoay người mở một tay lên trần và hạ về. Mỗi rep đổi tay.',
+    icon: Icons.fitness_center,
+    primaryColor: const Color(0xFF00E5FF),
+    secondaryColor: const Color(0xFF0091EA),
+    difficulty: 'Khó',
+    targetMuscles: ['Ngực', 'Vai', 'Core'],
+    duration: 'Tùy chọn',
+    cameraHint: 'Quay nghiêng người so với camera.',
+    framingHint: 'Thấy trọn người từ đầu đến chân, cả tay khi giơ lên trần.',
+    setupTips: [
+      'Vào tư thế plank cao, tay chống dưới vai, người nghiêng với camera.',
+      'Chống đẩy xuống tới khi khuỷu gập khoảng 90°, rồi đẩy lên thẳng tay.',
+      'Xoay người, mở một tay lên trần cho hai vai chồng lên nhau, rồi hạ tay về sàn.',
+    ],
+    safetyWarning: 'Dừng nếu đau vai hoặc cổ tay.',
+    createExercise: ({int? reps, int? seconds}) =>
+        _withReps(reps, (target) => PushUpRotation(maxRep: target)),
+    phaseColors: {
+      'plank': const Color(0xFF00E676),
+      'lowering': const Color(0xFFFFD600),
+      'bottom': const Color(0xFFFF6D00),
+      'pressing': const Color(0xFF00B0FF),
+      'rotate': const Color(0xFFFFD600),
+      'open': const Color(0xFFFF6D00),
     },
   ),
 ];

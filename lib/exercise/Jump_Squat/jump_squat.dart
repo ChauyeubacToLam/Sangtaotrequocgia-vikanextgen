@@ -45,7 +45,8 @@ class JumpSquat extends ExerciseBase {
   @override
   Set<VikaImageOrientation> get supportedOrientations =>
       const <VikaImageOrientation>{
-        VikaImageOrientation.portrait,
+        VikaImageOrientation.landscapeLeft,
+        VikaImageOrientation.landscapeRight,
       };
 
   final int maxRep;
@@ -91,7 +92,6 @@ class JumpSquat extends ExerciseBase {
 
   @override
   ExerciseVoiceCoach createVoiceCoach() {
-    // TODO(voice): fast-movement policy variant — see tier3 note 1
     return PolicyVoiceCoach(
       script: VoiceScript.from(
         VoiceDefaults.repBased,
@@ -203,6 +203,25 @@ class JumpSquat extends ExerciseBase {
     logger.pushKey("trunk_lean_fails_count", landingTrunkMetric.faultsCount);
     logger.pushGoodRepCount();
     logger.pushKey('max_rep', maxRep);
+  }
+
+  CameraFacing? _lastSideFacing;
+
+  @override
+  CameraFacing detectCameraFacing(
+      Map<PoseLandmarkType, PoseLandmark> smoothedLandmarks) {
+    final facing = super.detectCameraFacing(smoothedLandmarks);
+    if (facing == CameraFacing.left || facing == CameraFacing.right) {
+      _lastSideFacing = facing;
+      return facing;
+    }
+    final held = _lastSideFacing;
+    if (held != null &&
+        facing != CameraFacing.front &&
+        exerciseState == ExerciseState.activated) {
+      return held;
+    }
+    return facing;
   }
 
   @override

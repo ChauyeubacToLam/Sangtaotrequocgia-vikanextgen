@@ -108,14 +108,13 @@ class SetRecorder {
   int _goodLoggedReps = 0;
   bool _completed = false;
   int _completedTMs = -1;
+  String? _lastPhaseKey;
 
   int get totalFrames => _totalFrames;
   int? get syncBeepTMs => _syncBeepTMs;
   bool get isCompleted => _completed;
   List<Map<String, Object?>> get events => List.unmodifiable(_events);
 
-  /// Share of activated (non-paused) time the AI could judge, i.e.
-  /// `1 - unseen_ms / active_ms`. Null until some activated time elapsed.
   double? get visibleRatio => _activeMs <= 0
       ? null
       : (1 - _unseenMs / _activeMs).clamp(0.0, 1.0).toDouble();
@@ -141,6 +140,40 @@ class SetRecorder {
       logger: exercise.logger,
       repCount: exercise.repCount,
     );
+    _tracePhase(exercise);
+  }
+
+  void _tracePhase(ExerciseBase exercise) {
+    if (_completed ||
+        exercise.isPaused ||
+        exercise.exerciseState != ExerciseState.activated) {
+      return;
+    }
+    final key = exercise.currentPhaseKey;
+    if (key == _lastPhaseKey) return;
+    _events.add(<String, Object?>{
+      't_ms': _currentTMs,
+      'type': 'phase',
+      'from': _lastPhaseKey,
+      'to': key,
+      'm': primitiveSnapshot(exercise.debugData),
+      'fb': Map<String, String>.from(exercise.resultIssues.feedback),
+    });
+    _lastPhaseKey = key;
+  }
+
+  static Map<String, Object?> primitiveSnapshot(Map<String, dynamic> data) {
+    final out = <String, Object?>{};
+    data.forEach((key, value) {
+      if (value is int || value is bool) {
+        out[key] = value;
+      } else if (value is double) {
+        out[key] = value.isFinite ? (value * 100).round() / 100 : null;
+      } else if (value is String && value.length <= 24) {
+        out[key] = value;
+      }
+    });
+    return out;
   }
 
   void onState({

@@ -892,9 +892,6 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
     final criticalIdsThisRep = <String>{};
     final sortedIds = _sortedFaultIdsForRepLog(repLog, faultIds);
 
-    // TODO(post-rep-instructions): Peak faults currently speak here as
-    // next-rep guidance. Move them to the post-rep instruction layer once
-    // that parked feature ships, then remove this rep-end outcome firing.
     for (final id in sortedIds) {
       final affectsForm = _faultAffectsFormFor(repLog, id);
       if (affectsForm) {

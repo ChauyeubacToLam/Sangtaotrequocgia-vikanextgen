@@ -67,7 +67,13 @@
 		<key>NSCameraUsageDescription</key>
 		<string>Vika cần camera để theo dõi và phân tích tư thế tập luyện của bạn bằng AI.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>Vika cần quyền chọn ảnh để cập nhật ảnh đại diện của bạn.</string>
+		<string>Vika cần quyền chọn ảnh để cập nhật ảnh đại diện và nhận diện món ăn từ ảnh.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Vika dùng micro khi bạn nói tên món ăn để ghi nhật ký dinh dưỡng.</string>
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>Vika chuyển lời bạn nói thành tên món ăn để ghi nhật ký dinh dưỡng.</string>
+		<key>NSMotionUsageDescription</key>
+		<string>Vika đếm số bước chân trong ngày để theo dõi vận động.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>

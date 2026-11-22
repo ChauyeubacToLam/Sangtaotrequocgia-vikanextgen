@@ -2,11 +2,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-/// Sequential player for short Vietnamese phrases bundled as mp3 files in
-/// `assets/audio/`. Phrases without a bundled file are skipped silently.
-///
-/// Only Surya Namaskar still speaks through this; every other exercise uses
-/// `PolicyVoiceCoach` + `AssetVoiceSink`.
 class AssetPhrasePlayer {
   static final AssetPhrasePlayer _instance = AssetPhrasePlayer._internal();
   factory AssetPhrasePlayer() => _instance;
@@ -119,7 +114,6 @@ class AssetPhrasePlayer {
     'Sẵn sàng': 'san_sang.mp3',
   };
 
-  /// Add text to the queue. Plays sequentially.
   Future<void> speak(String text) async {
     _queue.add(text);
     if (!_isPlaying && !_isClearingQueue) {
@@ -127,7 +121,6 @@ class AssetPhrasePlayer {
     }
   }
 
-  /// Clear pending queue and stop current playback.
   void clearQueue() async {
     _queue.clear();
     if (_isClearingQueue || !_isPlaying) return;
@@ -141,7 +134,6 @@ class AssetPhrasePlayer {
     _processQueue();
   }
 
-  /// Drop queued phrases but let the current phrase finish.
   void clearPendingButKeepCurrent() {
     _queue.clear();
   }

@@ -187,7 +187,7 @@ void main() {
     test(
       'every kept exercise has an entry whose orientation and view agree with the exercise class',
       () async {
-        expect(keptExerciseIds, hasLength(21));
+        expect(keptExerciseIds, hasLength(24));
         expect(kExercisePlacementByCatalogId.keys.toSet(), keptExerciseIds);
 
         final landmarks = _syntheticLandmarks();
@@ -277,28 +277,45 @@ void main() {
     );
 
     test(
-      'computePlacementTransition emits plain Vietnamese instructions for phone and body turns',
+      'one landscape placement serves every kept exercise, so no transition asks to move the phone',
       () {
-        // Portrait -> landscape, same side-on view (squat -> push_up)
-        final toLandscape = computePlacementTransition(
-          current: kExercisePlacementByCatalogId['push_up']!,
-          sequenceExerciseIds: const ['squat', 'push_up'],
-          sequenceIndex: 1,
-        )!;
-        expect(toLandscape.message, 'Xoay ngang điện thoại');
-        expect(toLandscape.requiresAction, isTrue);
-        expect(toLandscape.phoneRotated, isTrue);
+        final ids = keptExerciseIds.toList(growable: false);
+        for (final id in ids) {
+          final spec = kExercisePlacementByCatalogId[id]!;
+          expect(
+            spec.orientation,
+            PhonePlacementOrientation.landscape,
+            reason: id,
+          );
+          expect(
+            spec.placementWhere,
+            const {'jumping_jack', 'jump_squat'}.contains(id)
+                ? kJumpPlacementWhere
+                : kOnePlacementWhere,
+            reason: id,
+          );
+        }
+        for (final previous in ids) {
+          for (final current in ids) {
+            if (previous == current) continue;
+            final notice = computePlacementTransition(
+              current: kExercisePlacementByCatalogId[current]!,
+              previousExerciseId: previous,
+            )!;
+            expect(notice.phoneRotated, isFalse, reason: '$previous -> $current');
+            expect(
+              notice.message,
+              startsWith('Giữ nguyên vị trí máy'),
+              reason: '$previous -> $current',
+            );
+          }
+        }
+      },
+    );
 
-        // Landscape -> portrait, same side-on view (plank -> squat)
-        final toPortrait = computePlacementTransition(
-          current: kExercisePlacementByCatalogId['squat']!,
-          previousExerciseId: 'plank',
-        )!;
-        expect(toPortrait.message, 'Xoay dọc điện thoại');
-        expect(toPortrait.requiresAction, isTrue);
-        expect(toPortrait.phoneRotated, isTrue);
-
-        // Same orientation, same view (squat -> lunge)
+    test(
+      'computePlacementTransition still names the body turn between views',
+      () {
         final unchanged = computePlacementTransition(
           current: kExercisePlacementByCatalogId['lunge']!,
           sequenceExerciseIds: const ['squat', 'lunge'],
@@ -308,7 +325,6 @@ void main() {
         expect(unchanged.requiresAction, isFalse);
         expect(unchanged.phoneRotated, isFalse);
 
-        // Same orientation, facing -> side-on (jumping_jack -> squat)
         final bodyTurnToSide = computePlacementTransition(
           current: kExercisePlacementByCatalogId['squat']!,
           sequenceExerciseIds: const ['jumping_jack', 'squat'],
@@ -321,7 +337,6 @@ void main() {
         expect(bodyTurnToSide.requiresAction, isTrue);
         expect(bodyTurnToSide.phoneRotated, isFalse);
 
-        // Landscape -> portraitOrLandscape -> landscape ('stretch_lower_body')
         const stretchSeq = ['seated_forward_fold', 'butterfly', 'sphinx'];
         final toButterfly = computePlacementTransition(
           current: kExercisePlacementByCatalogId['butterfly']!,
@@ -345,21 +360,20 @@ void main() {
         );
         expect(toSphinx.phoneRotated, isFalse);
 
-        // Hidden non-kept exercise skipped mid-sequence ('cobra' between 'squat' and 'push_up')
         final acrossSkipped = computePlacementTransition(
           current: kExercisePlacementByCatalogId['push_up']!,
           sequenceExerciseIds: const ['squat', 'cobra', 'push_up'],
           sequenceIndex: 2,
         )!;
-        expect(acrossSkipped.message, 'Xoay ngang điện thoại');
-        expect(acrossSkipped.phoneRotated, isTrue);
+        expect(acrossSkipped.message, 'Giữ nguyên vị trí máy');
+        expect(acrossSkipped.phoneRotated, isFalse);
       },
     );
   });
 
   group('CameraPlacementCard and ExerciseIntroPage at 320pt width', () {
     testWidgets(
-      'renders CameraPlacementCard and ExerciseIntroPage for all 21 kept exercises at 320pt without overflow',
+      'renders CameraPlacementCard and ExerciseIntroPage for all 24 kept exercises at 320pt without overflow',
       (tester) async {
         tester.view.physicalSize = const Size(320, 568);
         tester.view.devicePixelRatio = 1.0;
@@ -404,19 +418,9 @@ void main() {
           );
           expect(find.byType(CameraPlacementCard), findsOneWidget, reason: id);
           expect(
-            find.text(spec.orientation.vietnameseLabel),
-            findsOneWidget,
-            reason: '$id missing orientation label',
-          );
-          expect(
             find.text(spec.view.vietnameseLabel),
             findsOneWidget,
             reason: '$id missing view label',
-          );
-          expect(
-            find.text('Thấy trọn từ đầu đến chân'),
-            findsOneWidget,
-            reason: '$id missing body framing label',
           );
           if (spec.placementWhere != null) {
             expect(
@@ -440,8 +444,8 @@ void main() {
             )!;
             expect(
               find.text(expectedNotice.message),
-              findsOneWidget,
-              reason: '$id missing transition callout',
+              expectedNotice.requiresAction ? findsOneWidget : findsNothing,
+              reason: '$id transition callout',
             );
           }
         }
@@ -487,7 +491,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 80));
         expect(tester.takeException(), isNull);
         expect(find.byType(CameraPlacementCard), findsOneWidget);
-        expect(find.text('Xoay ngang điện thoại'), findsOneWidget);
+        expect(find.text('Giữ nguyên vị trí máy'), findsNothing);
         expect(find.text(sphinxDef.safetyWarning!), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox.shrink());
@@ -529,7 +533,7 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.byType(CameraPlacementCard), findsOneWidget);
-        expect(find.text('Xoay ngang điện thoại'), findsOneWidget);
+        expect(find.text('Giữ nguyên vị trí máy'), findsNothing);
         expect(find.text(mcDef.safetyWarning!), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox.shrink());

@@ -24,6 +24,7 @@ import '../../services/research/research_voice_sink.dart';
 import '../../services/research/set_recorder.dart';
 import '../../utils/exercise_logger.dart';
 import '../../utils/orientation_lock.dart';
+import 'widgets/sensor_rotated_box.dart';
 import '../../utils/segmentation_channel.dart';
 import '../../theme/vf_theme.dart';
 import '../../voice/earcon_player.dart';
@@ -37,6 +38,7 @@ import 'widgets/phase_chevron_stream.dart';
 import 'widgets/rep_hero.dart';
 import 'widgets/readiness_checklist.dart';
 import 'widgets/rest_countdown_ring.dart';
+import 'widgets/smoothed_pose_overlay.dart';
 import 'widgets/pose_overlay_painter.dart';
 import 'widgets/rep_reward_layer.dart';
 import 'widgets/system_banner.dart';
@@ -91,7 +93,7 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
   );
 
   StreamSubscription<Map<String, dynamic>>? _landmarkSubscription;
-  StreamSubscription<NativeDeviceOrientation>? _orientationSubscription;
+  StreamSubscription<VikaImageOrientation>? _orientationSubscription;
   CameraController? _cameraController;
   List<CameraDescription> _availableCameras = const [];
   int? _textureId;
@@ -175,7 +177,7 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
   // fresh native session comes up, since the new session doesn't know the
   // interval from before). See _syncPoseThrottle() for the full contract.
   bool? _lastPoseThrottlePaused;
-  VikaImageOrientation _currentOrientation = VikaImageOrientation.portrait;
+  VikaImageOrientation _currentOrientation = lastSensorOrientation;
   VikaImageOrientation? _lastSentOrientation;
   bool? _lastSentOrientationFrontCamera;
   Future<void>? _pipelineShutdownFuture;
@@ -410,9 +412,7 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
       final nativeOrientation =
           await _orientationCommunicator.orientation(useSensor: true);
       if (_isDisposed) return;
-      await _applyDeviceOrientation(
-        VikaImageOrientation.fromNative(nativeOrientation),
-      );
+      await _applyDeviceOrientation(_fromOneShotRead(nativeOrientation));
     } catch (_) {
       if (_isDisposed) return;
       await _applyDeviceOrientation(_currentOrientation);
@@ -509,9 +509,17 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
     // Use the sensor for left/right landscape side. The gate below resolves this
     // against Flutter's actual surface size so logic cannot stay portrait after
     // the UI has rotated.
-    _orientationSubscription = _orientationCommunicator
-        .onOrientationChanged(useSensor: true)
-        .listen(_handleNativeOrientation);
+    _orientationSubscription = settledSensorOrientation(
+      _orientationCommunicator.onOrientationChanged(useSensor: true),
+    ).listen((o) => unawaited(_applyDeviceOrientation(o)));
+  }
+
+  VikaImageOrientation _fromOneShotRead(NativeDeviceOrientation native) {
+    if (native == NativeDeviceOrientation.unknown) return _currentOrientation;
+    final o = VikaImageOrientation.fromNative(native);
+    return _currentOrientation.isLandscape && !o.isLandscape
+        ? _currentOrientation
+        : o;
   }
 
   Future<void> _refreshCurrentOrientation() async {
@@ -530,19 +538,10 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
       final nativeOrientation = await _orientationCommunicator
           .orientation(useSensor: true)
           .timeout(const Duration(milliseconds: 1500));
-      _setCurrentOrientation(
-          VikaImageOrientation.fromNative(nativeOrientation));
+      _setCurrentOrientation(_fromOneShotRead(nativeOrientation));
     } catch (_) {
-      // Sensor read failed or timed out — default to portrait. The
-      // orientation stream subscription (_orientationSubscription) will
-      // still fire async updates once CMMotionManager warms up.
-      _setCurrentOrientation(VikaImageOrientation.portrait);
+      _setCurrentOrientation(_currentOrientation);
     }
-  }
-
-  void _handleNativeOrientation(NativeDeviceOrientation nativeOrientation) {
-    final newOrientation = VikaImageOrientation.fromNative(nativeOrientation);
-    unawaited(_applyDeviceOrientation(newOrientation));
   }
 
   Future<void> _applyDeviceOrientation(
@@ -568,6 +567,7 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
 
   void _setCurrentOrientation(VikaImageOrientation orientation) {
     _currentOrientation = orientation;
+    lastSensorOrientation = orientation;
   }
 
   // The Flutter window is locked to portraitUp; the page rotates manually via
@@ -786,7 +786,8 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (dialogContext) {
-        return Dialog(
+        return SensorRotatedBox(
+            child: Dialog(
           backgroundColor: VikaIvory.surface,
           insetPadding: const EdgeInsets.symmetric(horizontal: 40),
           shape: RoundedRectangleBorder(
@@ -858,7 +859,7 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
               ],
             ),
           ),
-        );
+        ));
       },
     );
     if (shouldExit == true && mounted) {
@@ -1922,11 +1923,10 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
     final reArmCounting = isReArming && reArmProgress != null;
     final guidanceSignal = _effectiveGuidanceSignal;
     final guidanceCopy = _currentGuidanceCopy;
-    final showNotJudgingLine =
-        widget.exercise.exerciseState == ExerciseState.activated &&
-            guidanceCopy != null &&
-            !(isReArming &&
-                guidanceSignal?.kind == GuidanceClass.setupPosition);
+    final showNotJudgingLine = widget.exercise.exerciseState ==
+            ExerciseState.activated &&
+        guidanceCopy != null &&
+        !(isReArming && guidanceSignal?.kind == GuidanceClass.setupPosition);
     final activeState =
         widget.exercise.exerciseState == ExerciseState.activated &&
             !widget.exercise.isPaused;
@@ -2015,38 +2015,28 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
           ),
         ),
 
-        // ── Layer 2: Skeleton overlay (unchanged — jade colors preserved) ──
         if (!widget.controlCondition)
           Positioned.fill(
             child: _orientCameraScene(
               IgnorePointer(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    if (_detectedPose == null || _imageSize == Size.zero) {
-                      return const SizedBox.shrink();
-                    }
-                    return CustomPaint(
+                    return SmoothedPoseOverlay(
                       size: constraints.biggest,
-                      painter: PoseOverlayPainter(
-                          pose: _detectedPose!,
-                          imageSize: _imageSize,
-                          rotation: _imageRotation,
-                          lensDirection: _currentLens,
-                          fit: previewFit,
-                          // Android native inference is un-mirrored while the
-                          // CameraX front preview is mirrored for presentation.
-                          // iOS mirrors its capture buffer before both preview
-                          // and inference, so another painter mirror would be a
-                          // double flip there.
-                          mirrorHorizontally: shouldMirrorPoseOverlay(
-                            lensDirection: _currentLens,
-                            usesNativeMediaPipe:
-                                _runtime == _PoseRuntime.nativeMediaPipe,
-                            platform: defaultTargetPlatform,
-                          ),
-                          debugData: widget.exercise.debugData,
-                          debugLabelsEnabled: debugEnabled,
-                          style: SkeletonStyle.vikaCream),
+                      pose: _imageSize == Size.zero ? null : _detectedPose,
+                      imageSize: _imageSize,
+                      rotation: _imageRotation,
+                      lensDirection: _currentLens,
+                      fit: previewFit,
+                      mirrorHorizontally: shouldMirrorPoseOverlay(
+                        lensDirection: _currentLens,
+                        usesNativeMediaPipe:
+                            _runtime == _PoseRuntime.nativeMediaPipe,
+                        platform: defaultTargetPlatform,
+                      ),
+                      debugData: widget.exercise.debugData,
+                      debugLabelsEnabled: debugEnabled,
+                      style: SkeletonStyle.vikaCream,
                     );
                   },
                 ),
@@ -2256,8 +2246,8 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
             if (isLandscape)
               Positioned(
                 left: landscapeLeftSafeInset + 12,
-                bottom: media.padding.bottom +
-                    (widget.controlCondition ? 54 : 14),
+                bottom:
+                    media.padding.bottom + (widget.controlCondition ? 54 : 14),
                 child: IgnorePointer(
                   child: ReadinessChecklist(
                     signal: guidanceSignal,
@@ -2270,8 +2260,8 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: media.padding.bottom +
-                    (widget.controlCondition ? 58 : 18),
+                bottom:
+                    media.padding.bottom + (widget.controlCondition ? 58 : 18),
                 child: IgnorePointer(
                   child: Center(
                     child: ReadinessChecklist(
@@ -2735,7 +2725,8 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
           icon: Icons.screen_rotation_alt_rounded,
           kind: GuidanceGlyphKind.rotate,
           title: 'Xoay ngang máy',
-          body: 'Bài này cần điện thoại nằm ngang để AI thấy rõ toàn thân bạn.',
+          body:
+              'Vika dùng điện thoại nằm ngang cho mọi bài để thấy rõ toàn thân bạn.',
           mode: SystemBannerMode.warn,
         ),
       GuidanceClass.phonePortrait => const _GuidanceCopy(
@@ -2983,12 +2974,14 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
 
   Widget _buildPreviewSurface() {
     if (_runtime == _PoseRuntime.nativeMediaPipe) {
-      // Native pipeline now rotates the AVCapture buffer to match the device
-      // orientation (see PoseLandmarkerService.captureVideoOrientation), so
-      // the texture is already correctly oriented. Displaying it directly
-      // avoids the double-rotation that previously made the preview appear
-      // 90° off in landscape.
-      return Texture(textureId: _textureId!);
+      final texture = Texture(textureId: _textureId!);
+      final counterTurns =
+          ExerciseBase.kLandscapeRotationEnabled && Platform.isAndroid
+              ? _currentOrientation.androidPreviewTextureQuarterTurns
+              : 0;
+      return counterTurns == 0
+          ? texture
+          : RotatedBox(quarterTurns: counterTurns, child: texture);
     }
 
     if (_cameraController != null) {
@@ -3010,8 +3003,8 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
       // CameraX rebinds during a device rotation.
       return ExerciseBase.kLandscapeRotationEnabled &&
               _sessionOrientation.isLandscape
-          ? const Size(1280, 720)
-          : const Size(720, 1280);
+          ? const Size(1440, 1080)
+          : const Size(1080, 1440);
     }
 
     if (_runtime == _PoseRuntime.mlKitFallback) {
@@ -3039,10 +3032,10 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
     return const Size(720, 1280);
   }
 
-  // Setup hard constraint: the live camera must fill the whole exercise
-  // surface. Native min-zoom plus 720p capture keep the visible scene as wide
-  // and sharp as possible within this no-letterbox presentation.
-  BoxFit get _previewFit => BoxFit.cover;
+  BoxFit get _previewFit =>
+      ExerciseBase.kLandscapeRotationEnabled && _sessionOrientation.isLandscape
+          ? BoxFit.contain
+          : BoxFit.cover;
 }
 
 enum _PoseRuntime {

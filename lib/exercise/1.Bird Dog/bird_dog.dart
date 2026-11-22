@@ -314,8 +314,12 @@ class BirdDog extends ExerciseBase {
 
     // --- SNAPSHOT DATA (Chỉ chốt số liệu tay chân khi đang ở đỉnh rep) ---
     if (state == BirdDogState.hold_extended) {
-      _peakLeftLeg = activeLegLabelIsLeft;
-      _peakLeftArm = activeArmLabelIsLeft;
+      if (activeKneeAngle > BirdDogConfig.HOLD_KNEE_THRESHOLD) {
+        _peakLeftLeg = activeLegLabelIsLeft;
+      }
+      if (activeArmAngle > BirdDogConfig.HOLD_ARM_THRESHOLD) {
+        _peakLeftArm = activeArmLabelIsLeft;
+      }
     }
 
     // --- EVALUATION DATA (Dữ liệu chống nhiễu dùng để chấm điểm) ---

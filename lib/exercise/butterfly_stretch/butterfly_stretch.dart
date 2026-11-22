@@ -60,7 +60,6 @@ class ButterflyStretch extends RepCountedHoldExercise {
   @override
   Set<VikaImageOrientation> get supportedOrientations =>
       const <VikaImageOrientation>{
-        VikaImageOrientation.portrait,
         VikaImageOrientation.landscapeLeft,
         VikaImageOrientation.landscapeRight,
       };
@@ -80,9 +79,6 @@ class ButterflyStretch extends RepCountedHoldExercise {
 
   @override
   String get exerciseName => 'Butterfly Stretch';
-
-  @override
-  String get setupOrientationIntroVoiceKey => 'common.thang_intro';
 
   @override
   int get holdingDebounceFrames => 10;

@@ -16,7 +16,6 @@ import '../../../theme/vf_theme.dart';
 // Transform-only: one repeating controller translates a fixed chevron
 // pattern; the painter draws two lines per chevron and allocates nothing per
 // frame beyond its Paint. Tempo is a single constant for now.
-// TODO(tempo): couple _periodMs to the exercise's target tempo (later pass).
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Flow direction, mapped from the exercise's `currentPhaseKey` by the page.
@@ -35,7 +34,7 @@ class _PhaseChevronStreamState extends State<PhaseChevronStream>
     with SingleTickerProviderStateMixin {
   late final AnimationController _flow;
 
-  /// One full travel of the pattern. Fixed for now (see TODO above).
+  /// One full travel of the pattern.
   static const int _periodMs = 1200;
 
   @override

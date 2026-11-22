@@ -17,7 +17,6 @@ class LungeRepContext {
   final double leadKneeAngle;
   final double trailKneeAngle;
   final double trunkLean;
-  final double heelDistance;
   final double shoulderHipTrailKneeAngle;
   final LungeState lungeState;
   final bool isLeftLegLead;
@@ -35,7 +34,6 @@ class LungeRepContext {
     required this.leadKneeAngle,
     required this.trailKneeAngle,
     required this.trunkLean,
-    required this.heelDistance,
     required this.shoulderHipTrailKneeAngle,
     required this.lungeState,
     required this.isLeftLegLead,
