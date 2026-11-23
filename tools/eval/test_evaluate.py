@@ -1652,7 +1652,7 @@ class TestEvaluateSyntheticScenarios(unittest.TestCase):
             out_dir = root / "out"
             self.assertEqual(
                 evaluate.main(
-                    ["--logs", str(logs_dir), "--labels", str(csv1), str(csv2), "--out", str(out_dir)]
+                    ["--logs", str(logs_dir), "--labels", str(csv1), str(csv2), "--out", str(out_dir), "--catalog", "none"]
                 ),
                 0,
             )

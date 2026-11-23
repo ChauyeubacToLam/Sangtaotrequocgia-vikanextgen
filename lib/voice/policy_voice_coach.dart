@@ -566,7 +566,7 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
       _rehHoldHustleArmed = false;
     }
 
-    if (exercise.liveFaults.isNotEmpty) {
+    if (exercise.cueableLiveFaults.isNotEmpty) {
       _cleanSinceLastHoldMilestone = false;
     }
 
@@ -713,7 +713,10 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
     _gapVoidLogged = false;
 
     final repLog = _latestRepLog(exercise, repCount);
-    final faultIds = _faultIdsFor(repLog);
+    final formJudged = repLog == null || ExerciseLogger.isFormJudged(repLog);
+    final faultIds = _faultIdsFor(repLog)
+        .where((id) => !exercise.mutedFaultTypes.contains(id))
+        .toList();
     final usesSoftClassifier = script.hasSoftCues;
     final hasCriticalFault = usesSoftClassifier
         ? faultIds.any((id) => _faultAffectsFormFor(repLog, id))
@@ -754,7 +757,9 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
       'anchor=${repCount <= 1 || isFinalReps} target=$targetReps',
     );
 
-    if (usesSoftClassifier) {
+    if (!formJudged) {
+      _faultFirstSeenRep.clear();
+    } else if (usesSoftClassifier) {
       _handleSoftEnabledRepLogFaults(
         repLog: repLog,
         faultIds: faultIds,
@@ -834,7 +839,7 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
     required ExerciseBase exercise,
     required int repNumber,
   }) {
-    final faults = _sortedFaults(exercise.liveFaults);
+    final faults = _sortedFaults(exercise.cueableLiveFaults);
     if (faults.isEmpty) return;
 
     final baseCtx = CueContext(

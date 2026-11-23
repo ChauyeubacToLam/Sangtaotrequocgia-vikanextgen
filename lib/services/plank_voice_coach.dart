@@ -240,7 +240,10 @@ class PlankVoiceCoach implements ExerciseVoiceCoach {
   ) {
     if (exercise is Plank) {
       final latestHoldBreak = exercise.lastHoldFaultVoiceMessage;
-      if (latestHoldBreak != null && latestHoldBreak.isNotEmpty) {
+      if (latestHoldBreak != null &&
+          latestHoldBreak.isNotEmpty &&
+          !exercise.mutedFaultTypes
+              .contains(_faultIdForPlankVoice(latestHoldBreak))) {
         return latestHoldBreak;
       }
     }
@@ -251,10 +254,12 @@ class PlankVoiceCoach implements ExerciseVoiceCoach {
     final body = feedback['Body'] ?? '';
     if (body.contains('thẳng')) return 'Giữ thân người thẳng';
 
-    final knees = feedback['Knees'] ?? '';
+    final muted = exercise.mutedFaultTypes;
+
+    final knees = muted.contains('Knees') ? '' : feedback['Knees'] ?? '';
     if (knees.contains('gối')) return 'Thẳng đầu gối ra';
 
-    final back = feedback['Back'] ?? '';
+    final back = muted.contains('Back') ? '' : feedback['Back'] ?? '';
     if (back.contains('võng') || back.contains('bụng')) {
       return 'Gồng cơ bụng, nâng hông lên';
     }
@@ -262,7 +267,7 @@ class PlankVoiceCoach implements ExerciseVoiceCoach {
       return 'Hạ hông xuống, giữ thân thẳng';
     }
 
-    final neck = feedback['Neck'] ?? '';
+    final neck = muted.contains('Neck') ? '' : feedback['Neck'] ?? '';
     if (neck.contains('cúi') || neck.contains('ngẩng')) {
       return 'Giữ cổ thẳng, nhìn xuống nhẹ';
     }

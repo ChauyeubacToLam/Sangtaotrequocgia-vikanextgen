@@ -139,6 +139,7 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
   _WorkoutFlowPhase _phase = _WorkoutFlowPhase.intro;
   final List<ExerciseLogger> _setLoggers = [];
   final Map<int, Map<String, dynamic>> _difficultyLogs = {};
+  final Set<String> _disputedFaultTypes = <String>{};
   final Map<int, int> _prescribedRepsBySet = {};
 
   ExerciseBase? _activeExercise;
@@ -505,7 +506,8 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
     _currentSetLogger = null;
     _prescribedRepsBySet[_currentSet - 1] = _currentRepsTarget;
     _activeExercise = _spec.createExercise(_currentRepsTarget)
-      ..isFinalSet = _currentSet >= _spec.sets;
+      ..isFinalSet = _currentSet >= _spec.sets
+      ..mutedFaultTypes = Set<String>.of(_disputedFaultTypes);
     final session = _researchSession ??=
         ResearchSessionTracker.instance.beginOrContinueSession(
       config: _researchConfig,
@@ -694,6 +696,11 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
   }
 
   void _handleFaultReport(String faultType, bool reported) {
+    if (reported) {
+      _disputedFaultTypes.add(faultType);
+    } else {
+      _disputedFaultTypes.remove(faultType);
+    }
     final session = _researchSession;
     final slot = _activeSetSlot;
     if (session == null || slot == null) return;

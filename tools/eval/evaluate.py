@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 import json
 import math
 from pathlib import Path
+import random
 import re
 import statistics
 import sys
@@ -54,6 +55,18 @@ EXERCISE_NAMES_VI: dict[str, str] = {
     "glute_bridge": "Cầu mông (Glute Bridge)",
     "plank": "Plank (giữ 15 giây)",
 }
+
+STATUS_FAULTS: dict[str, frozenset[str]] = {}
+
+DEFAULT_CATALOG_PATH: Path = Path(__file__).resolve().parent / "fault_catalog.csv"
+BOOTSTRAP_RESAMPLES: int = 2000
+BOOTSTRAP_SEED: int = 20261124
+CONDITION_KEY_COLUMNS: tuple[str, ...] = (
+    "participant_id",
+    "condition",
+    "exercise_id",
+    "set_index",
+)
 
 REQUIRED_LABEL_COLUMNS: tuple[str, ...] = (
     "coach_id",
@@ -93,6 +106,11 @@ IGNORED_DIRECTORY_CSV_NAMES: frozenset[str] = frozenset(
         "satisfaction.csv",
         "frame_rate.csv",
         "fault_reports.csv",
+        "fault_catalog.csv",
+        "session_conditions.csv",
+        "beep_times.csv",
+        "clip_key.csv",
+        "fault_detection_by_condition.csv",
     }
 )
 
@@ -121,6 +139,7 @@ class AppRep:
     correct: bool
     faults: tuple[str, ...]
     data: dict[str, Any]
+    form_judged: bool = True
 
 
 @dataclass
@@ -818,6 +837,100 @@ def load_cue_map(path: Path, issues: list[ValidationIssue]) -> CueFaultMapper:
     return mapper
 
 
+def read_fault_catalog(path: Path) -> tuple[
+    dict[str, tuple[str, ...]], dict[str, frozenset[str]], dict[str, str]
+]:
+    form: dict[str, list[str]] = {}
+    status: dict[str, set[str]] = defaultdict(set)
+    names: dict[str, str] = {}
+    with path.open("r", encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            ex_id = (row.get("exercise_id") or "").strip()
+            fault = (row.get("fault") or "").strip()
+            if not ex_id or not fault:
+                continue
+            name_vi = (row.get("exercise_vi") or "").strip()
+            if name_vi:
+                names.setdefault(ex_id, name_vi)
+            if (row.get("kind") or "form").strip().lower() == "status":
+                status[ex_id].add(fault)
+            else:
+                form.setdefault(ex_id, [])
+                if fault not in form[ex_id]:
+                    form[ex_id].append(fault)
+    return (
+        {ex: tuple(fs) for ex, fs in form.items()},
+        {ex: frozenset(fs) for ex, fs in status.items()},
+        names,
+    )
+
+
+def apply_fault_catalog(path: Path) -> None:
+    form, status, names = read_fault_catalog(path)
+    KNOWN_EXERCISES.clear()
+    KNOWN_EXERCISES.update(form)
+    STATUS_FAULTS.clear()
+    STATUS_FAULTS.update(status)
+    for ex_id, name_vi in names.items():
+        EXERCISE_NAMES_VI.setdefault(ex_id, name_vi)
+
+
+def load_session_conditions(
+    path: Path,
+    participant_canon: "IdCanonicalizer",
+    issues: list[ValidationIssue],
+) -> tuple[dict[tuple[str, str, str, int], dict[str, str]], list[str]]:
+    by_set: dict[tuple[str, str, str, int], dict[str, str]] = {}
+    with path.open("r", encoding="utf-8-sig", newline="") as fh:
+        reader = csv.DictReader(fh)
+        header = [h.strip() for h in (reader.fieldnames or [])]
+        missing = [c for c in CONDITION_KEY_COLUMNS if c not in header]
+        if missing:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="invalid_conditions_header",
+                    file=path.name,
+                    line=1,
+                    message_en=f"session_conditions.csv is missing columns {missing}; ignored.",
+                    message_vi=f"session_conditions.csv thiếu cột {missing}; đã bỏ qua tệp.",
+                )
+            )
+            return {}, []
+        factors = [h for h in header if h not in CONDITION_KEY_COLUMNS and h != "note"]
+        for row in reader:
+            line_no = reader.line_num
+            row = {(k or "").strip(): (v or "").strip() for k, v in row.items()}
+            raw_pid = row.get("participant_id", "")
+            try:
+                s_idx = int(float(row.get("set_index", "")))
+            except ValueError:
+                issues.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="invalid_conditions_row",
+                        file=path.name,
+                        line=line_no,
+                        message_en="Row has no valid set_index; skipped.",
+                        message_vi="Dòng không có set_index hợp lệ; đã bỏ qua.",
+                    )
+                )
+                continue
+            if not raw_pid:
+                continue
+            pid = participant_canon.resolve(
+                raw_pid, path.name, line_no, issues, "case_space_participant_id"
+            )
+            key = (
+                pid,
+                row.get("condition", "").lower(),
+                row.get("exercise_id", "").lower(),
+                s_idx,
+            )
+            by_set[key] = {f: row.get(f, "") for f in factors if row.get(f, "")}
+    return by_set, factors
+
+
 # ---------------------------------------------------------------------------
 # Log directory loader
 # ---------------------------------------------------------------------------
@@ -1488,6 +1601,8 @@ def _parse_set_log(
                 for rf in raw_fault_list:
                     if not isinstance(rf, str) or not rf.strip():
                         continue
+                    if rf.strip() in STATUS_FAULTS.get(ex_id, ()):
+                        continue
                     resolved = resolve_known_token(
                         rf,
                         valid_faults_for_ex,
@@ -1582,6 +1697,7 @@ def _parse_set_log(
                     correct=correct,
                     faults=tuple(sorted(clean_faults)),
                     data=data_map,
+                    form_judged=data_map.get("form_judged") is not False,
                 )
             )
 
@@ -1602,7 +1718,9 @@ def _parse_set_log(
             )
             resolved_fault: Optional[str] = None
             mapping_source = "unmapped"
-            if raw_fault_str is not None:
+            if raw_fault_str is not None and raw_fault_str in STATUS_FAULTS.get(ex_id, ()):
+                mapping_source = "explicit_non_fault"
+            elif raw_fault_str is not None:
                 resolved_fault = resolve_known_token(
                     raw_fault_str,
                     valid_faults_for_ex,
@@ -3026,6 +3144,9 @@ class EvaluationResults:
     satisfaction_rows: list[dict[str, Any]]
     frame_rate_rows: list[dict[str, Any]]
     fault_report_rows: list[dict[str, Any]] = field(default_factory=list)
+    fault_condition_rows: list[dict[str, Any]] = field(default_factory=list)
+    condition_factors: list[str] = field(default_factory=list)
+    unjudged_rep_count: int = 0
 
 
 def _canon_fault_id(exercise_id: str, raw: str) -> str:
@@ -3118,6 +3239,8 @@ def evaluate_all(
     tolerance_s: float = DEFAULT_TIME_TOLERANCE_S,
     primary_coach_arg: Optional[str] = None,
     cue_map_used: bool = False,
+    conditions: Optional[dict[tuple[str, str, str, int], dict[str, str]]] = None,
+    condition_factors: Sequence[str] = (),
 ) -> EvaluationResults:
     if not set_logs and not session_logs and coach_rows:
         issues.insert(
@@ -3284,8 +3407,19 @@ def evaluate_all(
         set_logs, session_logs, coach_sets, all_pairs_by_set, issues
     )
 
+    fault_condition_rows: list[dict[str, Any]] = []
+    if conditions is not None:
+        fault_condition_rows = _build_fault_detection_by_condition(
+            paired_sets, all_pairs_by_set, conditions, condition_factors, issues
+        )
+
     return EvaluationResults(
         fault_report_rows=fault_report_rows,
+        fault_condition_rows=fault_condition_rows,
+        condition_factors=list(condition_factors),
+        unjudged_rep_count=sum(
+            1 for sl in set_logs.values() for r in sl.reps if not r.form_judged
+        ),
         issues=issues,
         tolerance_s=tolerance_s,
         cue_map_used=cue_map_used,
@@ -3395,6 +3529,167 @@ def _build_counting_accuracy(
     return rows
 
 
+def _judged_matched_pairs(
+    set_keys: Sequence[tuple[str, str, str, int]],
+    all_pairs_by_set: dict[tuple[str, str, str, int], list[MatchedRepPair]],
+) -> tuple[list[MatchedRepPair], int]:
+    judged: list[MatchedRepPair] = []
+    unjudged = 0
+    for skey in set_keys:
+        for p in all_pairs_by_set.get(skey, ()):
+            if p.status != "matched" or p.coach_rep is None or p.app_rep is None:
+                continue
+            if p.app_rep.form_judged:
+                judged.append(p)
+            else:
+                unjudged += 1
+    return judged, unjudged
+
+
+def _fault_flags(p: MatchedRepPair, fault_id: str) -> tuple[bool, bool]:
+    assert p.coach_rep is not None and p.app_rep is not None
+    if fault_id == "ANY_FAULT":
+        return len(p.coach_rep.faults) > 0, len(p.app_rep.faults) > 0
+    return fault_id in p.coach_rep.faults, fault_id in p.app_rep.faults
+
+
+def _confusion_counts(
+    pairs: Sequence[MatchedRepPair], fault_id: str
+) -> tuple[int, int, int, int]:
+    tp = fp = fn = tn = 0
+    for p in pairs:
+        c_has, a_has = _fault_flags(p, fault_id)
+        if c_has and a_has:
+            tp += 1
+        elif a_has:
+            fp += 1
+        elif c_has:
+            fn += 1
+        else:
+            tn += 1
+    return tp, fp, fn, tn
+
+
+def _percentile(sorted_vals: Sequence[float], q: float) -> float:
+    pos = q * (len(sorted_vals) - 1)
+    lo = math.floor(pos)
+    hi = min(lo + 1, len(sorted_vals) - 1)
+    return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (pos - lo)
+
+
+def _participant_bootstrap_ci(
+    pairs: Sequence[MatchedRepPair],
+    fault_id: str,
+    n_resamples: int = BOOTSTRAP_RESAMPLES,
+) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    by_pid: dict[str, list[int]] = {}
+    for p in pairs:
+        rec = by_pid.setdefault(p.set_key[0], [0, 0, 0])
+        c_has, a_has = _fault_flags(p, fault_id)
+        if c_has and a_has:
+            rec[0] += 1
+        elif a_has:
+            rec[1] += 1
+        elif c_has:
+            rec[2] += 1
+    counts = [by_pid[pid] for pid in sorted(by_pid)]
+    n = len(counts)
+    if n < 2:
+        return None, None, None, None
+    rng = random.Random(BOOTSTRAP_SEED)
+    precs: list[float] = []
+    recs: list[float] = []
+    for _ in range(n_resamples):
+        tp = fp = fn = 0
+        for _ in range(n):
+            c = counts[rng.randrange(n)]
+            tp += c[0]
+            fp += c[1]
+            fn += c[2]
+        if tp + fp > 0:
+            precs.append(tp / (tp + fp))
+        if tp + fn > 0:
+            recs.append(tp / (tp + fn))
+    precs.sort()
+    recs.sort()
+    p_lo = _percentile(precs, 0.025) if precs else None
+    p_hi = _percentile(precs, 0.975) if precs else None
+    r_lo = _percentile(recs, 0.025) if recs else None
+    r_hi = _percentile(recs, 0.975) if recs else None
+    return p_lo, p_hi, r_lo, r_hi
+
+
+def _build_fault_detection_by_condition(
+    paired_sets: Sequence[tuple[str, str, str, int]],
+    all_pairs_by_set: dict[tuple[str, str, str, int], list[MatchedRepPair]],
+    conditions: dict[tuple[str, str, str, int], dict[str, str]],
+    factors: Sequence[str],
+    issues: list[ValidationIssue],
+) -> list[dict[str, Any]]:
+    missing = [s for s in paired_sets if s not in conditions]
+    if missing:
+        sample = ", ".join(f"{s[0]}/{s[1]}/{s[2]}/{s[3]}" for s in missing[:5])
+        issues.append(
+            ValidationIssue(
+                severity="warning",
+                code="set_without_conditions",
+                file="session_conditions.csv",
+                line=1,
+                message_en=(
+                    f"{len(missing)} labelled set(s) have no row in session_conditions.csv "
+                    f"(e.g. {sample}); they are left out of the per-condition table."
+                ),
+                message_vi=(
+                    f"{len(missing)} hiệp đã gán nhãn chưa có dòng trong session_conditions.csv "
+                    f"(ví dụ {sample}); không đưa vào bảng theo điều kiện."
+                ),
+            )
+        )
+    rows: list[dict[str, Any]] = []
+    for factor in factors:
+        levels = sorted(
+            {conditions[s][factor] for s in paired_sets if factor in conditions.get(s, {})}
+        )
+        for level in levels:
+            level_sets = [s for s in paired_sets if conditions.get(s, {}).get(factor) == level]
+            for ex_id, canonical_faults in KNOWN_EXERCISES.items():
+                ex_sets = [s for s in level_sets if s[2] == ex_id]
+                pairs, _ = _judged_matched_pairs(ex_sets, all_pairs_by_set)
+                if not pairs:
+                    continue
+                n_participants = len({p.set_key[0] for p in pairs})
+                for fault_id in list(canonical_faults) + ["ANY_FAULT"]:
+                    tp, fp, fn, tn = _confusion_counts(pairs, fault_id)
+                    prec = tp / (tp + fp) if tp + fp > 0 else None
+                    prec_lo, prec_hi = wilson_ci(tp, tp + fp)
+                    rec = tp / (tp + fn) if tp + fn > 0 else None
+                    rec_lo, rec_hi = wilson_ci(tp, tp + fn)
+                    rows.append(
+                        {
+                            "factor": factor,
+                            "level": level,
+                            "exercise_id": ex_id,
+                            "fault_id": fault_id,
+                            "n_participants": n_participants,
+                            "n_sets": len(ex_sets),
+                            "n_matched_reps": len(pairs),
+                            "tp": tp,
+                            "fp": fp,
+                            "fn": fn,
+                            "tn": tn,
+                            "n_app_positive": tp + fp,
+                            "precision": fmt_float(prec),
+                            "precision_ci95_low": fmt_float(prec_lo),
+                            "precision_ci95_high": fmt_float(prec_hi),
+                            "n_coach_positive": tp + fn,
+                            "recall": fmt_float(rec),
+                            "recall_ci95_low": fmt_float(rec_lo),
+                            "recall_ci95_high": fmt_float(rec_hi),
+                        }
+                    )
+    return rows
+
+
 def _build_fault_detection_and_wrong(
     paired_sets: Sequence[tuple[str, str, str, int]],
     all_pairs_by_set: dict[tuple[str, str, str, int], list[MatchedRepPair]],
@@ -3411,13 +3706,9 @@ def _build_fault_detection_and_wrong(
 
     for ex_id, canonical_faults in KNOWN_EXERCISES.items():
         ex_sets = [skey for skey in paired_sets if skey[2] == ex_id]
-        matched_pairs = [
-            p
-            for skey in ex_sets
-            for p in all_pairs_by_set[skey]
-            if p.status == "matched" and p.coach_rep is not None and p.app_rep is not None
-        ]
+        matched_pairs, n_unjudged = _judged_matched_pairs(ex_sets, all_pairs_by_set)
         n_matched = len(matched_pairs)
+        n_participants = len({p.set_key[0] for p in matched_pairs})
         n_sets_with_matches = sum(
             1
             for skey in ex_sets
@@ -3426,24 +3717,10 @@ def _build_fault_detection_and_wrong(
 
         # Per-fault binary confusion & Wilson CIs
         for fault_id in list(canonical_faults) + ["ANY_FAULT"]:
-            tp = fp = fn = tn = 0
-            for p in matched_pairs:
-                assert p.coach_rep is not None and p.app_rep is not None
-                if fault_id == "ANY_FAULT":
-                    c_has = len(p.coach_rep.faults) > 0
-                    a_has = len(p.app_rep.faults) > 0
-                else:
-                    c_has = fault_id in p.coach_rep.faults
-                    a_has = fault_id in p.app_rep.faults
-
-                if c_has and a_has:
-                    tp += 1
-                elif (not c_has) and a_has:
-                    fp += 1
-                elif c_has and (not a_has):
-                    fn += 1
-                else:
-                    tn += 1
+            tp, fp, fn, tn = _confusion_counts(matched_pairs, fault_id)
+            boot_p_lo, boot_p_hi, boot_r_lo, boot_r_hi = _participant_bootstrap_ci(
+                matched_pairs, fault_id
+            )
 
             n_app_pos = tp + fp
             n_coach_pos = tp + fn
@@ -3479,6 +3756,12 @@ def _build_fault_detection_and_wrong(
                     "false_positive_rate_ci95_low": fmt_float(fpr_lo),
                     "false_positive_rate_ci95_high": fmt_float(fpr_hi),
                     "fp_per_matched_rep": fmt_float(fp_per_rep),
+                    "n_participants": n_participants,
+                    "n_unjudged_reps": n_unjudged,
+                    "precision_boot95_low": fmt_float(boot_p_lo),
+                    "precision_boot95_high": fmt_float(boot_p_hi),
+                    "recall_boot95_low": fmt_float(boot_r_lo),
+                    "recall_boot95_high": fmt_float(boot_r_hi),
                 }
             )
 
@@ -3973,7 +4256,7 @@ def _build_cue_analysis(
 
             fault_id = cue.resolved_fault
             cutoff_ms = _cue_effective_cutoff_t_ms(cue, sl, fault_id)
-            a_next = [r for r in sl.reps if r.t_ms > cutoff_ms]
+            a_next = [r for r in sl.reps if r.t_ms > cutoff_ms and r.form_judged]
             c_next = (
                 _subsequent_coach_reps_after_cue(
                     cue, sl, valid_c_reps, set_pairs, cutoff_t_ms=cutoff_ms
@@ -3993,7 +4276,7 @@ def _build_cue_analysis(
         for fault_id, f_cues in sorted(played_cues_by_fault.items()):
             first_cue = f_cues[0]
             first_cutoff_ms = _cue_effective_cutoff_t_ms(first_cue, sl, fault_id)
-            a_after_first = [r for r in sl.reps if r.t_ms > first_cutoff_ms]
+            a_after_first = [r for r in sl.reps if r.t_ms > first_cutoff_ms and r.form_judged]
             c_after_first = (
                 _subsequent_coach_reps_after_cue(
                     first_cue, sl, valid_c_reps, set_pairs, cutoff_t_ms=first_cutoff_ms
@@ -4016,7 +4299,7 @@ def _build_cue_analysis(
                     c_seq = _subsequent_coach_reps_after_cue(
                         cue_i, sl, valid_c_reps, set_pairs, cutoff_t_ms=cut_i
                     )
-                    a_seq = [r for r in sl.reps if r.t_ms > cut_i]
+                    a_seq = [r for r in sl.reps if r.t_ms > cut_i and r.form_judged]
                     if len(c_seq) >= 1 and fault_id not in c_seq[0].faults:
                         never_corrected = False
                         c_rem_faults = sum(1 for r in c_seq if fault_id in r.faults)
@@ -4039,7 +4322,7 @@ def _build_cue_analysis(
                 never_corrected = True
                 for cue_i in f_cues:
                     cut_i = _cue_effective_cutoff_t_ms(cue_i, sl, fault_id)
-                    a_seq = [r for r in sl.reps if r.t_ms > cut_i]
+                    a_seq = [r for r in sl.reps if r.t_ms > cut_i and r.form_judged]
                     if len(a_seq) >= 1 and fault_id not in a_seq[0].faults:
                         never_corrected = False
                         a_rem_faults = sum(1 for r in a_seq if fault_id in r.faults)
@@ -4557,9 +4840,42 @@ def write_all_outputs(out_dir: Path, res: EvaluationResults) -> None:
             "false_positive_rate_ci95_low",
             "false_positive_rate_ci95_high",
             "fp_per_matched_rep",
+            "n_participants",
+            "n_unjudged_reps",
+            "precision_boot95_low",
+            "precision_boot95_high",
+            "recall_boot95_low",
+            "recall_boot95_high",
         ),
         res.fault_detection_rows,
     )
+
+    if res.condition_factors:
+        _write_csv(
+            out_dir / "fault_detection_by_condition.csv",
+            (
+                "factor",
+                "level",
+                "exercise_id",
+                "fault_id",
+                "n_participants",
+                "n_sets",
+                "n_matched_reps",
+                "tp",
+                "fp",
+                "fn",
+                "tn",
+                "n_app_positive",
+                "precision",
+                "precision_ci95_low",
+                "precision_ci95_high",
+                "n_coach_positive",
+                "recall",
+                "recall_ci95_low",
+                "recall_ci95_high",
+            ),
+            res.fault_condition_rows,
+        )
 
     _write_csv(
         out_dir / "confusion_matrices.csv",
@@ -4840,6 +5156,20 @@ def write_all_outputs(out_dir: Path, res: EvaluationResults) -> None:
     (out_dir / "summary.md").write_text(summary_md, encoding="utf-8")
 
 
+def _fmt_boot_pair_vi(r: dict[str, Any]) -> str:
+    def one(lo: Any, hi: Any) -> str:
+        lo_f = _opt_float_str(lo)
+        hi_f = _opt_float_str(hi)
+        if lo_f is None or hi_f is None:
+            return "—"
+        return f"[{lo_f * 100:.1f}%; {hi_f * 100:.1f}%]"
+
+    return (
+        f"P {one(r.get('precision_boot95_low'), r.get('precision_boot95_high'))} / "
+        f"R {one(r.get('recall_boot95_low'), r.get('recall_boot95_high'))}"
+    )
+
+
 def _opt_float_str(s: Any) -> Optional[float]:
     if s is None or s == "":
         return None
@@ -4971,11 +5301,37 @@ def render_summary_markdown_vi(res: EvaluationResults) -> str:
     lines.append("")
     lines.append("### 3.1. Precision, Recall (khoảng tin cậy Wilson 95%) và tần suất báo lỗi thừa")
     lines.append("")
+    if res.unjudged_rep_count:
+        lines.append(
+            f"> {res.unjudged_rep_count} rep có `form_judged = false` (người tập đã bấm \"Bỏ qua cảnh báo\", "
+            "ứng dụng chỉ đếm, không chấm) được loại khỏi precision/recall; số rep này vẫn tính trong độ chính xác đếm."
+        )
+        lines.append("")
     lines.append(
-        "| Bài tập | Mã lỗi | Số lần khớp (`N`) | TP | FP (App báo, HLV không thấy) | FN | TN | Precision [CI 95%] (`TP/n_app`) | Recall [CI 95%] (`TP/n_hlv`) | Báo lỗi giả trên rep không lỗi HLV (`FP/(FP+TN)`) | Báo lỗi thừa / rep (`FP/N`) |"
+        "> Cột bootstrap: khoảng 95% khi lấy mẫu lại theo **người tập** "
+        f"({BOOTSTRAP_RESAMPLES} lần, hạt giống {BOOTSTRAP_SEED}), vì các rep của cùng một người không độc lập. "
+        "Để trống khi chỉ có 1 người."
     )
-    lines.append("|---|---|---:|---:|---:|---:|---:|---|---|---|---|")
+    lines.append("")
+    no_data_ex = [
+        r["exercise_id"]
+        for r in res.fault_detection_rows
+        if r["fault_id"] == "ANY_FAULT" and int(r["n_matched_reps"]) == 0
+    ]
+    if no_data_ex:
+        lines.append(
+            "Chưa có rep khớp giữa ứng dụng và HLV (bỏ khỏi bảng dưới): "
+            + ", ".join(f"`{ex}`" for ex in no_data_ex)
+            + "."
+        )
+        lines.append("")
+    lines.append(
+        "| Bài tập | Mã lỗi | Số người | Số lần khớp (`N`) | TP | FP (App báo, HLV không thấy) | FN | TN | Precision [CI 95%] (`TP/n_app`) | Recall [CI 95%] (`TP/n_hlv`) | Precision / Recall [bootstrap theo người] | Báo lỗi giả trên rep không lỗi HLV (`FP/(FP+TN)`) | Báo lỗi thừa / rep (`FP/N`) |"
+    )
+    lines.append("|---|---|---:|---:|---:|---:|---:|---:|---|---|---|---|---|")
     for r in res.fault_detection_rows:
+        if int(r["n_matched_reps"]) == 0:
+            continue
         fault_disp = "**Bất kỳ lỗi nào (`ANY_FAULT`)**" if r["fault_id"] == "ANY_FAULT" else f"`{r['fault_id']}`"
         prec_cell = _fmt_rate_with_ci_vi(
             r["precision"],
@@ -5005,9 +5361,10 @@ def render_summary_markdown_vi(res: EvaluationResults) -> str:
             if n_m > 0
             else "— (0/0)"
         )
+        boot_cell = _fmt_boot_pair_vi(r)
         lines.append(
-            f"| `{r['exercise_id']}` | {fault_disp} | {n_m} | {r['tp']} | {fp_cnt} | "
-            f"{r['fn']} | {r['tn']} | {prec_cell} | {rec_cell} | {fpr_cell} | {fp_rate_s} |"
+            f"| `{r['exercise_id']}` | {fault_disp} | {r.get('n_participants', '')} | {n_m} | {r['tp']} | {fp_cnt} | "
+            f"{r['fn']} | {r['tn']} | {prec_cell} | {rec_cell} | {boot_cell} | {fpr_cell} | {fp_rate_s} |"
         )
     lines.append("")
 
@@ -5015,6 +5372,8 @@ def render_summary_markdown_vi(res: EvaluationResults) -> str:
     lines.append("")
     for ex_id in KNOWN_EXERCISES:
         n_matched, axis_labels, grid = res.confusion_grids[ex_id]
+        if n_matched == 0:
+            continue
         lines.append(
             f"#### Bài `{ex_id}` ({EXERCISE_NAMES_VI.get(ex_id, ex_id)}) — Cỡ mẫu `N = {n_matched}` lần tập khớp"
         )
@@ -5031,6 +5390,37 @@ def render_summary_markdown_vi(res: EvaluationResults) -> str:
         col_sums = [sum(grid[(c_lbl, a_lbl)] for c_lbl in axis_labels) for a_lbl in axis_labels]
         col_sums_str = " | ".join(f"**{v}**" for v in col_sums)
         lines.append(f"| **Tổng App** | {col_sums_str} | **{n_matched}** |")
+        lines.append("")
+
+    if res.condition_factors:
+        lines.append("### 3.3. Độ chính xác theo điều kiện quay (`session_conditions.csv`)")
+        lines.append("")
+        lines.append(
+            "Mỗi dòng là một mức của một yếu tố (góc máy, ánh sáng, quần áo, thiết bị…). "
+            "Chỉ hiện `ANY_FAULT` của mọi bài và từng lỗi của plank; đủ các lỗi có trong "
+            "`fault_detection_by_condition.csv`."
+        )
+        lines.append("")
+        lines.append(
+            "| Yếu tố | Mức | Bài tập | Mã lỗi | Số người | `N` | TP | FP | FN | Precision [CI 95%] | Recall [CI 95%] |"
+        )
+        lines.append("|---|---|---|---|---:|---:|---:|---:|---:|---|---|")
+        for r in res.fault_condition_rows:
+            if r["fault_id"] != "ANY_FAULT" and r["exercise_id"] != "plank":
+                continue
+            prec_cell = _fmt_rate_with_ci_vi(
+                r["precision"], r["precision_ci95_low"], r["precision_ci95_high"],
+                int(r["tp"]), int(r["n_app_positive"]),
+            )
+            rec_cell = _fmt_rate_with_ci_vi(
+                r["recall"], r["recall_ci95_low"], r["recall_ci95_high"],
+                int(r["tp"]), int(r["n_coach_positive"]),
+            )
+            lines.append(
+                f"| {r['factor']} | {r['level']} | `{r['exercise_id']}` | `{r['fault_id']}` | "
+                f"{r['n_participants']} | {r['n_matched_reps']} | {r['tp']} | {r['fp']} | {r['fn']} | "
+                f"{prec_cell} | {rec_cell} |"
+            )
         lines.append("")
 
     # 4. Wrong detections
@@ -5535,6 +5925,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional coach_id to prefer for App-vs-Coach tables when multiple coaches labelled the same set.",
     )
     parser.add_argument(
+        "--catalog",
+        default=None,
+        help=(
+            "Fault catalog CSV (exercise_id, fault, kind, ...). Defaults to fault_catalog.csv "
+            "next to this script when it exists; pass 'none' to keep the built-in 4 exercises."
+        ),
+    )
+    parser.add_argument(
+        "--conditions",
+        default=None,
+        help=(
+            "Optional session_conditions.csv (participant_id, condition, exercise_id, set_index, "
+            "then one column per recording factor) for a per-condition precision/recall table."
+        ),
+    )
+    parser.add_argument(
         "--form-faults-only",
         action="store_true",
         default=False,
@@ -5547,6 +5953,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    saved = (dict(KNOWN_EXERCISES), dict(STATUS_FAULTS), dict(EXERCISE_NAMES_VI))
+    try:
+        return _main(argv)
+    finally:
+        for target, original in zip((KNOWN_EXERCISES, STATUS_FAULTS, EXERCISE_NAMES_VI), saved):
+            target.clear()
+            target.update(original)
+
+
+def _main(argv: Optional[Sequence[str]] = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -5586,6 +6002,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         cue_map_path = Path(args.cue_map)
         if not cue_map_path.exists() or not cue_map_path.is_file():
             print(f"ERROR: --cue-map file does not exist: {cue_map_path}", file=sys.stderr)
+            return 2
+
+    if args.catalog is None:
+        catalog_path: Optional[Path] = DEFAULT_CATALOG_PATH if DEFAULT_CATALOG_PATH.is_file() else None
+    elif args.catalog.strip().lower() == "none":
+        catalog_path = None
+    else:
+        catalog_path = Path(args.catalog)
+        if not catalog_path.is_file():
+            print(f"ERROR: --catalog file does not exist: {catalog_path}", file=sys.stderr)
+            return 2
+    if catalog_path is not None:
+        apply_fault_catalog(catalog_path)
+
+    conditions_path: Optional[Path] = None
+    if args.conditions is not None:
+        conditions_path = Path(args.conditions)
+        if not conditions_path.is_file():
+            print(f"ERROR: --conditions file does not exist: {conditions_path}", file=sys.stderr)
             return 2
 
     label_files = collect_label_files(
@@ -5634,6 +6069,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"  [{iv.severity.upper()}] {iv.file}:{iv.line} — {iv.message_en}", file=sys.stderr)
         return 2
 
+    conditions: Optional[dict[tuple[str, str, str, int], dict[str, str]]] = None
+    condition_factors: list[str] = []
+    if conditions_path is not None:
+        conditions, condition_factors = load_session_conditions(
+            conditions_path, participant_canon, issues
+        )
+
     results = evaluate_all(
         set_logs=set_logs,
         session_logs=session_logs,
@@ -5642,6 +6084,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         tolerance_s=args.tolerance_s,
         primary_coach_arg=args.primary_coach,
         cue_map_used=(cue_map_path is not None and cue_mapper.loaded),
+        conditions=conditions,
+        condition_factors=condition_factors,
     )
 
     write_all_outputs(out_dir, results)

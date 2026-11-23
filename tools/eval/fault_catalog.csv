@@ -1,0 +1,97 @@
+exercise_id,exercise_vi,unit,hold_s,fault,kind,description_vi
+squat,Squat,rep,,depth,form,"Chưa xuống đủ sâu: ở đáy, đùi còn cao hơn hẳn mặt song song với sàn."
+squat,Squat,rep,,trunk,form,Thân trên đổ về trước quá nhiều hoặc ngả ra sau.
+squat,Squat,rep,,tempo,form,"Thả rơi người xuống quá nhanh, nảy ở đáy, không kiểm soát pha hạ."
+squat,Squat,rep,,sync,form,"Khi đứng lên, hông bật lên trước vai làm lưng gập xuống."
+push_up,Chống đẩy,rep,,sag,form,Thân không thẳng: hông võng xuống sàn hoặc mông nhổng cao (gộp chung một mã).
+push_up,Chống đẩy,rep,,depth,form,"Khuỷu gập quá ít, ngực còn cao đã đẩy lên."
+push_up,Chống đẩy,rep,,tempo,form,Thả người xuống quá nhanh.
+glute_bridge,Cầu mông,rep,,hip_extension,form,"Ở đỉnh, hông chưa lên tới đường thẳng vai–gối."
+glute_bridge,Cầu mông,rep,,hyperextension,form,Ưỡn lưng dưới quá mức: hông vồng cao quá đường thẳng vai–gối.
+glute_bridge,Cầu mông,rep,,knee_angle,form,"Bàn chân đặt quá gần hoặc quá xa mông, góc gối ở đỉnh quá nhọn hoặc quá mở."
+glute_bridge,Cầu mông,rep,,speed_control,form,Hạ hông rơi xuống quá nhanh.
+glute_bridge,Cầu mông,rep,,neck_head,form,Nhấc đầu khỏi sàn hoặc gập cổ nhìn bụng.
+plank,Plank thấp,hold,15,Back,form,"Trục vai–hông–gót lệch: hông võng xuống hoặc mông nhổng cao (gộp chung một mã), kéo dài gần nửa lượt giữ."
+plank,Plank thấp,hold,15,Neck,form,"Đầu rủ thấp hoặc ngửa cao, lệch khỏi đường tai–vai–hông."
+plank,Plank thấp,hold,15,Knees,form,Gối chùng hoặc gập trong lúc giữ.
+lunge,Lunge,rep,,trunk,form,Thân trên đổ về trước quá nhiều khi hạ người hoặc ngả ra sau.
+lunge,Lunge,rep,,lumbar,form,"Lưng dưới ưỡn cong, hông đẩy ra trước khi ở đáy."
+jump_squat,Squat bật nhảy,rep,,takeoff_depth,form,Lấy đà quá nông trước khi bật.
+jump_squat,Squat bật nhảy,rep,,landing_stiff,form,"Tiếp đất chân gần như thẳng, không chùng gối giảm lực."
+jump_squat,Squat bật nhảy,rep,,landing_depth,form,Tiếp đất có chùng gối nhưng chưa đủ sâu.
+jump_squat,Squat bật nhảy,rep,,trunk,form,Thân trên rạp về trước quá nhiều khi tiếp đất.
+jumping_jack,Jumping Jack,rep,,arms,form,Tay chưa vươn lên cao qua đầu.
+jumping_jack,Jumping Jack,rep,,legs,form,Chân mở chưa đủ rộng.
+jumping_jack,Jumping Jack,rep,,tempo_fast,form,"Nhảy quá nhanh, động tác không trọn."
+wall_pushup,Chống đẩy tường,rep,,body_line,form,Thân không thẳng: hông võng hoặc gập ở hông.
+wall_pushup,Chống đẩy tường,rep,,cervical,form,Ngửa cổ ra sau.
+wall_pushup,Chống đẩy tường,rep,,head,form,"Đầu đưa ra trước, cằm chìa về phía tường."
+wall_pushup,Chống đẩy tường,rep,,shoulder,form,Rụt vai lên tai.
+wall_pushup,Chống đẩy tường,rep,,hand,form,Tay rời khỏi tường.
+wall_pushup,Chống đẩy tường,rep,,foot,form,Bàn chân xê dịch trong lúc tập.
+wall_pushup,Chống đẩy tường,rep,,tempo,form,Thả người vào tường quá nhanh.
+situp,Gập bụng,rep,,jerking,form,Giật hoặc quăng người để lên.
+situp,Gập bụng,rep,,rom,form,Chưa lên tới vị trí cao nhất.
+situp,Gập bụng,rep,,stability,form,Nhấc chân khỏi sàn.
+leg_raises,Nâng chân,rep,,arms,form,Tay không duỗi thẳng và khép sát hông.
+leg_raises,Nâng chân,rep,,knee,form,Gập gối khi nâng chân.
+leg_raises,Nâng chân,rep,,pelvic,form,"Lưng dưới võng rời sàn, khung chậu không ổn định."
+leg_raises,Nâng chân,rep,,rom,form,Nâng chân chưa đủ cao.
+leg_raises,Nâng chân,rep,,tempo,form,Thả chân xuống quá nhanh.
+vup,Gập bụng chữ V,rep,,jerking,form,Giật người lên bằng quán tính.
+vup,Gập bụng chữ V,rep,,knee,form,Gập gối khi gập người.
+vup,Gập bụng chữ V,rep,,rom,form,Chưa gập đủ sâu (tay chưa gần chân).
+vup,Gập bụng chữ V,rep,,sync,form,Thân trên và chân không lên cùng lúc.
+vup,Gập bụng chữ V,rep,,tempo,form,Thả rơi người ở pha hạ.
+mcgill_curlup,Gập bụng McGill,rep,,knee_extension,form,Chân lẽ ra phải co lại duỗi thẳng.
+mcgill_curlup,Gập bụng McGill,rep,,neck_pull,form,"Kéo cổ, cằm gập vào ngực thay vì giữ đầu thẳng hàng lưng."
+mcgill_curlup,Gập bụng McGill,rep,,trunk_high,form,Nâng thân lên quá cao (quá mức chỉ nhấc vai).
+mcgill_curlup,Gập bụng McGill,rep,,trunk_low,form,Chưa nhấc vai khỏi sàn.
+dead_bug,Dead Bug,rep,,opposite_side,form,"Duỗi tay và chân cùng một bên, không phải tay–chân đối diện."
+dead_bug,Dead Bug,rep,,alternate,form,Không đổi bên giữa các lần.
+dead_bug,Dead Bug,rep,,anti_extension,form,Lưng dưới cong rời khỏi sàn.
+dead_bug,Dead Bug,rep,,stable_limbs,form,Tay hoặc chân trụ bị kéo xê dịch.
+dead_bug,Dead Bug,rep,,floor_contact,form,Tay hoặc chân chạm sàn khi duỗi.
+dead_bug,Dead Bug,rep,,tempo,form,Thả tay hoặc chân xuống quá nhanh.
+bird_dog,Bird Dog,rep,,opposite_side,form,"Duỗi tay và chân cùng một bên, không phải tay–chân đối diện."
+bird_dog,Bird Dog,rep,,alternate,form,Không đổi bên giữa các lần.
+bird_dog,Bird Dog,rep,,alignment,form,Tay hoặc chân duỗi chưa thẳng song song sàn.
+bird_dog,Bird Dog,rep,,head,form,Đầu cúi quá thấp.
+bird_dog,Bird Dog,rep,,lumbar,form,"Đưa chân quá cao, lưng dưới võng."
+bird_dog,Bird Dog,rep,,hold,form,Giữ ở đỉnh chưa đủ thời gian app yêu cầu.
+bird_dog,Bird Dog,rep,,trunk,form,Hông lệch hoặc sụt về một bên.
+bird_dog,Bird Dog,rep,,MissingBody,status,Không phải lỗi tư thế: app mất điểm cơ thể. HLV không gán mã này.
+bird_dog,Bird Dog,rep,,Plank,status,Không phải lỗi tư thế: người tập không ở tư thế bò bốn điểm. HLV không gán mã này.
+mountain_climber,Leo núi,rep,,rom,form,Co gối chưa đủ về phía ngực.
+mountain_climber,Leo núi,rep,,trunk_sag,form,"Lưng võng, hông chùng xuống."
+mountain_climber,Leo núi,rep,,trunk_bounce,form,Hông nảy lên xuống theo nhịp chân.
+superman,Superman,rep,,elevation_arm,form,Tay nâng chưa đủ cao.
+superman,Superman,rep,,elevation_leg,form,Chân nâng chưa đủ cao.
+superman,Superman,rep,,hip,form,Nhấc hông khỏi sàn.
+superman,Superman,rep,,hold,form,Giữ ở đỉnh chưa đủ thời gian app yêu cầu.
+superman,Superman,rep,,lumbar,form,Uốn cong lưng quá gắt.
+tricep_dip,Dip cơ tay sau,rep,,extension,form,Ở đỉnh chưa duỗi thẳng tay.
+tricep_dip,Dip cơ tay sau,rep,,hip_thrust,form,Đẩy hông lên xuống thay vì gập khuỷu.
+tricep_dip,Dip cơ tay sau,rep,,rom,form,Gập khuỷu chưa đủ sâu.
+tricep_dip,Dip cơ tay sau,rep,,shrug,form,Rụt vai lên tai.
+side_plank_dip,Plank nghiêng,hold,15,shoulder,form,Khuỷu tay trụ không nằm dưới vai.
+side_plank_dip,Plank nghiêng,hold,15,amplitude,form,Thân mất đường thẳng vai–hông–gót.
+seated_forward_fold,Tư thế ngồi gập người,hold,30,knee,form,Co gối.
+seated_forward_fold,Tư thế ngồi gập người,hold,30,spine,form,Gù lưng hoặc cúi đầu quá sâu thay vì gập từ hông.
+seated_forward_fold,Tư thế ngồi gập người,hold,30,ankle,form,Duỗi mũi chân ra xa thay vì hướng mũi chân lên.
+seated_forward_fold,Tư thế ngồi gập người,hold,30,tempo,form,Rời tư thế trước khi đủ thời gian giữ.
+butterfly,Tư thế con bướm,hold,30,knee,form,Hai gối lệch nhau rõ rệt.
+butterfly,Tư thế con bướm,hold,30,posture,form,Gập người hoặc gù lưng.
+butterfly,Tư thế con bướm,hold,30,shoulder,form,Vai nghiêng hoặc lệch một bên.
+butterfly,Tư thế con bướm,hold,30,foot,form,Hai bàn chân không áp vào nhau hoặc đặt quá xa người.
+sphinx,Tư thế nhân sư,hold,30,straight_arm,form,Duỗi thẳng tay đẩy người lên thay vì chống cẳng tay.
+sphinx,Tư thế nhân sư,hold,30,forearm,form,Cẳng tay không áp song song sàn.
+sphinx,Tư thế nhân sư,hold,30,upper_arm,form,"Cánh tay trên không vuông góc sàn, khuỷu không ở dưới vai."
+sphinx,Tư thế nhân sư,hold,30,shrug,form,Rụt vai lên tai.
+sphinx,Tư thế nhân sư,hold,30,neck,form,Ngửa cổ ra sau quá mức.
+step_up,Bước lên ghế,rep,,trunk,form,Đổ người ra trước khi đứng trên ghế.
+step_up,Bước lên ghế,rep,,alternate,form,Không đổi chân bước lên giữa các lần.
+neck_side_stretch,Giãn cổ nghiêng,hold,20,shrug,form,Nhún vai khi nghiêng đầu.
+neck_side_stretch,Giãn cổ nghiêng,hold,20,shoulder,form,Vai nghiêng theo đầu.
+pushup_rotation,Chống đẩy xoay người,rep,,body_line,form,Hông võng hoặc nhô khi chống đẩy.
+pushup_rotation,Chống đẩy xoay người,rep,,alternate,form,Không đổi tay mở lên giữa các lần.

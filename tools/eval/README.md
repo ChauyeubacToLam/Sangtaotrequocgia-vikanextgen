@@ -11,9 +11,12 @@ No third-party packages are required (Python 3.9+ standard library only).
 - `evaluate.py` — Single-file CLI entry point.
 - `test_evaluate.py` — `unittest` suite covering synthetic scenarios, edge cases, input recovery, and end-to-end CLI execution.
 - `camera_safety.py` — Separate CLI for the provoked bad-camera trials (`KE_HOACH_THU_SO_LIEU.md` section 5): `--trials an_toan_camera.csv --logs <dir> --out <dir>` writes `camera_safety.csv` and `camera_safety_summary.md` (detection, prompt kind, latency, reps/faults logged during the bad window, recovery). Checked by `test_camera_safety.py`.
-- `HUONG_DAN_GAN_NHAN.md` — Vietnamese instruction sheet for the video-labelling coaches.
+- `fault_catalog.csv` — The fault codes of all 24 kept exercises, read from the app source on 2026-11-23: `exercise_id, exercise_vi, unit (rep|hold), hold_s, fault, kind (form|status), description_vi`. `evaluate.py` loads it by default; `kind=status` codes (`bird_dog` `MissingBody`, `Plank`) are app states, not form faults, and are dropped from app reps silently.
+- `clips.py` — Video side of the study: `suggest` (predict each set's beep time in a camera video from one beep found by ear), `conditions` (append a `session_conditions.csv` row per set log), `cut` (one muted clip per set with a random name, plus a separate `clip_key.csv`), `merge` (coach sheets keyed by `clip_id` back to the 10-column label CSV), `overlay` (short excerpts of `wrong_detections.csv` with `HLV: … / AI: …` burned in). `cut` and `overlay` need `ffmpeg` on PATH (`winget install Gyan.FFmpeg`). Checked by `test_clips.py`.
+- `p00_gate.py` — Checks the P00 trial logs (`--logs <dir>`): per set, rep count against `--target` (default 10; `--hold-target` 3 for hold exercises) ± `--tolerance` 1, sync beep present, fault codes all in `fault_catalog.csv`, fault cues with audio in `ai`. Lists exercises with no log yet. Exit code 1 while any exercise fails or is missing.
+- `HUONG_DAN_GAN_NHAN.md` — Vietnamese instruction sheet for the video-labelling coaches, all 24 exercises. Section 3 mirrors `fault_catalog.csv`; `test_catalog_eval.py` fails if they drift apart.
 - `coach_labels_template.csv` — Spreadsheet-friendly CSV template with example rows across `squat`, `push_up`, `glute_bridge`, and `plank`.
-- `cue_fault_map.csv` — Optional mapping from Vika voice cue keys (`key`) to canonical fault IDs (`fault`) when `cue` log events omit `"fault"`.
+- `cue_fault_map.csv` — Optional mapping from Vika voice cue keys (`key`) to canonical fault IDs (`fault`) when `cue` log events omit `"fault"`. Covers the 24 exercises.
 - `fixtures/` — Hand-written synthetic schema-1 logs and coach labels used for end-to-end testing.
 
 ---
@@ -42,6 +45,8 @@ python tools/eval/evaluate.py \
 - `--cue-map <csv>`: Optional CSV with columns `key,fault` (and optional `exercise_id`) used only when a `cue` event in a set log omits `"fault"`. Rows with `fault` set to `none` (or empty) explicitly mark non-fault cues (e.g. rep counts, setup prompts, praise).
 - `--tolerance-s <float>`: Time-matching tolerance in seconds when `video_t_s` and `sync_beep_t_ms` are present (default: `2.5`).
 - `--primary-coach <coach_id>`: Reference coach ID to prefer on sets double-labelled by two coaches when computing App-vs-Coach tables (default: the coach who labelled the most sets overall, tie-broken alphabetically).
+- `--catalog <csv|none>`: Fault catalog to measure against. Default: `fault_catalog.csv` next to `evaluate.py` (24 exercises). `none` keeps the built-in 4-exercise table the unit tests use.
+- `--conditions <csv>`: Optional `session_conditions.csv`: `participant_id, condition, exercise_id, set_index`, then one column per recording factor (`camera_angle`, `lux`, `clothing`, `body_type`, `device`, `location`, any others; `note` is ignored). Adds `fault_detection_by_condition.csv` and summary section 3.3. Labelled sets missing from the file are warned and left out of that table only. `clips.py conditions` writes the skeleton.
 - `--form-faults-only`: Optional flag that excludes non-form-affecting soft warnings on app `rep` events (faults emitted when `rep.correct == true` or `rep.data["fault_affects_form"][f] == false`). By default (`false`), `rep.faults` is evaluated verbatim per `session-log-schema.md`.
 
 ### Running the test suite
@@ -51,7 +56,26 @@ python -m unittest discover -s tools/eval -p "test_*.py" -v
 
 ---
 
+## Video workflow (`clips.py`)
+
+```bash
+python tools/eval/clips.py suggest --logs logs/P01 --video P01_camB.mp4 --anchor P01,ai,squat,1 --anchor-beep-s 42.6 --out beep_times.csv
+python tools/eval/clips.py cut --beeps beep_times.csv --video-dir videos --out-dir coach_clips --key private/clip_key.csv
+python tools/eval/clips.py merge --key private/clip_key.csv --sheets C1_sheet.csv C2_sheet.csv --out labels.csv
+python tools/eval/evaluate.py --logs logs --labels labels.csv --conditions session_conditions.csv --cue-map tools/eval/cue_fault_map.csv --out eval_out
+python tools/eval/clips.py overlay --wrong eval_out/wrong_detections.csv --key private/clip_key.csv --clips-dir coach_clips --out-dir wrong_clips
+```
+
+`suggest` uses the phone clock in the logs (`started_at_utc + sync_beep_t_ms`), so one beep found by ear per
+camera video places every other set of that session; check two or three by ear. `cut` only cuts sets not yet in
+the key, so it can run after each participant. Coach sheets list `clip_id` and `exercise_id` only; coaches add one
+row per rep and never see the participant or the condition. `clip_key.csv` must stay out of the coach folder
+(`cut` refuses otherwise). Because each clip starts at the beep, a coach's time from the start of the clip is the
+`video_t_s` that `evaluate.py` expects.
+
 ## Measured Exercises and Canonical Fault IDs
+
+The full 24-exercise list is `fault_catalog.csv`. The table below is the built-in fallback used with `--catalog none`.
 
 | `exercise_id` | Archetype | Canonical `fault` IDs (exact case) | Notes |
 |---|---|---|---|
@@ -88,7 +112,9 @@ coach_id,participant_id,condition,exercise_id,set_index,rep_n,video_t_s,counted,
 2. **Rep matching (time with order fallback):** Within each `(participant_id, condition, exercise_id, set_index)`, coach rows are first checked for ascending `rep_n` order (if a spreadsheet export scrambled row order, `rep_n_out_of_order` is warned and `rep_n` order is restored), and coach-valid reps and app `rep` events are matched in strictly increasing sequence order. When `sync_beep_t_ms` is non-null in the set log and `video_t_s` is present, app rep time is `app_rel_t_s = (t_ms - sync_beep_t_ms) / 1000.0` and pairs are chosen by dynamic programming to (a) maximize the number of matched pairs with `|video_t_s - app_rel_t_s| <= 2.5 s`, (b) minimize total absolute time difference `sum(|Δt|)` (computed in integer microseconds), and (c) break exact ties in favor of earlier rep indices `(i, j)`. When only a subset of coach rows carry `video_t_s`, untimed rows are constrained within the monotonic time window `[prev_timed - tol, next_timed + tol]` of their neighboring timed rows so an untimed row never pairs backwards across earlier timed rows; when `sync_beep_t_ms` is `null` or all `video_t_s` cells are blank, reps are paired 1-to-1 in sequential order.
 3. **Missed and phantom counts:** Every unmatched coach-valid rep (`counted = 1`) is a `missed` count (`coach_valid_reps = matched + missed`). Every unmatched app `rep` event is a `phantom` count (`app_reps = matched + phantom`). Neither is dropped.
 4. **Reference coach on multi-coach sets:** When two coaches label the same set, App-vs-Coach tables evaluate each physical set once against a single reference coach (`--primary-coach`, or by default the coach who labelled the largest number of sets overall, tie-broken alphabetically by `coach_id`) so physical sets and reps are never double-counted. All shared sets are evaluated pairwise in `coach_agreement.csv`.
-5. **Per-fault Precision, Recall, false-alarm rates, and 95% Wilson CIs:** Computed over `N = n_matched_reps` for each `(exercise_id, fault_id)` (plus `ANY_FAULT`, defined as having `>= 1` fault on the rep). `Precision = TP / (TP + FP)` over `n_app_positive = TP + FP` reps; `Recall = TP / (TP + FN)` over `n_coach_positive = TP + FN` reps; false-positive rate on coach-negative reps `FPR = FP / (FP + TN)` over `n_coach_negative = FP + TN` reps; false-alarm rate per matched rep = `FP / N`; and false-discovery rate `1 - Precision = FP / (TP + FP)`. Proportions are accompanied by two-sided 95% Wilson score confidence intervals (`z = 1.959964`) and surfaced both in Section 3.1 and in a dedicated Section 7.4 false-alarm summary in `summary.md`.
+5. **Unjudged reps:** an app `rep` with `data.form_judged == false` (the user tapped "Bỏ qua cảnh báo", so the app counted without judging) stays in counting accuracy but is left out of every fault metric (5, 6, wrong detections, app-label cue correction). `fault_detection.csv` reports how many per exercise in `n_unjudged_reps`.
+   **Participant bootstrap:** `precision_boot95_*` and `recall_boot95_*` resample participants with replacement (2000 times, seed 20261124) and take the 2.5 and 97.5 percentiles, because reps of one person are not independent. Empty with fewer than 2 participants.
+   **Per-fault Precision, Recall, false-alarm rates, and 95% Wilson CIs:** Computed over `N = n_matched_reps` for each `(exercise_id, fault_id)` (plus `ANY_FAULT`, defined as having `>= 1` fault on the rep). `Precision = TP / (TP + FP)` over `n_app_positive = TP + FP` reps; `Recall = TP / (TP + FN)` over `n_coach_positive = TP + FN` reps; false-positive rate on coach-negative reps `FPR = FP / (FP + TN)` over `n_coach_negative = FP + TN` reps; false-alarm rate per matched rep = `FP / N`; and false-discovery rate `1 - Precision = FP / (TP + FP)`. Proportions are accompanied by two-sided 95% Wilson score confidence intervals (`z = 1.959964`) and surfaced both in Section 3.1 and in a dedicated Section 7.4 false-alarm summary in `summary.md`.
 6. **Per-exercise confusion matrix:** Over `n_matched_reps` for an exercise, each matched rep is assigned to exactly one row (the coach's sorted `;`-joined fault set, or `clean` if empty) and one column (the app's sorted `;`-joined fault set, or `clean` if empty). Rows and columns always include `clean` plus every canonical single fault ID of that exercise, plus any multi-fault combination observed at least once, so cell counts are exact integers summing strictly to `n_matched_reps`.
 7. **Inter-coach agreement and Cohen's kappa (`κ`):** On sets labelled by both `coach_a` and `coach_b`, each coach's `counted = 1` reps are aligned with the same time-then-order matcher (`±2.5 s`); when both coaches omit `video_t_s` on a set and enumerate the same attempt sequence `rep_n`, alignment preserves shared `rep_n` attempts where both coaches marked `counted = 1` so a `counted` disagreement on one attempt does not shift later reps. For each fault over `N` matched valid reps, observed agreement is `p_o = (a + d) / N`, chance agreement is `p_e = ((a+b)/N)*((a+c)/N) + ((c+d)/N)*((b+d)/N)`, and `κ = (p_o - p_e) / (1 - p_e)` (computed via exact integer numerators/denominators). When `1 - p_e == 0` (zero variance / 0% or 100% prevalence in both raters), `p_o = 1.0` and `κ` is reported as undefined (`undefined_degenerate_marginals`).
 8. **Unseen time and reason breakdown:** Headline unseen fraction per exercise and overall is `sum(summary.unseen_ms) / sum(summary.active_ms)` across valid set logs (if a malformed log reports `unseen_ms > active_ms`, it is warned and clamped to `active_ms`). Event-level reason durations sum `unseen_start .. unseen_end` intervals by `(phase, reason)`; for `phase = "active"`, any overlap with `pause_start .. pause_end` is subtracted, and any trailing unclosed `unseen_start` is closed at `set_complete.t_ms` (or `frames.duration_ms` / last event `t_ms` if the user quit).
@@ -107,7 +133,8 @@ coach_id,participant_id,condition,exercise_id,set_index,rep_n,video_t_s,counted,
 | `validation_issues.csv` | Every recoverable input warning/error with `file`, `line`, `code`, Vietnamese message, and English message. |
 | `rep_matching.csv` | Every `matched`, `missed`, and `phantom` rep across paired sets with timestamps and fault sets. |
 | `counting_accuracy.csv` | Per-exercise and overall `coach_valid_reps`, `coach_uncounted_attempts`, `app_reps`, `matched`, `missed`, `phantom`. |
-| `fault_detection.csv` | Per-exercise and per-fault (`+ ANY_FAULT`) `TP, FP, FN, TN`, Precision + 95% Wilson CI, Recall + 95% Wilson CI, `false_positive_rate` + 95% Wilson CI, `fp_per_matched_rep`, and sample counts. |
+| `fault_detection.csv` | Per-exercise and per-fault (`+ ANY_FAULT`) `TP, FP, FN, TN`, Precision + 95% Wilson CI, Recall + 95% Wilson CI, `false_positive_rate` + 95% Wilson CI, `fp_per_matched_rep`, and sample counts, plus `n_participants`, `n_unjudged_reps`, and participant-bootstrap 95% intervals for Precision and Recall. |
+| `fault_detection_by_condition.csv` | Only with `--conditions`: the same counts, Precision and Recall with Wilson CIs, per `(factor, level, exercise_id, fault_id)`. |
 | `confusion_matrices.csv` | Tidy per-exercise confusion matrix cells (`exercise_id, n_matched_reps, coach_label, app_label, count`). Rendered as 2D grids in `summary.md`. |
 | `wrong_detections.csv` | Clip-finder index of every matched rep where coach and app fault sets disagree (`participant_id`, `set_index`, `coach_rep_n`, `app_rep_n`, `video_t_s`, `app_rel_t_s`, `log_file`, `false_positives`, `false_negatives`). |
 | `coach_agreement.csv` | Pairwise coach agreement (`percent_agreement`, `cohen_kappa`, contingency counts, sample sizes) per exercise and fault. |

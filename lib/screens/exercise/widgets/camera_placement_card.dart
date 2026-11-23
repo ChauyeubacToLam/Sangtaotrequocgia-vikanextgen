@@ -87,6 +87,10 @@ class ExercisePlacementSpec {
 }
 
 const String kOnePlacementWhere = 'Máy ngang · cao 60–70 cm · cách ~3 m';
+const String kGeneralSafetyReminder =
+    'Dọn chỗ trống khoảng 2 × 2 m, sàn không trơn. Dừng ngay nếu đau nhói, '
+    'chóng mặt hoặc khó thở. Đang điều trị bệnh tim hay chấn thương thì hỏi '
+    'bác sĩ trước khi tập.';
 const String kJumpPlacementWhere =
     'Máy ngang · cao 60–70 cm · lùi ~3,5 m, chừa chỗ trên đầu';
 
@@ -439,6 +443,13 @@ class CameraPlacementCard extends StatelessWidget {
               ink: Tk.redInk,
             ),
           ],
+          const SizedBox(height: 12),
+          _Note(
+            icon: Icons.health_and_safety_rounded,
+            text: kGeneralSafetyReminder,
+            color: Tk.orangeSoft,
+            ink: Tk.orangeInk,
+          ),
         ],
       ),
     );

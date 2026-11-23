@@ -322,6 +322,32 @@ abstract class ExerciseBase {
   GuidanceSignal? guidanceSignal;
   int? _guidanceGraceStartedAtMs;
 
+  static const Set<GuidanceClass> kSkippableGuidance = <GuidanceClass>{
+    GuidanceClass.turnSide,
+    GuidanceClass.faceCamera,
+    GuidanceClass.lighting,
+  };
+  final Set<GuidanceClass> _skippedGuidance = <GuidanceClass>{};
+  GuidanceClass? _formJudgingSuspendedBy;
+  Set<String> mutedFaultTypes = <String>{};
+
+  GuidanceClass? get formJudgingSuspendedBy => _formJudgingSuspendedBy;
+  bool get isFormJudgingSuspended => _formJudgingSuspendedBy != null;
+
+  bool skipGuidance(GuidanceClass kind) {
+    if (!kSkippableGuidance.contains(kind)) return false;
+    return _skippedGuidance.add(kind);
+  }
+
+  List<FaultRecord> get judgedLiveFaults =>
+      isFormJudgingSuspended ? const <FaultRecord>[] : liveFaults;
+
+  List<FaultRecord> get cueableLiveFaults {
+    final faults = judgedLiveFaults;
+    if (mutedFaultTypes.isEmpty) return faults;
+    return faults.where((f) => !mutedFaultTypes.contains(f.type)).toList();
+  }
+
   ExerciseState exerciseState = ExerciseState.notActivated;
   CameraFacing cameraFacing = CameraFacing.front;
   DebugMode debugMode = DebugMode.off;
@@ -505,6 +531,7 @@ abstract class ExerciseBase {
 
     resultIssues.feedback.clear();
     clearGuidanceSignal();
+    _formJudgingSuspendedBy = null;
 
     final smoothedLandmarks = poseSmoother.smoothing(landmarks);
 
@@ -549,10 +576,28 @@ abstract class ExerciseBase {
     // Safety check (subclass logic)
     final safetySignal = checkSafety(smoothedLandmarks);
     if (safetySignal != null) {
-      publishGuidanceSignal(safetySignal);
-      return [repCount, resultIssues.feedback];
+      if (!_skippedGuidance.contains(safetySignal.kind)) {
+        publishGuidanceSignal(safetySignal);
+        return [repCount, resultIssues.feedback];
+      }
+      _formJudgingSuspendedBy = safetySignal.kind;
+      if (exerciseState == ExerciseState.activated) {
+        logger.markFormUnjudged();
+      }
+      try {
+        return _runExercisePipeline(smoothedLandmarks);
+      } catch (_) {
+        resultIssues.feedback.clear();
+        return [repCount, resultIssues.feedback];
+      }
     }
 
+    return _runExercisePipeline(smoothedLandmarks);
+  }
+
+  List<dynamic>? _runExercisePipeline(
+    Map<PoseLandmarkType, PoseLandmark> smoothedLandmarks,
+  ) {
     // Calibrate scale factor (shoulder-to-hip distance). Must stay here, before
     // checkExerciseState, so isInStartPosition reads a fresh value on this frame
     // (glute_bridge's start check consumes scaleFactor — moving this write after
@@ -563,6 +608,7 @@ abstract class ExerciseBase {
 
     if (exerciseState == ExerciseState.activated) {
       checkingPose(smoothedLandmarks);
+      if (isFormJudgingSuspended) resultIssues.feedback.clear();
       if (exerciseState == ExerciseState.activated && requestStop()) {
         exerciseState = ExerciseState.completed;
         onSetComplete();
@@ -586,6 +632,7 @@ abstract class ExerciseBase {
     _ensureGuidanceSignalGraceStarted();
     resultIssues.feedback.clear();
     clearGuidanceSignal();
+    _formJudgingSuspendedBy = null;
 
     final verdict = _gate.onNoPose(now: frameTimestamp, phase: _gatePhase);
     if (verdict.personLostNow) _holdStillStartedAt = null;

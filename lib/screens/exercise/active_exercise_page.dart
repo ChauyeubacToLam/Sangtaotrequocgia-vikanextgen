@@ -129,6 +129,10 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
   int _cleanRepCount = 0; // cumulative clean reps this set (drives pool level)
   int _rewardPulseId = 0; // bumps once per clean rep (fires a bloom)
 
+  static const Duration _skipOfferDelay = Duration(seconds: 5);
+  GuidanceClass? _skipOfferKind;
+  DateTime? _skipOfferSince;
+
   // Last non-null accrued hold seconds. The hold hero ring keeps showing the
   // frozen count when the exercise momentarily reports null (user dropped out
   // of the hold pose) instead of snapping back to zero.
@@ -1616,7 +1620,9 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
 
   bool _repWasClean(List<RepLog> logs, int repNumber) {
     for (final log in logs) {
-      if (log.repNumber == repNumber) return log.correctForm;
+      if (log.repNumber == repNumber) {
+        return log.correctForm && ExerciseLogger.isFormJudged(log);
+      }
     }
     // A counted rep without a matching log shouldn't happen; stay silent rather
     // than risk rewarding a rep we can't confirm was clean.
@@ -1927,6 +1933,16 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
             ExerciseState.activated &&
         guidanceCopy != null &&
         !(isReArming && guidanceSignal?.kind == GuidanceClass.setupPosition);
+    final showSkipOffer = _updateSkipOffer(guidanceSignal);
+    final formJudgingSuspended = widget.exercise.isFormJudgingSuspended &&
+        widget.exercise.exerciseState == ExerciseState.activated;
+    final safetyNotice = widget.exercise.isPaused
+        ? null
+        : formJudgingSuspended && guidanceCopy == null
+            ? 'Đang chỉ đếm, không chấm tư thế. Tập chậm và giữ an toàn.'
+            : (showNotJudgingLine || showSkipOffer)
+                ? 'Tập chậm và giữ an toàn trong lúc AI chưa chấm.'
+                : null;
     final activeState =
         widget.exercise.exerciseState == ExerciseState.activated &&
             !widget.exercise.isPaused;
@@ -2234,6 +2250,20 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
                       landscape: isLandscape,
                     ),
                   ),
+                ),
+              ),
+            ),
+
+          if (safetyNotice != null && !showDebugPanel)
+            Positioned(
+              left: isLandscape ? landscapeLeftSafeInset + 16 : 16,
+              right: isLandscape ? landscapeRightSafeInset + 16 : 16,
+              top: isLandscape ? null : media.padding.top + 64,
+              bottom: isLandscape ? media.padding.bottom + 14 : null,
+              child: Center(
+                child: _SafetyNotice(
+                  message: safetyNotice,
+                  onSkip: showSkipOffer ? _skipCurrentGuidance : null,
                 ),
               ),
             ),
@@ -2699,6 +2729,34 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
     return _LiveOverlayState.position;
   }
 
+  bool _updateSkipOffer(GuidanceSignal? signal) {
+    final kind = signal?.kind;
+    if (kind == null ||
+        widget.exercise.isPaused ||
+        !ExerciseBase.kSkippableGuidance.contains(kind)) {
+      _skipOfferKind = null;
+      _skipOfferSince = null;
+      return false;
+    }
+    final now = DateTime.now();
+    if (kind != _skipOfferKind) {
+      _skipOfferKind = kind;
+      _skipOfferSince = now;
+    }
+    return now.difference(_skipOfferSince!) >= _skipOfferDelay;
+  }
+
+  void _skipCurrentGuidance() {
+    final kind = _skipOfferKind;
+    if (kind == null) return;
+    if (widget.exercise.skipGuidance(kind)) {
+      widget.setRecorder?.recordGuidanceSkipped(kind);
+    }
+    _skipOfferKind = null;
+    _skipOfferSince = null;
+    setState(() {});
+  }
+
   GuidanceSignal? get _effectiveGuidanceSignal {
     final signal = widget.exercise.guidanceSignal;
     if (signal != null &&
@@ -3044,6 +3102,67 @@ enum _PoseRuntime {
 }
 
 enum _LiveOverlayState { scan, warn, position, hold, paused, active }
+
+class _SafetyNotice extends StatelessWidget {
+  const _SafetyNotice({required this.message, this.onSkip});
+
+  final String message;
+  final VoidCallback? onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color.fromRGBO(15, 11, 9, 0.78),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.health_and_safety_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              if (onSkip != null) ...[
+                const SizedBox(width: 10),
+                TextButton(
+                  onPressed: onSkip,
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1F1A17),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Bỏ qua cảnh báo',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _GuidanceCopy {
   const _GuidanceCopy({

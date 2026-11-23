@@ -111,6 +111,7 @@ one frame carry the same `t_ms`. Events are in non-decreasing `t_ms` order.
 | `pause_start` / `pause_end` | none | The exercise's paused state turns on or off. |
 | `phase` | `from`, `to`, `m`, `fb` | While activated and not paused, the exercise's `currentPhaseKey` changes (`from` is null on the first one). `m` is a snapshot of the exercise's `debugData` on that frame, primitives only: numbers rounded to 2 decimals, booleans, and strings up to 24 characters. `fb` is the frame's feedback map (Vietnamese strings, e.g. `Result`/`Error` when an attempt is not counted). Added 2026-11-21 to diagnose rep counting from device tests. |
 | `set_complete` | none | The set ended. Always the last event of a set that finished; absent if the user quit. |
+| `guidance_skipped` | `reason` | The user tapped "Bỏ qua cảnh báo" on a `turnSide`, `faceCamera` or `lighting` prompt (offered after it has shown for 5 s). From then until the set ends, frames where that prompt would fire keep counting reps but do not judge form: they still produce `unseen_start` with that `reason`, `liveFaults` read as empty, and a rep landing after such a frame has `data.form_judged = false`, `faults = []`, `correct = true`. Added 2026-11-23. Readers computing precision/recall must drop reps with `form_judged == false`. |
 
 A reader must ignore event types and fields it does not know.
 

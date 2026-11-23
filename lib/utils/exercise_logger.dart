@@ -20,7 +20,29 @@ class ExerciseLogger {
 
   // --- Per-rep ---
 
-  void addRepLog(RepLog repLog) => _repLogs.add(repLog);
+  bool _unjudgedSinceLastRep = false;
+
+  void markFormUnjudged() => _unjudgedSinceLastRep = true;
+
+  void addRepLog(RepLog repLog) {
+    if (!_unjudgedSinceLastRep) {
+      _repLogs.add(repLog);
+      return;
+    }
+    _unjudgedSinceLastRep = false;
+    _repLogs.add(RepLog(
+      repNumber: repLog.repNumber,
+      correctForm: true,
+      data: <String, dynamic>{
+        ...repLog.data,
+        'fault_types': const <String>[],
+        'form_judged': false,
+      },
+    ));
+  }
+
+  static bool isFormJudged(RepLog repLog) =>
+      repLog.data['form_judged'] != false;
 
   int get repLogCount => _repLogs.length;
 
@@ -61,6 +83,7 @@ class ExerciseLogger {
   void clear() {
     _repLogs.clear();
     _setLog.clear();
+    _unjudgedSinceLastRep = false;
   }
 
   // --- Internal ---

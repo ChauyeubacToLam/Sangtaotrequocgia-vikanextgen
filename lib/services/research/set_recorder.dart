@@ -119,6 +119,15 @@ class SetRecorder {
       ? null
       : (1 - _unseenMs / _activeMs).clamp(0.0, 1.0).toDouble();
 
+  void recordGuidanceSkipped(GuidanceClass kind) {
+    if (_completed) return;
+    _events.add(<String, Object?>{
+      't_ms': _currentTMs,
+      'type': 'guidance_skipped',
+      'reason': kind.name,
+    });
+  }
+
   void setOnFirstActivationBeep(void Function()? callback) {
     _onFirstActivationBeep = callback;
   }
@@ -128,14 +137,16 @@ class SetRecorder {
   void onFrame(ExerciseBase exercise, {required bool hasPose}) {
     final paused = exercise.isPaused;
     final state = exercise.exerciseState;
+    final suspendedBy = exercise.formJudgingSuspendedBy;
     onState(
       frameTimestampMs: exercise.frameTimestampMs,
       hasPose: hasPose,
       exerciseState: state,
-      guidanceSignal: exercise.guidanceSignal,
+      guidanceSignal: exercise.guidanceSignal ??
+          (suspendedBy == null ? null : GuidanceSignal(suspendedBy)),
       isPaused: paused,
       liveFaults: (!paused && state == ExerciseState.activated)
-          ? exercise.liveFaults
+          ? exercise.judgedLiveFaults
           : const <FaultRecord>[],
       logger: exercise.logger,
       repCount: exercise.repCount,
