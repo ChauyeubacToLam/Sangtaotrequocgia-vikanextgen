@@ -46,6 +46,7 @@ dependencies:
   mobile_scanner: ^7.5.0
   speech_to_text: ^7.4.0
   google_mlkit_text_recognition: ^0.15.1
+  sensors_plus: ^7.1.1
 
 dev_dependencies:
   flutter_test:
@@ -67,6 +68,7 @@ flutter:
     enable-swift-package-manager: false
   uses-material-design: true
   assets:
+    - assets/pose_guide/
     - assets/data/exercise_catalog.json
     - assets/data/vn_nutrition.json
     - assets/food/

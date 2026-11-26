@@ -2,11 +2,6 @@ import '../models/post_exercise_data.dart';
 import '../models/exercise_lookup.dart';
 import '../utils/exercise_logger.dart';
 
-/// Base contract for exercise-specific calorie estimation.
-///
-/// Keep estimators conservative: these numbers are UI estimates, not lab-grade
-/// measurements. The generic fallback uses MET, while exercise-specific
-/// implementations can adjust that baseline with movement-specific signals.
 abstract class ExerciseCalorieEstimator {
   const ExerciseCalorieEstimator();
 
@@ -31,17 +26,11 @@ class GenericMetCalorieEstimator extends ExerciseCalorieEstimator {
     final hours = totalDuration.inSeconds <= 0
         ? 0.0
         : totalDuration.inSeconds / Duration.secondsPerHour;
-    return (report.metValue * userWeightKg * hours * 1.05).round();
+    final netMet = report.metValue > 1 ? report.metValue - 1 : 0.0;
+    return (netMet * userWeightKg * hours).round();
   }
 }
 
-/// Squat-specific estimator:
-/// 1. Start from the generic MET estimate for total metabolic cost.
-/// 2. Estimate per-rep displacement from measured squat depth.
-/// 3. Scale the MET baseline modestly up/down based on actual depth.
-///
-/// This keeps the estimate stable while still rewarding deeper squats more than
-/// shallow reps. It is intentionally conservative.
 class SquatDepthCalorieEstimator extends ExerciseCalorieEstimator {
   const SquatDepthCalorieEstimator();
 
@@ -92,16 +81,9 @@ class SquatDepthCalorieEstimator extends ExerciseCalorieEstimator {
   }
 }
 
-/// Register a custom estimator per exercise id.
-///
-/// When adding a new exercise:
-/// 1. Create `FooCalorieEstimator extends ExerciseCalorieEstimator`
-/// 2. Add an entry here with the exercise id
-/// 3. The UI will automatically use it in the executive summary
 final Map<String, ExerciseCalorieEstimator> calorieEstimators = {
   'squat': const SquatDepthCalorieEstimator(),
   'squat_assessment': const SquatDepthCalorieEstimator(),
-  // 'plank': const PlankCalorieEstimator(),
 };
 
 ExerciseCalorieEstimator? resolveCalorieEstimator(String exerciseId) {

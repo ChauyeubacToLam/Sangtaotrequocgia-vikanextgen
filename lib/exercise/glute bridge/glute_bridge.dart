@@ -694,7 +694,6 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
     // Let KneeAngleMetric evaluate foot placement at top hold.
     kneeAngleMetric.checkRepCompletion(_peakKneeAngle);
 
-    // Evaluate speed control (eccentric vs concentric ratio).
     speedControlMetric.checkRepCompletion(timestampMs);
 
     // Collect faults from all metrics.

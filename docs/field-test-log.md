@@ -854,8 +854,9 @@ Log `20261123T2132–2148Z-P00`. Chưa thử lại trên máy.
 ### 5.30 Sổ sự cố đợt đo: tình trạng số liệu P01–P06 (24/11, đợt đo dừng ở P06)
 
 - Danh sách người tập, vai trò và điều kiện nằm ngoài repo (`D:\VikaStudy\participants.csv`, có họ tên thật).
-- Chỉ P04 có hiệp `control`. P04 tập xen kẽ `control`/`ai` theo từng bài và có P03 đứng hướng dẫn, chấm trong buổi,
-  nên không phải đối chứng sạch (nghiêng về điều kiện "có HLV").
+- Chỉ P04 có hiệp `control`. P04 tập xen kẽ `control`/`ai` theo từng bài. Ghi chú cũ nói P03 đứng hướng dẫn P04;
+  ngày 26/11 chủ dự án xác nhận P04 không có ai hướng dẫn, và P03 thực ra là Nguyễn Việt Khánh (trước ghi nhầm tên
+  người rà soát C1).
 - P05: một người trong nhóm phát triển (P00) cùng tập trong một số hiệp mang mã P05. Chưa tách được hiệp nào của ai.
   Theo quyết định của chủ dự án (25/11), P05 vẫn được đưa vào bảng số liệu; báo cáo phải ghi rõ điều này.
 - Làm sạch (25/11): giữ 39/70 hiệp. Loại hiệp 0 rep, hiệp để app chạy không (người ngoài khung > 50% thời gian), các
@@ -907,6 +908,122 @@ nghỉ; sai tư thế giữa lượt thì đồng hồ đếm lại từ 0.
 - Test: dừng rồi đếm tiếp (8,0 s → dừng 4 s → đủ 15 s ở đúng 15,0 s giữ thật), thời gian sai tư thế không tính,
   danh mục 3 × 1 × 20 s ra 1 lượt 20 s mỗi hiệp, kế hoạch 25 s ra 1 lượt 25 s. Sửa 5 test cũ đang khẳng định
   hành vi về 0. 874 Flutter test qua (14 bỏ qua), analyze sạch các file đã sửa. Chưa thử trên máy, chưa build APK.
+
+### 5.32 Cầu mông: `speed_control` bắt gần như mọi rep (theo nhận xét chuyên gia, 26/11, sửa sau khi đã đóng băng build)
+
+- Hiện tượng: ở đợt đo 24/11, `speed_control` (cảnh báo nhẹ) bật ở 64 rep cầu mông; C1 và C3 chỉ đồng ý 29
+  (precision 45,3%). Cả hai nhận xét: bài chỉ cần hạ có kiểm soát, không cần chậm như ngưỡng hiện tại.
+- Nguyên nhân (tính từ sự kiện `phase` của 7 hiệp trong `logs_sach`): luật tỉ lệ đòi thời gian hạ ≥ 1,3 lần
+  thời gian nâng. Tỉ lệ thực đo 0,47–1,45, trung vị khoảng 0,85; 58/61 rep dưới 1,3, kể cả rep của P03, P04,
+  P06 mà chuyên gia nói không lỗi. Thời gian hạ 0,24–1,16 s.
+- Sửa (`metrics/glute_bridge_speed_control.dart`): bỏ luật tỉ lệ 1,3 cùng phần đo thời gian nâng. Còn lại:
+  cảnh báo nhẹ khi vận tốc hạ hông ≥ 0,08 chiều dài thân/khung liên tục 5 khung; lỗi tính form khi đỉnh vận
+  tốc ≥ 0,15. Bỏ comment trong file đã sửa.
+- Không tách được bằng số liệu: P01 hạ 0,52–1,16 s (chậm hơn) nhưng chuyên gia đồng ý lỗi, P04 hạ 0,24–0,47 s
+  nhưng chuyên gia không đồng ý. Log không ghi vận tốc từng khung nên chưa biết bao nhiêu rep còn bị cảnh báo
+  nhẹ sau khi bỏ luật tỉ lệ.
+- Test: sửa test cũ thành "hạ nhanh bằng lúc nâng thì không lỗi", bỏ test câu "1,3 lần". 82 test cầu mông và
+  giọng nói qua, analyze sạch. Chưa thử trên máy; số liệu trong báo cáo vẫn theo bản 24/11.
+
+### 5.33 Cầu mông: `knee_angle` báo "đặt chân sát" khi chân đã đúng (26/11, sửa sau khi đã đóng băng build)
+
+- Hiện tượng: chủ dự án xem video thấy bàn chân đặt đúng nhưng app vẫn báo `knee_angle` (cảnh báo nhẹ, "Di chân
+  ra xa hông thêm").
+- Số liệu (`peak_knee_angle` lúc hông cao nhất, 7 hiệp `logs_sach`): lỗi bật khi góc hông–gối–cổ chân < 85°.
+  Rep bị báo 61–84°, rep không bị báo 85–133°. Nhiều rep bị báo ở 81–84°, chỉ lệch 1–4° so với rep đạt 85–87°
+  của cùng người (P03: 82, 84 bị báo; 85, 86, 87 không); gót ngay dưới gối cho khoảng 90°.
+- Sửa (`metrics/glute_bridge_knee_angle.dart`): `GOOD_MIN` 85° → 80°. Với số liệu 24/11, 8 lần báo ở 80–84° hết
+  báo; còn báo các rep 71–79° (P01) và 61° (P03). Bỏ comment trong file đã sửa.
+- Lưu ý: C1 và C3 đã đồng ý cả 27 lần báo `knee_angle` trong phiếu rà soát; nới ngưỡng là quyết định của nhóm
+  (sai số điểm khớp vài độ), không phải theo nhận xét chuyên gia.
+- Test: sửa test ghim ngưỡng 85 → 80. 101 test cầu mông, giọng nói, `set_recorder` qua; analyze sạch. Chưa thử
+  trên máy; số liệu trong báo cáo vẫn theo bản 24/11.
+
+### 5.34 Calo buổi tập cộng trùng năng lượng nghỉ; câu "nên ăn tối đa" dễ hiểu nhầm (26/11)
+
+- Hiện tượng: thẻ bữa ăn ghi "đã đốt 236 kcal… bữa này nên ăn tối đa khoảng 1039 kcal"; chủ dự án hỏi có đúng
+  khoa học không. 1039 = 2410/3 (một bữa bình thường) + 236 (calo buổi tập), là mức trần, không phải mức cần ăn.
+- Nguyên nhân: `GenericMetCalorieEstimator` tính MET × kg × giờ × 1,05, tức gồm cả 1 MET năng lượng nghỉ. Mức
+  duy trì (BMR × 1,4) đã gồm năng lượng nghỉ của cả ngày, nên cộng số này vào ngân sách ăn là cộng trùng.
+- Sửa: `calorie_estimator_registry.dart` tính phần vượt mức nghỉ (MET − 1) × kg × giờ, bỏ hệ số 1,05 (Compendium,
+  Ainsworth 2011). Squat vẫn nhân hệ số độ sâu trên số này. `post_workout_card.dart`: "Bữa này không nên vượt quá
+  khoảng … kcal". Thẻ giới thiệu bài cầu mông: "Hạ hông: có kiểm soát" thay cho "≥ 1,3× nhịp nâng" (theo 5.32;
+  lần sửa 5.32 làm vỡ biên dịch màn này vì còn tham chiếu hằng số đã xóa, phát hiện khi chạy test toàn bộ).
+- Test: `test/exercise/calorie_estimator_test.dart` mới (30 phút, MET 5, 60 kg ra 120 kcal; MET ≤ 1 ra 0). Toàn
+  bộ 875 test qua (14 bỏ qua), analyze sạch (còn 1 info có từ trước).
+
+### 5.35 Squat: ra khỏi khung rồi vào lại, tập 2-3 rep không được đếm (thử điều kiện môi trường, 26/11)
+
+- Hiện tượng (log `20261126T105242Z-P06`, 17:52): rep 1 xuống lúc 100,1 s, lên lúc 100,8 s, nhưng tới 150,2 s
+  mới được tính. Trong 49 s đó người tập ra khỏi khung, vào lại và tập thêm 2-3 rep; app chỉ phát "Ngả người ra
+  sau" (`trunk`) và không đếm.
+- Nguyên nhân: `squat.dart` chỉ chuyển `ascending -> standing` (chốt rep) khi góc gối **lớn hơn** góc lúc bắt đầu
+  (`_baselineKneeAngle`, ở hiệp này 173,7°). Góc lúc bắt đầu lại được nâng dần khi đứng chờ, có hiệp lên tới
+  178,05°. Đứng thẳng thật thường chỉ 171-174°, nên rep kẹt ở pha "đứng lên" và các rep sau không được đếm. Các
+  hiệp khác qua được chỉ vì người tập đứng thẳng hơn góc bắt đầu 0,5-3°.
+- Sửa: chốt rep khi góc gối ≥ max(155°, góc bắt đầu − 8°) (`STAND_RETURN_TOLERANCE`, getter
+  `standingReturnAngle`). Pha "xuống" vẫn cần giảm 28° so với góc bắt đầu, nên không lẫn với pha đứng.
+- Test mới trong `squat_rep_peak_tracking_test.dart`: góc bắt đầu 177°, đứng lên 171° thì vẫn chốt rep. Đặt dung
+  sai về như code cũ thì test trượt.
+- Ghi nhận cùng đợt thử: không hiệp nào có sự kiện `pause_start`, tức cổng hiện diện không tự tạm dừng khi bước
+  ra; app chặn bằng `bodyInFrame` (68,4 s ở hiệp 17:52). Không có rep nào được đếm trong lúc bị chặn.
+
+### 5.36 Khung tư thế mẫu: không hiện ảnh trên Android, biển hướng dẫn lệch khỏi khung (26/11)
+
+- Hiện tượng: trên iPhone khung vàng có ảnh người mẫu mờ bên trong; trên Android chỉ có góc khung và đường sàn,
+  biển "Chỉnh khung hình" (hình người hồng) nằm lệch sang phải so với khung.
+- Nguyên nhân: `pose_guide_view.dart` kiểm tra danh sách ảnh bằng
+  `AssetManifest.loadFromAssetBundle(...).then(...).catchError(...)`. Khi danh sách đã được nạp sẵn (màn khác đã
+  đọc), `rootBundle` trả `SynchronousFuture`, và `SynchronousFuture.catchError` trả một Future không bao giờ hoàn
+  tất, nên ảnh chờ mãi. Đã tái hiện trong test: chuỗi cũ hết 8 s không xong, nạp và giải mã ảnh riêng thì xong
+  ngay. Biển hướng dẫn căn giữa trong vùng đã chừa lề trái 212 px cho danh sách kiểm tra, còn khung căn giữa màn
+  hình, nên lệch.
+- Sửa: đọc danh sách bằng `async`/`try`; cắt đúng đoạn byte của ảnh (`offsetInBytes`, `lengthInBytes`); vẽ ảnh
+  mẫu mờ 50% thay cho bóng trắng 12%; khi khung tư thế mẫu đang hiện, biển hướng dẫn chuyển sang dạng nhãn nhỏ
+  ở cạnh phải, không còn biểu tượng lớn đè lên khung. Test mới `test/screens/pose_guide_image_test.dart` (nạp
+  trước danh sách rồi tải đủ 21 ảnh, mỗi ảnh tối đa 10 s).
+
+### 5.37 Chấm đỏ ở tab Hồ sơ khi thiếu cân nặng hoặc chiều cao (26/11, tính năng mới)
+
+- `bottom_nav.dart` thêm `badgeIndex`; `main_shell.dart` bật chấm đỏ ở tab Hồ sơ khi hồ sơ chưa có cân nặng hoặc
+  chiều cao (cả hai đều cần để tính năng lượng). Điền xong thì chấm tắt qua `onProfileChanged`.
+- Test mới `test/widgets/profile_badge_test.dart`. Toàn bộ 885 test qua (14 bỏ qua), analyze sạch.
+
+### 5.38 Thử nghiệm chủ động Yêu cầu 2 (26/11, S20 Ultra, đối chiếu quay màn hình với nhật ký)
+
+- Bước ra khỏi khung, Squat 17:41, 17:46, 17:49: 5 lần ra 3-7 s. App hiện "Chỉnh khung hình" (`bodyInFrame`),
+  không đếm rep khi người ở ngoài. Không lần nào có `pause_start`: PresenceGate không tự tạm dừng, nên quay lại
+  không phải giữ tư thế 3 s.
+- Tắt đèn, Squat 17:56, 17:57: 4 lần tắt đèn. Khung xương chập chờn, `bodyInFrame` liên tục, không đếm rep lúc tối;
+  hai hiệp đủ 8 và 10 rep (gối 58-77°). Chưa thử ngược sáng.
+- Plank 18:00, máy dựng dọc 2 lần: "Xoay ngang máy" (`phoneLandscape` 6,6 s), đồng hồ đứng; xoay lại thì chạy tiếp.
+- Người thứ hai vào khung, Squat 18:02, 18:04: không đếm rep khi bị che. Che chân bằng vật không làm vì MediaPipe
+  vẫn đoán được chân.
+- Lỗi chưa sửa: 2 rep đếm thừa lúc người tập đi bộ về chỗ, không squat (17:41 rep 4: gối 108°, xuống 0,19 s, 1,2 s
+  sau khi vào lại; 18:02 rep 4: gối 126°). Cả hai bị chấm sai kỹ thuật. Hướng sửa: `bodyInFrame` kéo dài sau khi
+  kích hoạt thì đưa bài về `notActivated` để bắt giữ lại tư thế bắt đầu.
+- Đã đưa vào báo cáo: Bảng 9, Hình 9, Hình 5 (Plank 18:05: hông cao, `trunkDev` -15,3°, đồng hồ dừng ở 9,6 s).
+
+### 5.39 Rep đếm thừa khi người tập đi bộ về chỗ (26/11, sửa lỗi ở 5.38)
+
+- `exercise_base.dart`: bài đang chạy mà `bodyInFrame` hoặc không có khung xương liên tục từ 1 s (`kOutOfFrameReholdMs`)
+  thì về `notActivated` qua `_beginPauseReactivationIfNeeded`: giữ số rep, bắt giữ lại tư thế bắt đầu 3 s. Chập chờn
+  ngắn hơn 1 s (lúc tắt đèn) không bị bắt giữ lại.
+- `squat.dart`: ghi vị trí cổ chân lúc bắt đầu xuống; khi đứng lên mà cổ chân đã dịch quá 0,4 lần đoạn vai-hông
+  (`MAX_FOOT_SHIFT`) thì không tính rep, không ghi lỗi. Thêm `onPauseReactivationStarted` đưa pha về đứng và xoá
+  bộ đệm để rep dở dang trước lúc rời khung không bị chốt sau khi quay lại.
+- Test: 3 test mới trong `resume_rehold_regression_test.dart`, 2 test mới trong `squat_rep_peak_tracking_test.dart`.
+  Test đi bộ trượt khi đặt ngưỡng 100, qua với 0,4. Chưa đo lại trên người.
+
+### 5.40 Màn đặt máy: nút "Xem tư thế mẫu" và biển hướng dẫn đè lên khung vàng (26/11)
+
+- Hiện tượng: Plank thấp có biển "Chỉnh khung hình" đè mép phải khung vàng và đầu ảnh mẫu; Squat có nút
+  "Xem tư thế mẫu" đè đầu ảnh mẫu. Khung vàng bám theo vị trí người trong ảnh camera, nên bài đứng chiếm hết chiều
+  cao, bài nằm chiếm hết chiều ngang; chỗ nào trong vùng camera cũng có bài bị đè.
+- Sửa: biển và nút xếp thành một cột ở dải tối bên phải, ngoài vùng camera (`setupRailWidth` = nửa phần thừa của
+  màn hình sau khi đặt khung 4:3, trừ lề an toàn, kẹp 104-200; cột tự thu nhỏ nếu thiếu chiều cao). Biển thu gọn và
+  nút xếp dọc, chữ 15, tối đa 3 dòng. Lần đầu đặt biển và nút riêng thì chúng đè lên nhau trên S20 Ultra (lề phải 48 dp).
+- Test màn hình và widget qua, analyze sạch.
 
 ## 6. Việc còn mở
 

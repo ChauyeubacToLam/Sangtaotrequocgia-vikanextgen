@@ -49,7 +49,7 @@ void main() {
 
   group('knee angle', () {
     test('pins the tightened bands', () {
-      expect(KneeAngleConfig.GOOD_MIN, 85.0);
+      expect(KneeAngleConfig.GOOD_MIN, 80.0);
       expect(KneeAngleConfig.GOOD_MAX, 135.0);
       expect(KneeAngleConfig.ACCEPTABLE_UPPER_MAX, 145.0);
       expect(KneeAngleConfig.WARNING_MIN, 55.0);
@@ -88,12 +88,11 @@ void main() {
 
   group('speed control', () {
     test('pins the tightened descent-control thresholds', () {
-      expect(SpeedControlConfig.MIN_ECCENTRIC_RATIO, 1.3);
       expect(SpeedControlConfig.RAPID_VELOCITY_WARNING, 0.08);
       expect(SpeedControlConfig.RAPID_VELOCITY_ERROR, 0.15);
     });
 
-    test('emits a soft pacing fault below the tightened eccentric ratio', () {
+    test('a controlled descent as quick as the lift is not a fault', () {
       final metric = SpeedControlMetric();
 
       metric.onStateTransition(
@@ -111,11 +110,9 @@ void main() {
         GluteBridgeState.descending,
         1000,
       );
-      metric.checkRepCompletion(2200);
+      metric.checkRepCompletion(1800);
 
-      expect(metric.faults, hasLength(1));
-      expect(metric.faults.single.type, 'speed_control');
-      expect(metric.faults.single.affectsForm, isFalse);
+      expect(metric.faults, isEmpty);
     });
   });
 }

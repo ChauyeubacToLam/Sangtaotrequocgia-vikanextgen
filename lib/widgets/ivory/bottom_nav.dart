@@ -10,12 +10,14 @@ class IvoryBottomNav extends StatelessWidget {
     required this.bottomInset,
     required this.onTap,
     this.showNutrition = false,
+    this.badgeIndex,
   });
 
   final int currentIndex;
   final double bottomInset;
   final ValueChanged<int> onTap;
   final bool showNutrition;
+  final int? badgeIndex;
 
   static const _all = <(String, IconData, IconData)>[
     ('Trang chủ', Icons.home_rounded, Icons.home_outlined),
@@ -50,6 +52,7 @@ class IvoryBottomNav extends StatelessWidget {
                 label: items[i].$1,
                 icon: i == currentIndex ? items[i].$2 : items[i].$3,
                 active: i == currentIndex,
+                badge: i == badgeIndex,
                 onTap: () {
                   HapticFeedback.selectionClick();
                   onTap(i);
@@ -68,12 +71,14 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.active,
     required this.onTap,
+    this.badge = false,
   });
 
   final String label;
   final IconData icon;
   final bool active;
   final VoidCallback onTap;
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +86,7 @@ class _NavItem extends StatelessWidget {
     return Semantics(
       button: true,
       selected: active,
-      label: label,
+      label: badge ? '$label, cần bổ sung thông tin' : label,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -102,7 +107,27 @@ class _NavItem extends StatelessWidget {
               child: AnimatedScale(
                 scale: active ? 1.08 : 1,
                 duration: const Duration(milliseconds: 200),
-                child: Icon(icon, size: 26, color: color),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(icon, size: 26, color: color),
+                    if (badge)
+                      Positioned(
+                        top: -1,
+                        right: -3,
+                        child: Container(
+                          key: const ValueKey('nav-badge'),
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE5383B),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Tk.surface, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 3),

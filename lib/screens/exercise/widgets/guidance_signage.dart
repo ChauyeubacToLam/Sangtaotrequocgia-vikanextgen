@@ -260,13 +260,13 @@ class _GuidanceSignageState extends State<GuidanceSignage>
     final hasStatus = status != null && status.isNotEmpty;
     return RepaintBoundary(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         decoration: BoxDecoration(
           color: VikaIvory.heroBg.withValues(alpha: 0.82),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: _border),
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
@@ -277,16 +277,16 @@ class _GuidanceSignageState extends State<GuidanceSignage>
                 builder: (context, _) => _buildGlyph(_motion.value, size: 30),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(height: 8),
             Flexible(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (hasStatus) ...[
                     Text(
                       status,
-                      maxLines: 1,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: VikaIvory.fontFamily,
@@ -299,11 +299,12 @@ class _GuidanceSignageState extends State<GuidanceSignage>
                   ],
                   Text(
                     widget.title,
-                    maxLines: 1,
+                    maxLines: 3,
+                    textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: VikaIvory.fontFamily,
-                      fontSize: 17,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: VikaIvory.invInk,
                       letterSpacing: -0.3,

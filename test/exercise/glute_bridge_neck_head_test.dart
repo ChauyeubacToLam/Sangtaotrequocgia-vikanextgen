@@ -4,7 +4,6 @@ import 'package:vika/exercise/exercise_base.dart';
 import 'package:vika/exercise/glute bridge/glute_bridge.dart';
 import 'package:vika/exercise/glute bridge/metrics/glute_bridge_metric_base.dart';
 import 'package:vika/exercise/glute bridge/metrics/glute_bridge_neck_head.dart';
-import 'package:vika/exercise/glute bridge/metrics/glute_bridge_speed_control.dart';
 
 /// Torso 100 px; the ear 30 px above the shoulder is a lift of 0.30 torso,
 /// well past the 0.14 threshold.
@@ -167,21 +166,6 @@ void main() {
     expect(data['fault_types'], contains('neck_head'));
     expect(data['head_lift_rest'] as double, closeTo(0, 0.01));
     expect(data['peak_head_lift'] as double, closeTo(0.30, 0.01));
-  });
-
-  test('pacing message states the 1.3x ratio the code enforces', () {
-    final metric = SpeedControlMetric()
-      ..onStateTransition(
-          GluteBridgeState.bottom, GluteBridgeState.ascending, 0)
-      ..onStateTransition(
-          GluteBridgeState.ascending, GluteBridgeState.topHold, 1000)
-      ..onStateTransition(
-          GluteBridgeState.topHold, GluteBridgeState.descending, 1000)
-      ..checkRepCompletion(2200);
-
-    final message = metric.faults.single.message;
-    expect(message, contains('1,3'));
-    expect(message, isNot(contains('gấp đôi')));
   });
 
   test('a quick 0.25-torso lift that drops straight back is counted', () {

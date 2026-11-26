@@ -117,7 +117,7 @@ class _PostWorkoutMealCardState extends State<PostWorkoutMealCard>
       return '${head}Tối muộn nên ăn nhẹ, ưu tiên sữa và trứng: đạm trước khi ngủ '
           'giúp cơ phục hồi qua đêm.';
     }
-    return '${head}Bữa này nên ăn tối đa khoảng ${t.kcalCap.round()} kcal, có '
+    return '${head}Bữa này không nên vượt quá khoảng ${t.kcalCap.round()} kcal, có '
         '${t.proteinLow.round()}–${t.proteinHigh.round()} g đạm '
         '(0,25–0,4 g cho mỗi kg cân nặng).';
   }

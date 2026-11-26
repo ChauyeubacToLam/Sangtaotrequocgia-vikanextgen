@@ -575,6 +575,7 @@ abstract class ExerciseBase {
 
     // Safety check (subclass logic)
     final safetySignal = checkSafety(smoothedLandmarks);
+    _trackOutOfFrame(safetySignal?.kind == GuidanceClass.bodyInFrame);
     if (safetySignal != null) {
       if (!_skippedGuidance.contains(safetySignal.kind)) {
         publishGuidanceSignal(safetySignal);
@@ -643,6 +644,7 @@ abstract class ExerciseBase {
     // seeking-guidance below (searching/body-in-frame) is the audible
     // feedback in this state, and the re-hold countdown follows.
     if (verdict.resumedNow) _beginPauseReactivationIfNeeded();
+    _trackOutOfFrame(true);
 
     if (exerciseState == ExerciseState.completed) {
       return {'Result': 'Hoàn thành! $repCount reps'};
@@ -877,6 +879,20 @@ abstract class ExerciseBase {
   List<dynamic> getSetFeedback() => setFeedback;
 
   // --- State Machine (Hold-Still Activation) ---
+
+  static const int kOutOfFrameReholdMs = 1000;
+  int? _outOfFrameSinceMs;
+
+  void _trackOutOfFrame(bool outOfFrame) {
+    if (!outOfFrame || exerciseState != ExerciseState.activated) {
+      _outOfFrameSinceMs = null;
+      return;
+    }
+    final since = _outOfFrameSinceMs ??= frameTimestampMs;
+    if (frameTimestampMs - since < kOutOfFrameReholdMs) return;
+    _outOfFrameSinceMs = null;
+    _beginPauseReactivationIfNeeded();
+  }
 
   bool _beginPauseReactivationIfNeeded() {
     if (exerciseState != ExerciseState.activated) return false;

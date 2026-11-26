@@ -11,11 +11,13 @@ class _RepFrame {
     required this.kneeAngle,
     required this.trunkLean,
     required this.heelDistance,
+    this.shiftX = 0,
   });
 
   final double kneeAngle;
   final double trunkLean;
   final double heelDistance;
+  final double shiftX;
 }
 
 class _MeasuredRepFrame {
@@ -51,7 +53,7 @@ PoseLandmark _landmark(
 double _radians(double degrees) => degrees * math.pi / 180.0;
 
 Map<PoseLandmarkType, PoseLandmark> _poseFor(_RepFrame frame) {
-  const kneeX = 220.0;
+  final kneeX = 220.0 + frame.shiftX;
   const kneeY = 290.0;
   const thighLength = 100.0;
   const shinLength = 100.0;
@@ -139,6 +141,76 @@ void _pumpFrame(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('a rep finishes when standing a few degrees short of the start angle',
+      () {
+    final squat = Squat(maxRep: 5)
+      ..exerciseState = ExerciseState.activated
+      ..cameraFacing = CameraFacing.right;
+    expect(
+      squat.isInStartPosition(_poseFor(
+          const _RepFrame(kneeAngle: 177, trunkLean: 2, heelDistance: 0))),
+      isTrue,
+    );
+    expect(squat.standingReturnAngle, closeTo(177 - 8, 0.5));
+
+    var t = 1000;
+    for (final knee in <double>[177, 170, 160, 148, 136, 124, 112, 100, 92,
+        92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 100, 112, 124, 136, 148,
+        160, 171, 171, 171, 171, 171]) {
+      _pumpFrame(
+          squat,
+          _poseFor(_RepFrame(kneeAngle: knee, trunkLean: 4, heelDistance: 0)),
+          t);
+      t += 100;
+    }
+
+    expect(squat.squatState, SquatState.standing);
+    expect(squat.logger.repLogs, hasLength(1));
+  });
+
+  test('a knee bend while walking back into place is not counted as a rep',
+      () {
+    final squat = Squat(maxRep: 5)
+      ..exerciseState = ExerciseState.activated
+      ..cameraFacing = CameraFacing.right;
+    squat.isInStartPosition(_poseFor(
+        const _RepFrame(kneeAngle: 177, trunkLean: 2, heelDistance: 0)));
+
+    final knees = <double>[177, 170, 160, 148, 136, 124, 112, 100, 92, 92,
+        92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 100, 112, 124, 136, 148,
+        160, 171, 171, 171, 171, 171];
+    var t = 1000;
+    for (var i = 0; i < knees.length; i++) {
+      _pumpFrame(
+          squat,
+          _poseFor(_RepFrame(
+              kneeAngle: knees[i],
+              trunkLean: 4,
+              heelDistance: 0,
+              shiftX: i * 3.0)),
+          t);
+      t += 100;
+    }
+
+    expect(squat.squatState, SquatState.standing);
+    expect(squat.repCount, 0);
+    expect(squat.logger.repLogs, isEmpty);
+  });
+
+  test('re-hold after leaving the frame resets an unfinished squat phase', () {
+    final squat = Squat(maxRep: 5)
+      ..exerciseState = ExerciseState.activated
+      ..cameraFacing = CameraFacing.right
+      ..squatState = SquatState.ascending
+      ..previousSquatState = SquatState.descending;
+
+    squat.onPauseReactivationStarted();
+
+    expect(squat.squatState, SquatState.standing);
+    expect(squat.previousSquatState, SquatState.standing);
+    expect(squat.footShift, 0);
+  });
 
   test(
       'squat running rep peaks match manual scan and keep trunk lean correlated',

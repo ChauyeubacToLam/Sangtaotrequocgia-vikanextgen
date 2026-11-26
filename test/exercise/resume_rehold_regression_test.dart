@@ -52,10 +52,12 @@ class _ReholdTestExercise extends ExerciseBase {
   @override
   String get currentPhaseLabel => 'Test';
 
+  GuidanceSignal? safety;
+
   @override
   GuidanceSignal? checkSafety(
           Map<PoseLandmarkType, PoseLandmark> smoothedLandmarks) =>
-      null;
+      safety;
 
   @override
   void checkingPose(Map<PoseLandmarkType, PoseLandmark> smoothedLandmarks) {}
@@ -149,6 +151,48 @@ void main() {
     expect(exercise.exerciseState, ExerciseState.notActivated,
         reason: 'the one-frame resume edge must not be eaten by the '
             'no-pose path');
+    expect(exercise.isReactivatingAfterPause, isTrue);
+  });
+
+  test('leaving the frame for over a second demands the start hold again',
+      () async {
+    final exercise = _activatedExercise()
+      ..safety = const GuidanceSignal.bodyInFrame();
+
+    exercise.processPose(_allLandmarks());
+    expect(exercise.exerciseState, ExerciseState.activated);
+
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    exercise.processPose(_allLandmarks());
+    expect(exercise.exerciseState, ExerciseState.notActivated);
+    expect(exercise.isReactivatingAfterPause, isTrue);
+  });
+
+  test('a brief out-of-frame flicker keeps the set running', () async {
+    final exercise = _activatedExercise()
+      ..safety = const GuidanceSignal.bodyInFrame();
+
+    exercise.processPose(_allLandmarks());
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    exercise
+      ..safety = null
+      ..processPose(_allLandmarks());
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    exercise
+      ..safety = const GuidanceSignal.bodyInFrame()
+      ..processPose(_allLandmarks());
+
+    expect(exercise.exerciseState, ExerciseState.activated);
+  });
+
+  test('no skeleton for over a second also demands the start hold', () async {
+    final exercise = _activatedExercise();
+
+    exercise.processNoPoseFrame();
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    exercise.processNoPoseFrame();
+
+    expect(exercise.exerciseState, ExerciseState.notActivated);
     expect(exercise.isReactivatingAfterPause, isTrue);
   });
 }

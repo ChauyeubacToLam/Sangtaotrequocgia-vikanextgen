@@ -43,6 +43,10 @@ import 'widgets/smoothed_pose_overlay.dart';
 import 'widgets/pose_overlay_painter.dart';
 import 'widgets/rep_reward_layer.dart';
 import 'widgets/system_banner.dart';
+import 'widgets/camera_placement_card.dart';
+import 'setup/phone_level.dart';
+import 'setup/pose_guide_view.dart';
+import 'setup/pose_guides.dart';
 
 class ActiveExercisePage extends StatefulWidget {
   const ActiveExercisePage({
@@ -161,6 +165,12 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
   final PageController _pageController = PageController();
   int _demoPageIndex = 0;
   bool _isManualPause = false;
+  bool _phoneLevelDone = false;
+  bool _poseSheetOpen = false;
+  late final String? _setupCatalogId =
+      resolvePlacementCatalogId(widget.definition.id);
+  late final PoseGuide? _poseGuide =
+      _setupCatalogId == null ? null : kPoseGuides[_setupCatalogId];
   _PoseRuntime _runtime = _PoseRuntime.nativeMediaPipe;
   DebugMode _settingsDebugMode = DebugMode.off;
   bool _isStaffUser = false;
@@ -1988,6 +1998,26 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
         widget.exercise.exerciseState == ExerciseState.notActivated &&
             !widget.exercise.isPaused &&
             !showDebugPanel;
+    if (!showReadinessChecklist) _poseSheetOpen = false;
+    final setupAidsVisible =
+        showReadinessChecklist && isLandscape && _demoPageIndex == 0;
+    final showPhoneLevel = setupAidsVisible && !_phoneLevelDone;
+    final showPoseSilhouette =
+        setupAidsVisible && _phoneLevelDone && _poseGuide != null;
+    final previewLong = math.max(
+      _previewRenderSize.width,
+      _previewRenderSize.height,
+    );
+    final previewShort = math.max(
+      1.0,
+      math.min(_previewRenderSize.width, _previewRenderSize.height),
+    );
+    final setupRailWidth = ((media.size.longestSide -
+                    media.size.shortestSide * previewLong / previewShort) /
+                2 -
+            landscapeRightSafeInset -
+            20)
+        .clamp(104.0, 200.0);
     final stageSignageInsets = EdgeInsets.fromLTRB(
       (showReadinessChecklist && isLandscape)
           ? landscapeLeftSafeInset + 212
@@ -2211,7 +2241,10 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedOpacity(
-                  opacity: (guidanceCopy != null && !widget.exercise.isPaused)
+                  opacity: (guidanceCopy != null &&
+                          !widget.exercise.isPaused &&
+                          !showPhoneLevel &&
+                          !showPoseSilhouette)
                       ? 1.0
                       : 0.0,
                   duration: const Duration(milliseconds: 300),
@@ -2237,12 +2270,16 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
           // large enough to read from 2.5m. The mode-scrim dims everything
           // behind it, so the sign owns the middle; identical on the camera
           // and video pages so swiping never changes what it looks like.
-          if (guidanceCopy != null && !widget.exercise.isPaused)
+          if (guidanceCopy != null &&
+              !widget.exercise.isPaused &&
+              !showPhoneLevel &&
+              !showPoseSilhouette)
             Positioned.fill(
               child: IgnorePointer(
                 child: Padding(
                   padding: stageSignageInsets,
-                  child: Center(
+                  child: Align(
+                    alignment: Alignment.center,
                     child: GuidanceSignage(
                       icon: guidanceCopy.icon,
                       kind: guidanceCopy.kind,
@@ -2306,6 +2343,52 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
                 ),
               ),
 
+          if (showPoseSilhouette)
+            Positioned.fill(
+              child: PoseSilhouetteOverlay(
+                guide: _poseGuide!,
+                previewAspect: previewLong / previewShort,
+                fit: previewFit,
+                dimmed: guidanceSignal == null && _detectedPose != null,
+              ),
+            ),
+          if (showPoseSilhouette)
+            Positioned(
+              top: media.padding.top + 72,
+              bottom: media.padding.bottom + 16,
+              right: landscapeRightSafeInset + 12,
+              width: setupRailWidth,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  width: setupRailWidth,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (guidanceCopy != null &&
+                          !widget.exercise.isPaused) ...[
+                        IgnorePointer(
+                          child: GuidanceSignage(
+                            icon: guidanceCopy.icon,
+                            kind: guidanceCopy.kind,
+                            title: guidanceCopy.title,
+                            body: guidanceCopy.body,
+                            mode: guidanceCopy.mode,
+                            compact: true,
+                            landscape: isLandscape,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      PoseGuideChip(
+                        onTap: () => setState(() => _poseSheetOpen = true),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // ── Center overlay — ready/activation countdown, scan, position ──
           // The count-in before a set, the "đang tìm người" scan pulse and
           // the hold-still-to-activate progress ring. Shared so the trainer
@@ -2315,7 +2398,8 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
               duration: const Duration(milliseconds: 260),
               child: overlayState == _LiveOverlayState.active ||
                       guidanceCopy != null ||
-                      isReArming
+                      isReArming ||
+                      showPhoneLevel
                   ? const SizedBox.shrink()
                   : Padding(
                       padding: showReadinessChecklist
@@ -2571,6 +2655,35 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
               ),
           ],
 
+          if (showPhoneLevel)
+            Positioned.fill(
+              child: ColoredBox(
+                color: const Color(0x73000000),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    landscapeLeftSafeInset + 24,
+                    media.padding.top + 56,
+                    landscapeRightSafeInset + 24,
+                    media.padding.bottom + 16,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: PhoneLevelPanel(
+                      orientation: _sessionOrientation,
+                      frontCamera: _isFrontCamera,
+                      placementLine: _setupCatalogId == null
+                          ? null
+                          : kExercisePlacementByCatalogId[_setupCatalogId]
+                              ?.placementWhere,
+                      onDone: () {
+                        if (mounted) setState(() => _phoneLevelDone = true);
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // ── Top chrome: lifted above the PageView so both pages carry
           // the set pill, timer, back and pause. Sits above the guidance
           // scrim (inside cameraStage) exactly as before. The flip-camera
@@ -2614,6 +2727,16 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
                   : null,
             ),
           ),
+
+          if (_poseSheetOpen && _poseGuide != null && showReadinessChecklist)
+            Positioned.fill(
+              child: ModelPoseSheet(
+                guide: _poseGuide!,
+                exerciseName: widget.exercise.exerciseName,
+                landscape: isLandscape,
+                onClose: () => setState(() => _poseSheetOpen = false),
+              ),
+            ),
 
           // ── Layer 13: Pause overlay ──
           if (widget.exercise.isPaused)

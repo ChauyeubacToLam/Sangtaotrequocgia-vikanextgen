@@ -18,8 +18,6 @@ import '../../exercise/glute bridge/metrics/glute_bridge_knee_angle.dart'
     as bridge_knee;
 import '../../exercise/glute bridge/metrics/glute_bridge_neck_head.dart'
     as bridge_neck;
-import '../../exercise/glute bridge/metrics/glute_bridge_speed_control.dart'
-    as bridge_speed;
 import '../../exercise/jumping jack/jumping_jack.dart';
 import '../../exercise/jumping jack/metrics/arm_extension_metric.dart'
     as jj_arm;
@@ -1958,8 +1956,7 @@ class _ExerciseExperienceSpec {
       badges: [
         ExerciseIntroBadge(
           title: 'Hạ hông',
-          value:
-              '≥ ${bridge_speed.SpeedControlConfig.MIN_ECCENTRIC_RATIO.toStringAsFixed(1)}× nhịp nâng',
+          value: 'Có kiểm soát',
           color: const Color(0xFF2B5EA6),
         ),
       ],

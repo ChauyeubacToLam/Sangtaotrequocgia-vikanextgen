@@ -1,5 +1,7 @@
 // ignore_for_file: curly_braces_in_flow_control_structures, non_constant_identifier_names, constant_identifier_names
 
+import 'dart:math' as math;
+
 import 'package:vika/utils/debouncer.dart';
 import 'package:vika/utils/frame_buffer.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -25,6 +27,8 @@ import '../../voice/voice_sink.dart';
 
 class SquatConfig {
   static const double ERROR_ALLOW = 2;
+  static const double STAND_RETURN_TOLERANCE = 8;
+  static const double MAX_FOOT_SHIFT = 0.4;
   static const int MAX_REP = 15;
   static const double SQUAT_STAND_ANGLE_THRESHOLD = 155;
   static const List<int> SQUAT_BOTTOM_ANGLE_THRESHOLD = [70, 115];
@@ -373,6 +377,8 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
     final heel = lm['heel']!;
 
     scaleFactor = calculateDistance(shoulder, hip);
+    _ankleX = ankle.x;
+    _ankleY = ankle.y;
 
     // 2. Calculate geometry
     final kneeAngle = calculateAngleNormalized(
@@ -458,8 +464,9 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
   void _completeRep(RepContext ctx) {
     final finalState = previousSquatState;
     final reachedBottom = _reachedBottomThisRep;
+    final walked = footShift > SquatConfig.MAX_FOOT_SHIFT;
 
-    if (previousSquatState != SquatState.descending) {
+    if (previousSquatState != SquatState.descending && !walked) {
       repCount += 1;
 
       // Evaluate final metrics for this rep
@@ -540,7 +547,7 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
         metric.resetAndCountFault();
       }
     } else {
-      resultIssues.feedback['Status'] = 'Xuống thấp hơn nhé';
+      if (!walked) resultIssues.feedback['Status'] = 'Xuống thấp hơn nhé';
       for (final metric in _metrics) {
         metric.reset();
       }
@@ -550,7 +557,41 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
     correctForm = true;
     _reachedBottomThisRep = false;
     _resetRepPeaks();
+    _repStartAnkleX = null;
+    _repStartAnkleY = null;
     previousSquatState = SquatState.standing;
+  }
+
+  double? _ankleX;
+  double? _ankleY;
+  double? _repStartAnkleX;
+  double? _repStartAnkleY;
+
+  double get footShift {
+    final sx = _repStartAnkleX;
+    final sy = _repStartAnkleY;
+    final x = _ankleX;
+    final y = _ankleY;
+    if (sx == null || sy == null || x == null || y == null) return 0;
+    if (scaleFactor <= 0) return 0;
+    final dx = x - sx;
+    final dy = y - sy;
+    return math.sqrt(dx * dx + dy * dy) / scaleFactor;
+  }
+
+  @override
+  void onPauseReactivationStarted() {
+    super.onPauseReactivationStarted();
+    squatState = SquatState.standing;
+    previousSquatState = SquatState.standing;
+    _reachedBottomThisRep = false;
+    _resetRepPeaks();
+    _repStartAnkleX = null;
+    _repStartAnkleY = null;
+    frameBuffer.clear();
+    for (final metric in _metrics) {
+      metric.reset();
+    }
   }
 
   void _updateRepPeaks(RepContext ctx) {
@@ -639,13 +680,17 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
         kneeAngle <= SquatConfig.SQUAT_BOTTOM_ANGLE_THRESHOLD[1] &&
             squatState == SquatState.descending)) {
       _transitionState(SquatState.bottom, timestampMs);
-    } else if (_standingDebouncer.update(kneeAngle > _baselineKneeAngle &&
+    } else if (_standingDebouncer.update(kneeAngle >= standingReturnAngle &&
         (squatState == SquatState.ascending ||
             squatState == SquatState.descending) &&
         !isDescendingFrame)) {
       _transitionState(SquatState.standing, timestampMs);
     }
   }
+
+  double get standingReturnAngle => math.max(
+      SquatConfig.SQUAT_STAND_ANGLE_THRESHOLD,
+      _baselineKneeAngle - SquatConfig.STAND_RETURN_TOLERANCE);
 
   void _transitionState(SquatState newState, int timestampMs) {
     if (newState == squatState) {
@@ -657,6 +702,8 @@ class Squat extends ExerciseBase with SideTrackedExerciseMixin {
 
     if (newState == SquatState.descending) {
       _reachedBottomThisRep = false;
+      _repStartAnkleX = _ankleX;
+      _repStartAnkleY = _ankleY;
       resultIssues.phaseStatus.clear();
     } else if (newState == SquatState.bottom) {
       _reachedBottomThisRep = true;

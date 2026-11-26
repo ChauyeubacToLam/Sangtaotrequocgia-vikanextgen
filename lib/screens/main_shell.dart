@@ -38,6 +38,10 @@ import 'plan_screen.dart';
 import 'profile_screen.dart';
 import 'progress_screen.dart';
 
+bool profileNeedsBody(AppUserProfile? p) =>
+    p != null &&
+    ((p.weightKg ?? 0) <= 0 || (p.heightCm ?? 0) <= 0);
+
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -263,6 +267,9 @@ class _MainShellState extends State<MainShell>
           bottomInset: bottomInset,
           onTap: _handleTabTap,
           showNutrition: _tabs.contains(_Tab.nutrition),
+          badgeIndex: profileNeedsBody(_profile)
+              ? _tabs.indexOf(_Tab.profile)
+              : null,
         ),
       ),
     );
