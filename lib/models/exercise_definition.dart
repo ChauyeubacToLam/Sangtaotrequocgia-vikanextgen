@@ -332,6 +332,7 @@ final List<ExerciseDefinition> exerciseDefinitions = [
     phaseColors: {
       'setup': const Color(0xFFFF9800),
       'holding': const Color(0xFF00E676),
+      'paused': const Color(0xFFFF9800),
       'resting': const Color(0xFF29B6F6),
     },
   ),

@@ -39,7 +39,7 @@ final _standing = _pose(kneeAngle: 175, hipY: 200);
 final _deepSquat = _pose(kneeAngle: 85, hipY: 260);
 final _shallowDip = _pose(kneeAngle: 135, hipY: 225);
 final _airborne = _pose(kneeAngle: 170, hipY: 155, supportY: 335);
-final _landing = _pose(kneeAngle: 115, hipY: 220);
+final _landing = _pose(kneeAngle: 95, hipY: 235);
 
 JumpSquat _active() {
   final exercise = JumpSquat(maxRep: 4)
@@ -137,6 +137,77 @@ void main() {
     _landAndStand(exercise);
     expect(exercise.repCount, 1);
     expect(exercise.logger.repLogs.single.correctForm, isTrue);
+  });
+
+  test('a jump from a 150 deg dip counts and is faulted takeoff_depth', () {
+    final exercise = _active();
+    _pump(exercise, _standing, 2);
+    _pump(exercise, _pose(kneeAngle: 150, hipY: 215), 2);
+    expect(exercise.jumpSquatState, JumpSquatState.squatting);
+    _pump(exercise, _airborne, 2);
+    _landAndStand(exercise);
+    expect(exercise.repCount, 1);
+    expect(exercise.logger.repLogs.single.data['fault_types'],
+        contains('takeoff_depth'));
+  });
+
+  test('a 105 deg takeoff dip is shallow; a 90 deg dip is not', () {
+    for (final (dip, faulted) in [(105.0, true), (90.0, false)]) {
+      final exercise = _active();
+      _pump(exercise, _standing, 2);
+      _pump(exercise, _pose(kneeAngle: dip, hipY: 240), 2);
+      _pump(exercise, _airborne, 2);
+      _landAndStand(exercise);
+      final data = exercise.logger.repLogs.single.data;
+      expect((data['fault_types'] as List).contains('takeoff_depth'), faulted,
+          reason: '$dip');
+      expect(data['takeoff_knee'], closeTo(dip, 0.5));
+      expect(data['landing_knee'], closeTo(95, 0.5));
+      expect(data['jump_height_ratio'], greaterThan(0.3));
+    }
+  });
+
+  test('landing with the knee only bent to 115 deg marks the rep wrong', () {
+    final exercise = _active();
+    _pump(exercise, _standing, 2);
+    _pump(exercise, _deepSquat, 2);
+    _pump(exercise, _airborne, 2);
+    _pump(exercise, _pose(kneeAngle: 115, hipY: 220), 2);
+    _pump(exercise, _standing, 3);
+    final rep = exercise.logger.repLogs.single;
+    expect(rep.data['fault_types'], contains('landing_depth'));
+    expect(rep.correctForm, isFalse);
+  });
+
+  test('landing further from the camera than the takeoff still counts', () {
+    final exercise = _active();
+    _pump(exercise, _standing, 2);
+    _pump(exercise, _deepSquat, 2);
+    _pump(exercise, _airborne, 2);
+    expect(exercise.jumpSquatState, JumpSquatState.airborne);
+    _pump(exercise, _pose(kneeAngle: 170, hipY: 150, supportY: 330));
+    _pump(exercise, _pose(kneeAngle: 115, hipY: 200, supportY: 380), 3);
+    expect(exercise.jumpSquatState, JumpSquatState.landing);
+    _pump(exercise, _pose(kneeAngle: 175, hipY: 180, supportY: 380), 4);
+    expect(exercise.repCount, 1);
+  });
+
+  test('a jump never seen landing ends after the airborne time limit', () {
+    final exercise = _active();
+    _pump(exercise, _standing, 2);
+    _pump(exercise, _deepSquat, 2);
+    _pump(exercise, _airborne, 2);
+    _pump(exercise, _pose(kneeAngle: 175, hipY: 160, supportY: 335), 10);
+    expect(exercise.jumpSquatState, isNot(JumpSquatState.airborne));
+  });
+
+  test('standing still at a new spot re-anchors the floor', () {
+    final exercise = _active();
+    _pump(exercise, _standing, 2);
+    _pump(exercise, _pose(kneeAngle: 175, hipY: 170, supportY: 370), 10);
+    expect(exercise.jumpSquatState, JumpSquatState.standing);
+    expect(exercise.debugData['SupportLift'], '0.0');
+    expect(exercise.debugData['HipLift'], '0.0');
   });
 
   test('setup copy asks for the side view checkSafety requires', () {

@@ -183,4 +183,23 @@ void main() {
     expect(message, contains('1,3'));
     expect(message, isNot(contains('gấp đôi')));
   });
+
+  test('a quick 0.25-torso lift that drops straight back is counted', () {
+    final bridge = GluteBridge(maxRep: 10)
+      ..exerciseState = ExerciseState.activated
+      ..cameraFacing = CameraFacing.right
+      ..scaleFactor = 100;
+    var t = 0;
+    for (final hip in <double>[
+      300, 300, 300, 300, 300, 300, 295, 290, 285, 280, 275, //
+      285, 300, 300, 300, 300, 300, 300, 300, 300, 300,
+    ]) {
+      bridge.frameTimestamp = DateTime.fromMillisecondsSinceEpoch(t);
+      bridge.checkingPose(_supine(hipY: hip, headLifted: false));
+      t += 33;
+    }
+    expect(bridge.repCount, 1);
+    expect(bridge.logger.repLogs.single.data['hip_lift_ratio'] as double,
+        closeTo(0.25, 0.02));
+  });
 }

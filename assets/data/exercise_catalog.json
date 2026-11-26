@@ -181,7 +181,7 @@
     "classKey": "mcgill_curlup",
     "isFormChecked": true,
     "sets": 3,
-    "reps": 6,
+    "reps": 10,
     "seconds": null,
     "vietnameseName": "Gập bụng McGill",
     "englishName": "McGill Curl-Up"
@@ -213,9 +213,9 @@
     "definitionId": "plank",
     "classKey": "plank",
     "isFormChecked": true,
-    "sets": 1,
-    "reps": 3,
-    "seconds": null,
+    "sets": 3,
+    "reps": 1,
+    "seconds": 20,
     "vietnameseName": "Plank thấp",
     "englishName": "Forearm Plank"
   },

@@ -32,6 +32,7 @@ import '../widgets/progress/period_tabs.dart';
 import '../widgets/progress/exercise_insight_grid.dart';
 import '../services/research/research_preferences.dart';
 import '../services/streak_tier.dart';
+import 'leaderboard_screen.dart';
 import '../widgets/tk/tk.dart';
 
 class ProgressScreen extends StatefulWidget {
@@ -773,6 +774,29 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            if (!ResearchPreferences.cachedConfig.hasParticipantId)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: TkCard(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const LeaderboardScreen())),
+                  radius: 16,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.leaderboard_rounded,
+                          color: Tk.primary, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text('Bảng xếp hạng tuần',
+                            style: Tk.text(15, weight: FontWeight.w900)),
+                      ),
+                      const Icon(Icons.chevron_right_rounded,
+                          color: Tk.inkMuted),
                     ],
                   ),
                 ),

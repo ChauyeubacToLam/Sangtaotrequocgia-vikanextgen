@@ -161,21 +161,21 @@ void _vUp(VUp vUp, int t0, {int bentFrames = 0}) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('a knee-disqualified attempt writes no rep log', () {
+  test('a bent-knee V-up counts and logs knee', () {
     final vUp = _activatedVUp();
     _vUp(vUp, 0, bentFrames: 3);
-    expect(vUp.repCount, 0);
-    expect(vUp.logger.repLogs, isEmpty);
+    expect(vUp.repCount, 1);
+    expect(vUp.logger.repLogs.single.data['fault_types'], contains('knee'));
+    expect(vUp.logger.repLogs.single.correctForm, isFalse);
   });
 
-  test('one log per counted rep, numbered 1..n, after a disqualified attempt',
-      () {
+  test('one log per rep, numbered 1..n, with a bent-knee rep in between', () {
     final vUp = _activatedVUp();
     _vUp(vUp, 0);
     _vUp(vUp, 10000, bentFrames: 3);
     _vUp(vUp, 20000);
-    expect(vUp.repCount, 2);
-    expect(vUp.logger.repLogs.map((l) => l.repNumber), [1, 2]);
+    expect(vUp.repCount, 3);
+    expect(vUp.logger.repLogs.map((l) => l.repNumber), [1, 2, 3]);
   });
 
   test('knee_fails_count counts knee-disqualified attempts', () {

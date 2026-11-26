@@ -19,6 +19,9 @@ import 'metrics/knee_extension_metric.dart';
 
 class PlankConfig {
   static const double HOLD_DURATION = 15.0;
+  static const int SET_REST_SECONDS = 20;
+  static const double EARLY_END_TOLERANCE = 3.0;
+  static const int ACTIVATION_CREDIT_WINDOW_MS = 1500;
   static const double REST_DURATION = 5.0;
 
   // Hip-to-floor ratio above which user is considered standing
@@ -40,7 +43,7 @@ class PlankConfig {
   static const double PIKE_WARNING_MAX = 8.0;
 }
 
-enum PlankState { setup, holding, resting }
+enum PlankState { setup, holding, paused, resting }
 
 // --- Plank ---
 
@@ -54,7 +57,9 @@ class Plank extends ExerciseBase {
 
   final int maxRep;
 
-  Plank({required this.maxRep});
+  Plank({required this.maxRep, this.holdSeconds = PlankConfig.HOLD_DURATION});
+
+  final double holdSeconds;
 
   PlankState plankState = PlankState.setup;
   PlankState previousPlankState = PlankState.setup;
@@ -67,6 +72,8 @@ class Plank extends ExerciseBase {
   int? _lastEvaluatedHoldMs;
   bool _holdClockGap = false;
   double _heldSeconds = 0.0;
+  double _lastHoldSeconds = 0.0;
+  int? _activatedAtMs;
   int _lastFacingLogMs = 0;
   final HoldSecondsAccumulator _holdSeconds = HoldSecondsAccumulator(const [
     'trunk_seconds',
@@ -104,17 +111,22 @@ class Plank extends ExerciseBase {
         return 'Chuẩn bị';
       case PlankState.holding:
         return 'Giữ!';
+      case PlankState.paused:
+        return 'Tạm dừng';
       case PlankState.resting:
         return 'Nghỉ';
     }
   }
 
-  @override
-  double? get liveHoldSeconds =>
-      plankState == PlankState.holding ? _currentHoldSeconds() : null;
+  static bool _inHold(PlankState state) =>
+      state == PlankState.holding || state == PlankState.paused;
 
   @override
-  double? get liveHoldTargetSeconds => PlankConfig.HOLD_DURATION;
+  double? get liveHoldSeconds =>
+      _inHold(plankState) ? _currentHoldSeconds() : null;
+
+  @override
+  double? get liveHoldTargetSeconds => holdSeconds;
 
   // --- Start Position ---
 
@@ -135,6 +147,7 @@ class Plank extends ExerciseBase {
     _holdSeconds.reset();
     _heldSeconds = 0.0;
     lastHoldFaultVoiceMessage = null;
+    _activatedAtMs = frameTimestampMs;
   }
 
   @override
@@ -146,7 +159,7 @@ class Plank extends ExerciseBase {
   @override
   void onSetComplete() {
     final heldSeconds = _heldSeconds +
-        (plankState == PlankState.holding ? _evaluatedHoldSeconds() : 0.0);
+        (_inHold(plankState) ? _evaluatedHoldSeconds() : 0.0);
     logger.pushKey("max_rep", maxRep);
     logger.pushKey("total_seconds", heldSeconds);
     logger.pushKey(
@@ -233,7 +246,7 @@ class Plank extends ExerciseBase {
 
     if (geometry == null) {
       if (plankState == PlankState.holding) {
-        _transitionState(PlankState.setup, frameTimestampMs);
+        _breakHold(frameTimestampMs, 'Giữ cả người trong khung hình');
       }
       _holdSeconds.resetTick();
       return;
@@ -241,11 +254,11 @@ class Plank extends ExerciseBase {
 
     int now = frameTimestampMs;
     if (plankState == PlankState.holding) {
-      if (_holdClockGap && _holdStartMs != null) {
-        _holdStartMs = _holdStartMs! + (now - (_lastEvaluatedHoldMs ?? now));
+      if (_holdClockGap) {
+        _resumeHoldClock(now);
+      } else {
+        _lastEvaluatedHoldMs = now;
       }
-      _holdClockGap = false;
-      _lastEvaluatedHoldMs = now;
     }
     _logFacingOncePerSecond(geometry, smoothedLandmarks, now);
 
@@ -307,13 +320,13 @@ class Plank extends ExerciseBase {
       );
 
       final holdSecs = _currentHoldSeconds();
-      final remaining = (PlankConfig.HOLD_DURATION - holdSecs)
-          .clamp(0.0, PlankConfig.HOLD_DURATION);
+      final remaining = (holdSeconds - holdSecs)
+          .clamp(0.0, holdSeconds);
 
       resultIssues.setPhaseStatus(
           'holding', 'Giữ! ${remaining.toStringAsFixed(1)}s');
       debugData['holdProgress'] =
-          (holdSecs / PlankConfig.HOLD_DURATION).clamp(0.0, 1.0);
+          (holdSecs / holdSeconds).clamp(0.0, 1.0);
     } else {
       _holdSeconds.resetTick();
     }
@@ -354,11 +367,16 @@ class Plank extends ExerciseBase {
 
       case PlankState.holding:
         if (!isPlankPosition) {
-          lastHoldFaultVoiceMessage = _voiceForHoldBreak(geometry);
-          _transitionState(PlankState.setup, timestampMs);
-        } else if (_currentHoldSeconds() >= PlankConfig.HOLD_DURATION) {
+          _breakHold(timestampMs, _voiceForHoldBreak(geometry));
+        } else if (_currentHoldSeconds() >= holdSeconds) {
           lastHoldFaultVoiceMessage = null;
           _transitionState(PlankState.resting, timestampMs);
+        }
+        break;
+
+      case PlankState.paused:
+        if (confirmedPlank) {
+          _transitionState(PlankState.holding, timestampMs);
         }
         break;
 
@@ -374,8 +392,9 @@ class Plank extends ExerciseBase {
   }
 
   void _transitionState(PlankState newState, int timestampMs) {
-    if (plankState == PlankState.holding && newState != PlankState.holding) {
-      _heldSeconds += _evaluatedHoldSeconds();
+    if (_inHold(plankState) && !_inHold(newState)) {
+      _lastHoldSeconds = _evaluatedHoldSeconds();
+      _heldSeconds += _lastHoldSeconds;
     }
     previousPlankState = plankState;
     plankState = newState;
@@ -383,11 +402,27 @@ class Plank extends ExerciseBase {
     switch (newState) {
       case PlankState.holding:
         _holdSeconds.resetTick();
-        _holdStartMs = timestampMs;
+        if (previousPlankState == PlankState.paused) {
+          _resumeHoldClock(timestampMs);
+          break;
+        }
+        final activatedAt = _activatedAtMs;
+        _activatedAtMs = null;
+        final creditActivationHold = activatedAt != null &&
+            timestampMs - activatedAt <= PlankConfig.ACTIVATION_CREDIT_WINDOW_MS;
+        _holdStartMs = creditActivationHold
+            ? timestampMs -
+                ExerciseBase.HOLD_STILL_REQUIRED_DURATION.inMilliseconds
+            : timestampMs;
         _lastEvaluatedHoldMs = timestampMs;
         _holdClockGap = false;
         _restStartMs = null;
         resultIssues.phaseStatus.clear();
+        break;
+
+      case PlankState.paused:
+        _holdSeconds.resetTick();
+        _holdClockGap = true;
         break;
 
       case PlankState.resting:
@@ -406,6 +441,27 @@ class Plank extends ExerciseBase {
         }
         break;
     }
+  }
+
+  void _breakHold(int timestampMs, String breakVoice) {
+    if (_currentHoldSeconds() >=
+        holdSeconds - PlankConfig.EARLY_END_TOLERANCE) {
+      lastHoldFaultVoiceMessage = null;
+      _transitionState(PlankState.resting, timestampMs);
+      return;
+    }
+    lastHoldFaultVoiceMessage = breakVoice;
+    _transitionState(PlankState.paused, timestampMs);
+  }
+
+  void _resumeHoldClock(int timestampMs) {
+    final start = _holdStartMs;
+    final last = _lastEvaluatedHoldMs;
+    if (start != null && last != null) {
+      _holdStartMs = start + (timestampMs - last);
+    }
+    _lastEvaluatedHoldMs = timestampMs;
+    _holdClockGap = false;
   }
 
   String _voiceForHoldBreak(_ForearmPlankGeometry geometry) {
@@ -470,7 +526,10 @@ class Plank extends ExerciseBase {
       correctForm: correctForm,
       repNumber: repCount,
       data: {
-        'hold_time': PlankConfig.HOLD_DURATION,
+        'hold_time': (_lastHoldSeconds.clamp(0.0, holdSeconds) *
+                    10)
+                .round() /
+            10,
         'fault_types': allFaults.map((f) => f.type).toSet().toList(),
         'fault_affects_form': faultAffectsForm,
       },
@@ -491,8 +550,7 @@ class Plank extends ExerciseBase {
   @override
   Map<String, String> processNoPoseFrame() {
     if (plankState == PlankState.holding) {
-      lastHoldFaultVoiceMessage = 'Giữ cả người trong khung hình';
-      _transitionState(PlankState.setup, frameTimestampMs);
+      _breakHold(frameTimestampMs, 'Giữ cả người trong khung hình');
     }
     _holdSeconds.resetTick();
     return super.processNoPoseFrame();

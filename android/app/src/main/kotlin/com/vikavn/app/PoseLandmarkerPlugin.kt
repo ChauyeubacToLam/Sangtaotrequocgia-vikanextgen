@@ -59,6 +59,8 @@ class PoseLandmarkerPlugin(
     @Volatile private var poseLandmarkerHelper: PoseLandmarkerHelper? = null
     private val landmarkerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val landmarkerLoading = AtomicBoolean(false)
+    private val replayBuffer = RepReplayBuffer()
+    private val replayExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var useFrontCamera = true
     @Volatile private var currentOrientationCode: String? = null
     @Volatile private var currentOrientationIsFrontCamera = true
@@ -130,6 +132,42 @@ class PoseLandmarkerPlugin(
                 detectionEnabled = false
                 result.success(null)
             }
+            "startReplayCapture" -> {
+                replayBuffer.start()
+                result.success(null)
+            }
+            "stopReplayCapture" -> {
+                replayBuffer.stop()
+                result.success(null)
+            }
+            "saveReplayClip" -> {
+                val id = call.argument<String>("id")
+                val durationMs = call.argument<Number>("durationMs")?.toLong()
+                if (id == null || durationMs == null) {
+                    result.error("replay_clip", "Missing id or durationMs.", null)
+                    return
+                }
+                result.success(replayBuffer.saveClip(id, durationMs))
+            }
+            "loadReplayClip" -> {
+                val id = call.argument<String>("id")
+                if (id == null) {
+                    result.error("replay_clip", "Missing id.", null)
+                    return
+                }
+                replayExecutor.execute {
+                    val clip = try {
+                        replayBuffer.encodeClip(id)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                    mainHandler.post { result.success(clip) }
+                }
+            }
+            "clearReplayClips" -> {
+                replayBuffer.clear()
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }
@@ -147,6 +185,8 @@ class PoseLandmarkerPlugin(
         poseLandmarkerHelper?.clearPoseLandmarker()
         poseLandmarkerHelper = null
         landmarkerExecutor.shutdown()
+        replayBuffer.clear()
+        replayExecutor.shutdown()
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
     }
@@ -415,6 +455,13 @@ class PoseLandmarkerPlugin(
                 analyzed = true,
                 convertNs = SystemClock.elapsedRealtimeNanos() - convertStartedNs,
             )
+
+            if (replayBuffer.enabled) {
+                try {
+                    replayBuffer.offer(processedBitmap, timestampMs, useFrontCamera)
+                } catch (_: Throwable) {
+                }
+            }
 
             val frameOwner = SharedBitmapFrame(processedBitmap)
 

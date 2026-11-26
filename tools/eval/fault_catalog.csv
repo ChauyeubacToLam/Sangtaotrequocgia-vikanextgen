@@ -89,9 +89,3 @@ sphinx,Tư thế nhân sư,hold,30,forearm,form,Cẳng tay không áp song song 
 sphinx,Tư thế nhân sư,hold,30,upper_arm,form,"Cánh tay trên không vuông góc sàn, khuỷu không ở dưới vai."
 sphinx,Tư thế nhân sư,hold,30,shrug,form,Rụt vai lên tai.
 sphinx,Tư thế nhân sư,hold,30,neck,form,Ngửa cổ ra sau quá mức.
-step_up,Bước lên ghế,rep,,trunk,form,Đổ người ra trước khi đứng trên ghế.
-step_up,Bước lên ghế,rep,,alternate,form,Không đổi chân bước lên giữa các lần.
-neck_side_stretch,Giãn cổ nghiêng,hold,20,shrug,form,Nhún vai khi nghiêng đầu.
-neck_side_stretch,Giãn cổ nghiêng,hold,20,shoulder,form,Vai nghiêng theo đầu.
-pushup_rotation,Chống đẩy xoay người,rep,,body_line,form,Hông võng hoặc nhô khi chống đẩy.
-pushup_rotation,Chống đẩy xoay người,rep,,alternate,form,Không đổi tay mở lên giữa các lần.

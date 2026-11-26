@@ -21,8 +21,11 @@ import '../../voice/voice_sink.dart';
 // --- Config ---
 class JumpSquatConfig {
   // Góc chuyển trạng thái cơ bản
-  static const double STANDING_KNEE_THRESHOLD = 150.0;
-  static const double SQUATTING_KNEE_THRESHOLD = 140.0;
+  static const double STANDING_KNEE_THRESHOLD = 165.0;
+  static const double SQUATTING_KNEE_THRESHOLD = 160.0;
+  static const int MAX_AIRBORNE_MS = 800;
+  static const int STILL_FRAMES_TO_REANCHOR = 8;
+  static const double STILL_TOLERANCE_TORSO_RATIO = 0.03;
 
   // Khoảng cách lơ lửng (Airborne): Tọa độ Y nhỏ hơn mức sàn bao nhiêu thì tính là bay
   // Tùy thuộc vào độ phân giải, tạm dùng mức chênh lệch tương đối
@@ -59,6 +62,11 @@ class JumpSquat extends ExerciseBase {
   double? _baselineFloorY;
   double? _baselineStandingHipY;
   double? _previousHipY;
+  double? _previousSupportY;
+  double? _airborneApexY;
+  int? _airborneSinceMs;
+  int _stillFrames = 0;
+  double? _peakJumpRatio;
   int? _repStartedAtMs;
   // Set when a new jump leaves the ground from `landing` (linked jumps): the
   // landed rep is closed first, then the new rep starts in the air.
@@ -285,6 +293,7 @@ class JumpSquat extends ExerciseBase {
 
     // Cập nhật lại baseline floor khi đứng yên liên tục để bù trừ rung lắc camera
     _refreshStandingBaselines(kneeAngle, supportY, hipY, lowerLegLength);
+    _reanchorWhenStill(kneeAngle, supportY, hipY);
 
     debugData['State'] = jumpSquatState.toString().split('.').last;
     debugData['KneeAngle'] = kneeAngle.toStringAsFixed(1);
@@ -299,6 +308,14 @@ class JumpSquat extends ExerciseBase {
     // 2. State Machine Update
     _updateState(kneeAngle, supportY, hipY, lowerLegLength, now);
     _previousHipY = hipY;
+    _previousSupportY = supportY;
+    final standingHip = _baselineStandingHipY;
+    if (jumpSquatState == JumpSquatState.airborne &&
+        standingHip != null &&
+        scaleFactor > 0) {
+      _peakJumpRatio =
+          math.max(_peakJumpRatio ?? 0, (standingHip - hipY) / scaleFactor);
+    }
 
     final ctx = RepContext(
       kneeAngle: kneeAngle,
@@ -348,6 +365,9 @@ class JumpSquat extends ExerciseBase {
             'fault_types': allFaults.map((e) => e.type).toSet().toList(),
             'fault_affects_form': faultAffectsForm,
             'fault_priorities': faultPriorities,
+            'takeoff_knee': takeOffDepthMetric.minSquatAngle,
+            'landing_knee': landingFlexionMetric.minLandingKneeAngle,
+            'jump_height_ratio': _peakJumpRatio,
           },
         ));
 
@@ -431,6 +451,21 @@ class JumpSquat extends ExerciseBase {
     final isFeetOnGround = supportLift <=
         footLiftThreshold * JumpSquatConfig.GROUND_CONTACT_LIFT_RATIO;
 
+    final isAirborneState = jumpSquatState == JumpSquatState.airborne;
+    if (isAirborneState) {
+      _airborneApexY = math.min(_airborneApexY ?? supportY, supportY);
+    }
+    final stillTolerance =
+        scaleFactor * JumpSquatConfig.STILL_TOLERANCE_TORSO_RATIO;
+    final cameDownAndStopped = isAirborneState &&
+        _airborneApexY != null &&
+        _previousSupportY != null &&
+        supportY - _airborneApexY! > footLiftThreshold &&
+        supportY - _previousSupportY! <= stillTolerance;
+    final airborneTooLong = isAirborneState &&
+        _airborneSinceMs != null &&
+        timestampMs - _airborneSinceMs! > JumpSquatConfig.MAX_AIRBORNE_MS;
+
     if (_squattingDebouncer.update(jumpSquatState == JumpSquatState.standing &&
         kneeAngle < JumpSquatConfig.SQUATTING_KNEE_THRESHOLD)) {
       _repStartedAtMs = timestampMs;
@@ -454,9 +489,9 @@ class JumpSquat extends ExerciseBase {
       } else {
         _transitionState(JumpSquatState.airborne, timestampMs);
       }
-    } else if (_landingDebouncer
-        .update(jumpSquatState == JumpSquatState.airborne && isFeetOnGround)) {
-      // Chạm đất trở lại -> Bắt đầu quá trình shock absorption
+    } else if (_landingDebouncer.update(isAirborneState &&
+        (isFeetOnGround || cameDownAndStopped || airborneTooLong))) {
+      if (!isFeetOnGround) _baselineFloorY = supportY;
       _transitionState(JumpSquatState.landing, timestampMs);
     } else if (_standingDebouncer.update(
         (jumpSquatState == JumpSquatState.landing ||
@@ -506,6 +541,27 @@ class JumpSquat extends ExerciseBase {
     final currentHip = _baselineStandingHipY;
     _baselineStandingHipY =
         currentHip == null ? hipY : (currentHip * 0.92) + (hipY * 0.08);
+  }
+
+  void _reanchorWhenStill(double kneeAngle, double supportY, double hipY) {
+    final previousSupport = _previousSupportY;
+    final previousHip = _previousHipY;
+    final tolerance =
+        scaleFactor * JumpSquatConfig.STILL_TOLERANCE_TORSO_RATIO;
+    final isStill = previousSupport != null &&
+        previousHip != null &&
+        (supportY - previousSupport).abs() <= tolerance &&
+        (hipY - previousHip).abs() <= tolerance;
+    final isUpright =
+        kneeAngle > JumpSquatConfig.STANDING_KNEE_THRESHOLD &&
+            (jumpSquatState == JumpSquatState.standing ||
+                jumpSquatState == JumpSquatState.landing);
+    _stillFrames = isStill && isUpright ? _stillFrames + 1 : 0;
+    if (_stillFrames < JumpSquatConfig.STILL_FRAMES_TO_REANCHOR) return;
+    _baselineFloorY = supportY;
+    if (jumpSquatState == JumpSquatState.standing && kneeAngle >= 170) {
+      _baselineStandingHipY = hipY;
+    }
   }
 
   double _airborneFootLiftThreshold(double lowerLegLength) {
@@ -558,6 +614,12 @@ class JumpSquat extends ExerciseBase {
   void _transitionState(JumpSquatState newState, int timestampMs) {
     previousJumpSquatState = jumpSquatState;
     jumpSquatState = newState;
+
+    if (newState == JumpSquatState.airborne) {
+      _airborneSinceMs = timestampMs;
+      _airborneApexY = null;
+      _peakJumpRatio = null;
+    }
 
     if (newState == JumpSquatState.squatting) {
       resultIssues.phaseStatus.clear();

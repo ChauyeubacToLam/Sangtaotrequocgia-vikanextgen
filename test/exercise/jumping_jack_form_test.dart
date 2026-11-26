@@ -50,9 +50,10 @@ void _pump(JumpingJack jj, Map<PoseLandmarkType, PoseLandmark> pose,
 
 /// One rep: closed, open to [openSpread] for a few frames, then a normal
 /// closing movement where feet and arms come back together.
-void _rep(JumpingJack jj, {double openSpread = 1.6, double elbowBend = 0}) {
+void _rep(JumpingJack jj,
+    {double openSpread = 1.6, double openArm = 170, double elbowBend = 0}) {
   _pump(jj, _pose(0.3, 10), 3);
-  _pump(jj, _pose(openSpread, 160, elbowBend: elbowBend), 6);
+  _pump(jj, _pose(openSpread, openArm, elbowBend: elbowBend), 6);
   for (final (spread, arm) in [
     (openSpread * 0.8, 130.0),
     (0.9, 100.0),
@@ -83,18 +84,29 @@ void main() {
     expect(jj.logger.repLogs.single.correctForm, isTrue);
   });
 
-  test('a rep that opens only to 1.1x shoulder width logs legs at rep end',
-      () {
-    final jj = _active();
-    _rep(jj, openSpread: 1.1);
-    expect(jj.repCount, 1);
-    expect(_faultTypes(jj), ['legs']);
+  test('narrow legs (0.95x and 1.3x shoulder width) count and log legs', () {
+    for (final spread in [0.95, 1.3]) {
+      final jj = _active();
+      _rep(jj, openSpread: spread);
+      expect(jj.repCount, 1, reason: '$spread');
+      expect(_faultTypes(jj), ['legs'], reason: '$spread');
+      expect(jj.logger.repLogs.single.data['peak_ankle_spread'],
+          closeTo(spread, 0.01));
+    }
   });
 
-  test('bent elbows overhead still log arms', () {
+  test('arms raised only to shoulder height count and log arms', () {
+    final jj = _active();
+    _rep(jj, openArm: 110);
+    expect(jj.repCount, 1);
+    expect(_faultTypes(jj), ['arms']);
+    expect(jj.logger.repLogs.single.data['peak_arm_elevation'], lessThan(150));
+  });
+
+  test('bent elbows with hands overhead are not an arms fault', () {
     final jj = _active();
     _rep(jj, elbowBend: 60);
     expect(jj.repCount, 1);
-    expect(_faultTypes(jj), contains('arms'));
+    expect(_faultTypes(jj), isEmpty);
   });
 }

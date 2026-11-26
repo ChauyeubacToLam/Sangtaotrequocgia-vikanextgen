@@ -14,10 +14,10 @@ Map<PoseLandmarkType, PoseLandmark> _pose({double hipY = 300}) => {
           _lm(PoseLandmarkType.rightShoulder, 210, 295),
       PoseLandmarkType.leftElbow: _lm(PoseLandmarkType.leftElbow, 200, 400),
       PoseLandmarkType.rightElbow: _lm(PoseLandmarkType.rightElbow, 210, 300),
-      PoseLandmarkType.leftHip: _lm(PoseLandmarkType.leftHip, 400, hipY),
-      PoseLandmarkType.rightHip: _lm(PoseLandmarkType.rightHip, 410, hipY - 5),
-      PoseLandmarkType.leftAnkle: _lm(PoseLandmarkType.leftAnkle, 600, 300),
-      PoseLandmarkType.rightAnkle: _lm(PoseLandmarkType.rightAnkle, 610, 295),
+      PoseLandmarkType.leftHip: _lm(PoseLandmarkType.leftHip, 400, hipY + 40),
+      PoseLandmarkType.rightHip: _lm(PoseLandmarkType.rightHip, 410, hipY + 35),
+      PoseLandmarkType.leftAnkle: _lm(PoseLandmarkType.leftAnkle, 600, 380),
+      PoseLandmarkType.rightAnkle: _lm(PoseLandmarkType.rightAnkle, 610, 375),
     };
 
 void _pump(SidePlankDip e, Map<PoseLandmarkType, PoseLandmark> pose, int ms) {

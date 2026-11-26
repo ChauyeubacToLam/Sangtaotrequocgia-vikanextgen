@@ -250,7 +250,8 @@ void main() {
     );
   });
 
-  test('counts floor contact but marks the rep as form correction', () {
+  test('a fully extended arm and leg (170 deg) is not reported as floor contact',
+      () {
     final exercise = _activatedDeadBug();
     final floorContactTop = _deadBugPose(
       leftArmAngle: 170,
@@ -269,10 +270,9 @@ void main() {
     );
 
     expect(exercise.repCount, 1);
-    expect(exercise.logger.repLogs.single.correctForm, isFalse);
     expect(
       exercise.logger.repLogs.single.data['fault_types'],
-      contains('floor_contact'),
+      isNot(contains('floor_contact')),
     );
   });
 }

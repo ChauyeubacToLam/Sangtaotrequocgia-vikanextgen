@@ -113,7 +113,8 @@ void main() {
     expect(exercise.isInStartPosition(_bentKneePose()), isFalse);
   });
 
-  test('hold timer resets when user leaves forearm plank', () {
+  test('hold timer pauses while user leaves forearm plank, then continues',
+      () {
     final exercise = Plank(maxRep: 5)
       ..cameraFacing = CameraFacing.right
       ..exerciseState = ExerciseState.activated;
@@ -123,14 +124,20 @@ void main() {
     expect(exercise.plankState, PlankState.holding);
 
     _pump(exercise, _highPlankPose(), 200);
-    expect(exercise.plankState, PlankState.setup);
-    expect(exercise.liveHoldSeconds, isNull);
+    expect(exercise.plankState, PlankState.paused);
+    expect(exercise.liveHoldSeconds, closeTo(0.1, 1e-9));
 
-    _pump(exercise, _forearmPose(), 300);
-    _pump(exercise, _forearmPose(), 400);
+    _pump(exercise, _highPlankPose(), 5200);
+    expect(exercise.liveHoldSeconds, closeTo(0.1, 1e-9));
+
+    _pump(exercise, _forearmPose(), 5300);
+    _pump(exercise, _forearmPose(), 5400);
     expect(exercise.plankState, PlankState.holding);
+    expect(exercise.liveHoldSeconds, closeTo(0.1, 1e-9));
 
-    _pump(exercise, _forearmPose(), 15400);
+    _pump(exercise, _forearmPose(), 20200);
+    expect(exercise.repCount, 0);
+    _pump(exercise, _forearmPose(), 20300);
     expect(exercise.repCount, 1);
     expect(exercise.plankState, PlankState.resting);
   });

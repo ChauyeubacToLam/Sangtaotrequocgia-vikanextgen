@@ -24,7 +24,7 @@ class VUpConfig {
   static const double RISING_ANGLE = 165.0;
   static const double RISING_MIN_LIFT = 0.08;
   static const double V_POSITION_THRESHOLD = 145.0;
-  static const double ROM_TARGET_ANGLE = 135.0;
+  static const double ROM_TARGET_ANGLE = 100.0;
   static const double TOP_TRUNK_HORIZ_MIN = 8.0;
   static const double TOP_LEG_HORIZ_MIN = 8.0;
   static const double TOP_MIN_LIFT = 0.08;
@@ -33,6 +33,8 @@ class VUpConfig {
   static const double TOP_ARM_REACH_DIST_MAX = 1.85;
   static const double TOP_ARM_REACH_CLOSURE_MIN = 0.25;
   static const double ACTIVE_KNEE_MIN = 130.0;
+  static const double KNEE_COUNT_MIN = 90.0;
+  static const double TEMPO_FAULT_SECONDS = 0.5;
   static const double LOWERING_THRESHOLD_DIFF = 5.0;
   static const double LYING_ANGLE = 145.0;
 

@@ -228,6 +228,24 @@ void main() {
     }
   });
 
+  test('forward lean of 20 deg held 5 frames is a trunk fault, 11 deg is not',
+      () {
+    final upright = LungeTrunkLeanMetric();
+    final leaning = LungeTrunkLeanMetric();
+    final brief = LungeTrunkLeanMetric();
+    for (var i = 0; i < 5; i++) {
+      upright.update(_ctx(trunkLean: 11));
+      leaning.update(_ctx(trunkLean: 20));
+    }
+    for (var i = 0; i < 4; i++) {
+      brief.update(_ctx(trunkLean: 46));
+    }
+    brief.update(_ctx(trunkLean: 0));
+    expect(upright.faults, isEmpty);
+    expect(leaning.faults.map((f) => f.type), ['trunk']);
+    expect(brief.faults, isEmpty);
+  });
+
   test('a knee-to-floor lunge is never faulted or told to go lower', () {
     final depth = LungeDepthMetric();
     for (final angle in [90.0, 60.0, 43.0, 30.0]) {

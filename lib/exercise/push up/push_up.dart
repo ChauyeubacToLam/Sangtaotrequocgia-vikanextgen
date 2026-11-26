@@ -319,11 +319,11 @@ class PushUp extends ExerciseBase with SideTrackedExerciseMixin {
     scaleFactor = geometry.torsoLen;
     final now = frameTimestampMs;
     // Debug-only device check (docs/scratch/kept-exercises-fix-batch-A.md,
-    // section 4). dev is the scored value; line and bend are printed only.
+    // section 4). dev is the scored value (= bend).
     if (kDebugMode && now - _lastFacingLogMs >= 1000) {
       _lastFacingLogMs = now;
       final (line, bend) =
-          _bodyLineDebug(lm['shoulder']!, lm['hip']!, lm['ankle']!);
+          _bodyLine(lm['shoulder']!, lm['hip']!, lm['ankle']!);
       debugPrint('[Vika][facing] PushUp facing=${cameraFacing.name} '
           'clock=${geometry.trunkClockAngle.toStringAsFixed(1)} '
           'dev=${geometry.trunkDeviation.toStringAsFixed(1)} '
@@ -836,14 +836,10 @@ class PushUp extends ExerciseBase with SideTrackedExerciseMixin {
       lastPoint: wrist,
     );
     final trunkClockAngle = calculateVerticalAngle(pivot: hip, point: shoulder);
-    // Signed tilt of hip->shoulder from horizontal, taken from the landmarks
-    // rather than cameraFacing: positive = shoulder above hip (sag), whichever
-    // way the head points, including angled views. Equals the old
-    // facing-based value when the label is correct.
-    final trunkDeviation =
-        math.atan2(hip.y - shoulder.y, (shoulder.x - hip.x).abs()) *
-            180.0 /
-            math.pi;
+    // Signed bend of the body line at the hip: 180 minus shoulder-hip-ankle,
+    // positive = hip below the shoulder-ankle line (sag), negative = pike.
+    // Independent of how steeply the body is tilted toward the floor.
+    final trunkDeviation = _bodyLine(shoulder, hip, ankle).$2;
     final shoulderHipKneeAngle = calculateAngleNormalized(
       firstPoint: shoulder,
       midPoint: hip,
@@ -1142,10 +1138,10 @@ class _PushUpGuardStatus {
   final String? reason;
 }
 
-/// Debug log only: the hip's signed offset from the shoulder-ankle line,
-/// positive = hip below the line. `line` is the angle at the shoulder between
-/// shoulder->hip and shoulder->ankle; `bend` is 180 minus shoulder-hip-ankle.
-(double, double) _bodyLineDebug(
+/// The hip's signed offset from the shoulder-ankle line, positive = hip below
+/// the line. `line` is the angle at the shoulder between shoulder->hip and
+/// shoulder->ankle; `bend` is 180 minus shoulder-hip-ankle.
+(double, double) _bodyLine(
     PoseLandmark shoulder, PoseLandmark hip, PoseLandmark ankle) {
   final vx = ankle.x - shoulder.x;
   final vy = ankle.y - shoulder.y;

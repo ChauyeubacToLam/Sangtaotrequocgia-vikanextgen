@@ -132,7 +132,52 @@ void main() {
     expect(hits.map((h) => h.$1.id), containsAll(['com_te', 'ga_luoc', 'rau_lang']));
   });
 
-  test('planner picks the smallest portion that reaches the protein floor', () {
+  test('meal cap adds workout burn and never exceeds what is left today', () {
+    const b = BodyInfo(weightKg: 60, heightCm: 165, age: 25, male: true);
+    final daily = NutritionTargets.daily(b, NutritionGoal.maintain, DietMode.balanced);
+    final k = daily.macros.kcal;
+    expect(NutritionTargets.postWorkout(b, daily).kcalCap, closeTo(k / 3, 0.01));
+    expect(NutritionTargets.postWorkout(b, daily, burnedKcal: 200).kcalCap,
+        closeTo(k / 3 + 200, 0.01));
+    expect(NutritionTargets.postWorkout(b, daily, eatenKcal: k - 100).kcalCap,
+        closeTo(100, 0.01));
+    expect(NutritionTargets.postWorkout(b, daily, eatenKcal: k + 500).kcalCap, 0);
+  });
+
+  test('suggestions follow the time of day and grow with the workout burn', () {
+    const b = BodyInfo(weightKg: 60, heightCm: 165, age: 25, male: true);
+    final daily = NutritionTargets.daily(b, NutritionGoal.maintain, DietMode.balanced);
+    final rest = NutritionTargets.postWorkout(b, daily);
+    final trained = NutritionTargets.postWorkout(b, daily, burnedKcal: 300);
+    for (final meal in ['breakfast', 'lunch', 'dinner', 'snack']) {
+      final all = PostWorkoutPlanner.forAllRegions(db, rest, meal: meal);
+      for (final r in Region.values) {
+        expect(all[r], isNotEmpty, reason: '$meal ${r.name}');
+        for (final s in all[r]!) {
+          expect(s.menu.servesAt(meal), isTrue, reason: '$meal ${s.menu.id}');
+        }
+      }
+    }
+    final breakfast = PostWorkoutPlanner.forAllRegions(db, rest, meal: 'breakfast');
+    final ids = breakfast[Region.bac]!.map((s) => s.menu.id);
+    expect(ids, contains('bac_pho'));
+    expect(ids, isNot(contains('bac_com_gio')));
+    final snack = PostWorkoutPlanner.forAllRegions(db, rest, meal: 'snack');
+    for (final r in Region.values) {
+      expect(snack[r]!.every((s) => s.menu.id.startsWith('toi_')), isTrue);
+    }
+    for (final menu in db.menus) {
+      final a = PostWorkoutPlanner.plan(db, menu, rest)!;
+      final c = PostWorkoutPlanner.plan(db, menu, trained)!;
+      expect(c.total.kcal, greaterThanOrEqualTo(a.total.kcal), reason: menu.id);
+    }
+    final com = db.menus.firstWhere((m) => m.id == 'bac_ga_rau_lang');
+    final small = NutritionTargets.postWorkout(b, daily, eatenKcal: daily.macros.kcal - 450);
+    expect(PostWorkoutPlanner.plan(db, com, trained)!.total.kcal,
+        greaterThan(PostWorkoutPlanner.plan(db, com, small)!.total.kcal));
+  });
+
+  test('planner returns a portion within the known sizes', () {
     const b = BodyInfo(weightKg: 60, heightCm: 165, age: 25, male: true);
     final daily = NutritionTargets.daily(b, NutritionGoal.maintain, DietMode.balanced);
     final target = NutritionTargets.postWorkout(b, daily);

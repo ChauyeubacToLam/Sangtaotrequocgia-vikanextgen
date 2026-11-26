@@ -21,6 +21,7 @@ class NeckShoulderMetric extends SphinxMetricBase {
   // Biến lưu trạng thái ngửa cổ để dùng chung giữa các hàm
   bool _isHyper = false;
   bool _isShrug = false;
+  double? _relaxedDist;
 
   bool get isHyperFaultingNow => _isHyper;
   bool get isShrugFaultingNow => _isShrug;
@@ -53,8 +54,15 @@ class NeckShoulderMetric extends SphinxMetricBase {
         ctx.earShoulderDist / (ctx.scaleFactor <= 0 ? 1 : ctx.scaleFactor);
     _debugData['neckDistNorm'] = normalizedDist.toStringAsFixed(3);
 
-    _isShrug =
-        _shrugDebouncer.update(normalizedDist < SphinxConfig.Ag_Neck_Shrug_Tol);
+    final base = _relaxedDist;
+    final droppedFromRelaxed =
+        base != null && normalizedDist < base * SphinxConfig.SHRUG_DROP_RATIO;
+    if (!droppedFromRelaxed) {
+      _relaxedDist =
+          base == null ? normalizedDist : base * 0.95 + normalizedDist * 0.05;
+    }
+    _isShrug = _shrugDebouncer.update(droppedFromRelaxed ||
+        normalizedDist < SphinxConfig.Ag_Neck_Shrug_Tol);
 
     if (_isShrug) {
       ctx.resultIssues.feedback['Neck'] = 'Thẳng vai!';

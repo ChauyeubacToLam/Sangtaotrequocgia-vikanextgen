@@ -11,6 +11,7 @@ class SphinxConfig {
   static const double Ad_Hip_Ground_Tol = 0.35;
   static const int Ae_Min_Hold_Time = 30;
   static const double Ag_Neck_Shrug_Tol = 0.10;
+  static const double SHRUG_DROP_RATIO = 0.75;
   static const double Ah_Stability_Var = 35.0;
   // [Fix Gap 1]: Ngưỡng phát hiện ngửa cổ (hyperextension).
   // neckAngle = góc Tai - Vai - Hông. Khi nằm trung tính ~160-170

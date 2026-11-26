@@ -24,12 +24,12 @@ Map<PoseLandmarkType, PoseLandmark> _sidePlankPose({
     PoseLandmarkType.leftElbow: _landmark(PoseLandmarkType.leftElbow, 200, 400),
     PoseLandmarkType.rightElbow:
         _landmark(PoseLandmarkType.rightElbow, 210, 300),
-    PoseLandmarkType.leftHip: _landmark(PoseLandmarkType.leftHip, 400, hipY),
+    PoseLandmarkType.leftHip: _landmark(PoseLandmarkType.leftHip, 400, hipY + 40),
     PoseLandmarkType.rightHip:
-        _landmark(PoseLandmarkType.rightHip, 410, hipY - 5),
-    PoseLandmarkType.leftAnkle: _landmark(PoseLandmarkType.leftAnkle, 600, 300),
+        _landmark(PoseLandmarkType.rightHip, 410, hipY + 35),
+    PoseLandmarkType.leftAnkle: _landmark(PoseLandmarkType.leftAnkle, 600, 380),
     PoseLandmarkType.rightAnkle:
-        _landmark(PoseLandmarkType.rightAnkle, 610, 295),
+        _landmark(PoseLandmarkType.rightAnkle, 610, 375),
   };
 }
 
@@ -54,6 +54,22 @@ SidePlankDip _activeSidePlank({int holdSeconds = 1}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('lying flat on the side (shoulder level with the ankle) is not a hold',
+      () {
+    final exercise = SidePlankDip(maxHolds: 1, holdSeconds: 15)
+      ..cameraFacing = CameraFacing.left;
+    final flat = _sidePlankPose()
+      ..[PoseLandmarkType.leftHip] = _landmark(PoseLandmarkType.leftHip, 400, 300)
+      ..[PoseLandmarkType.rightHip] =
+          _landmark(PoseLandmarkType.rightHip, 410, 295)
+      ..[PoseLandmarkType.leftAnkle] =
+          _landmark(PoseLandmarkType.leftAnkle, 600, 300)
+      ..[PoseLandmarkType.rightAnkle] =
+          _landmark(PoseLandmarkType.rightAnkle, 610, 295);
+    expect(exercise.isInStartPosition(flat), isFalse);
+    expect(exercise.isInStartPosition(_sidePlankPose()), isTrue);
+  });
 
   test('full static hold logs one engine rep', () {
     final exercise = _activeSidePlank();

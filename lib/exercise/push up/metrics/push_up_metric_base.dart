@@ -30,9 +30,8 @@ class RepContext {
   /// ~170° at top (plank), ~90° at bottom.
   final double elbowAngle;
 
-  /// Trunk deviation from horizontal (degrees).
-  /// 0° = perfect horizontal. Positive = sag. Negative = pike.
-  /// Uses same clock-angle-to-deviation math as Plank.
+  /// Body-line bend at the hip (degrees): 180 minus shoulder-hip-ankle.
+  /// 0° = straight body at any tilt. Positive = sag. Negative = pike.
   final double trunkDeviation;
 
   /// Raw clock angle of shoulder-hip line (for debug).

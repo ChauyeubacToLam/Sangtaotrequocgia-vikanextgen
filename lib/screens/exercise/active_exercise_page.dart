@@ -37,6 +37,7 @@ import 'widgets/ivory_chrome.dart';
 import 'widgets/phase_chevron_stream.dart';
 import 'widgets/rep_hero.dart';
 import 'widgets/readiness_checklist.dart';
+import '../../services/rep_replay.dart';
 import 'widgets/rest_countdown_ring.dart';
 import 'widgets/smoothed_pose_overlay.dart';
 import 'widgets/pose_overlay_painter.dart';
@@ -55,6 +56,7 @@ class ActiveExercisePage extends StatefulWidget {
     this.showRepTracking,
     this.controlCondition = false,
     this.setRecorder,
+    this.replayCollector,
     this.onFlushSetRecording,
     required this.onSetComplete,
     required this.onBack,
@@ -69,6 +71,7 @@ class ActiveExercisePage extends StatefulWidget {
   final bool? showRepTracking;
   final bool controlCondition;
   final SetRecorder? setRecorder;
+  final RepReplayCollector? replayCollector;
   final VoidCallback? onFlushSetRecording;
   final ValueChanged<ExerciseLogger> onSetComplete;
   final VoidCallback onBack;
@@ -1663,6 +1666,7 @@ class _ActiveExercisePageState extends State<ActiveExercisePage>
     }
 
     widget.setRecorder?.onFrame(widget.exercise, hasPose: hasPose);
+    widget.replayCollector?.observe(widget.exercise);
 
     final coach = _voiceCoach;
     if (coach == null) {

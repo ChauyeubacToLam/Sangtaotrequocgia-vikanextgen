@@ -18,11 +18,11 @@ import 'lunge_metric_base.dart';
 import '../../../utils/debouncer.dart';
 
 class LungeTrunkLeanConfig {
-  /// Good forward lean range (degrees from vertical).
-  static const List<int> GOOD_LEAN_RANGE = [-5, 45];
+  static const List<int> GOOD_LEAN_RANGE = [-5, 14];
 
-  /// Warning zone upper bound (degrees). Above this = core collapse.
-  static const int WARN_LEAN_LIMIT = 55;
+  static const int WARN_LEAN_LIMIT = 19;
+
+  static const int FORWARD_CONFIRM_FRAMES = 5;
 
   /// Backward lean threshold (degrees). Below 0 = leaning back.
   static const double BACKWARD_LIMIT = -10.0;
@@ -36,8 +36,8 @@ class LungeTrunkLeanMetric extends LungeMetricBase {
   final Map<String, dynamic> _debugData = {};
 
   // Separate debouncers for forward/backward
-  // 12 frames for forward lean
-  final Debouncer _forwardDebouncer = Debouncer(requiredFrames: 12);
+  final Debouncer _forwardDebouncer =
+      Debouncer(requiredFrames: LungeTrunkLeanConfig.FORWARD_CONFIRM_FRAMES);
   // 8 frames for backward lean
   final Debouncer _backwardDebouncer = Debouncer(requiredFrames: 8);
 
@@ -64,10 +64,8 @@ class LungeTrunkLeanMetric extends LungeMetricBase {
 
     final phase = ctx.lungeState.toString().split('.').last.toUpperCase();
 
-    // Core collapse: ≥ 56° forward
     bool leanForwardBad =
         ctx.trunkLean >= (LungeTrunkLeanConfig.WARN_LEAN_LIMIT + 1);
-    // Warning: 46° – 55° forward
     bool leanForwardWarn =
         ctx.trunkLean > LungeTrunkLeanConfig.GOOD_LEAN_RANGE[1] &&
             ctx.trunkLean <= LungeTrunkLeanConfig.WARN_LEAN_LIMIT;
@@ -78,7 +76,6 @@ class LungeTrunkLeanMetric extends LungeMetricBase {
     bool backwardConfirmed = _backwardDebouncer.update(leanBackward);
 
     if (forwardBadConfirmed) {
-      // ≥ 56° — Core collapse
       ctx.resultIssues.feedback['Back'] = 'Nâng ngực lên!';
       if (!_instructionSet) {
         // Legacy UI instruction copy: Giữ thân trên thẳng, siết cơ core khi bước lùi.
@@ -94,10 +91,8 @@ class LungeTrunkLeanMetric extends LungeMetricBase {
       }
       _logFault(phase, 'Đừng ngả ra sau!');
     } else if (leanForwardWarn) {
-      // 46° – 55° — Warning zone (no debounce needed, just feedback)
       ctx.resultIssues.feedback['Back'] = 'Hơi gập người, giữ lưng thẳng';
     } else {
-      // -10° – 45° — Good posture
       ctx.resultIssues.feedback['Back'] = 'Lưng tốt!';
     }
   }

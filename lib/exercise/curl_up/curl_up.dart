@@ -73,6 +73,7 @@ class CurlUpConfig {
 
   // Angle gate for detecting stable vs changing angle in FrameBuffer.
   static const double ANGLE_STABLE_GATE = 0.8; // degrees
+  static const int MIN_REST_MS = 600;
 }
 
 enum CurlUpState { resting, ascending, descending }
@@ -117,6 +118,7 @@ class CurlUp extends ExerciseBase with SideTrackedExerciseMixin {
   /// Baseline for state machine — trunk angle from horizontal at rest.
   /// Refreshes during stable resting frames.
   double? _baselineTrunkAngle;
+  int? _restingSinceMs;
 
   /// True when current knee displacement from baseline exceeds threshold.
   /// Smoothed via StickyDebouncer. Gates state machine transitions.
@@ -660,8 +662,11 @@ class CurlUp extends ExerciseBase with SideTrackedExerciseMixin {
 
       // resting → ascending: real trunk lift past entry threshold,
       // not currently returning, knee at baseline.
+      final restedLongEnough = _restingSinceMs == null ||
+          timestampMs - _restingSinceMs! >= CurlUpConfig.MIN_REST_MS;
       if (!isReturning &&
           curlUpState == CurlUpState.resting &&
+          restedLongEnough &&
           trunkElev > CurlUpConfig.ASCEND_DELTA_THRESHOLD &&
           !_kneeIsDisplaced) {
         _transitionState(CurlUpState.ascending, timestampMs);
@@ -693,6 +698,7 @@ class CurlUp extends ExerciseBase with SideTrackedExerciseMixin {
 
     previousCurlUpState = curlUpState;
     curlUpState = newState;
+    if (newState == CurlUpState.resting) _restingSinceMs = timestampMs;
 
     if (newState == CurlUpState.ascending &&
         previousCurlUpState == CurlUpState.resting) {

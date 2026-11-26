@@ -30,8 +30,10 @@ import '../utils/orientation_lock.dart';
 import '../widgets/ivory/bottom_nav.dart';
 import 'dashboard_home_screen.dart';
 import 'exercise/exercise_launch_args.dart';
+import 'exercise/workout_summary_screen.dart' show workoutFinished;
 import 'library_screen.dart';
 import 'nutrition/nutrition_screen.dart';
+import 'nutrition/post_workout_card.dart';
 import 'plan_screen.dart';
 import 'profile_screen.dart';
 import 'progress_screen.dart';
@@ -70,6 +72,50 @@ class _MainShellState extends State<MainShell>
     unawaited(WorkoutReminders.askPermissionOnce());
     _loadProgram();
     _loadProfile();
+    workoutFinished.addListener(_showMealPrompt);
+  }
+
+  void _showMealPrompt() {
+    if (!mounted || ResearchPreferences.cachedConfig.isControl) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          maxChildSize: 0.95,
+          minChildSize: 0.4,
+          expand: false,
+          builder: (_, scroll) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: ListView(
+              controller: scroll,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0x22000000),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const PostWorkoutMealCard(justTrained: true),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Future<void> _loadProgram() async {
@@ -129,6 +175,7 @@ class _MainShellState extends State<MainShell>
 
   @override
   void dispose() {
+    workoutFinished.removeListener(_showMealPrompt);
     _tabFade.dispose();
     _planRefreshNudge.dispose();
     _progressRefreshNudge.dispose();

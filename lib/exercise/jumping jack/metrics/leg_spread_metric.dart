@@ -8,14 +8,14 @@
    
    Detection strategy:
    - ankleSpreadNorm = distance(leftAnkle, rightAnkle) / shoulderWidth
-   - The open gate already needs spread > 1.0, so a rep always opened at
-     least that wide; the fault is the per-rep peak below 1.25 (rep end).
+   - The open gate already needs spread > 0.85, so a rep always opened at
+     least that wide; the fault is the per-rep peak below 1.4 (rep end).
    - Live text only while the frame still meets the open gate (not during
      the closing movement, when the feet pass through narrow spreads).
    
    Thresholds (normalized to shoulder width):
-     Good:     peak spread >= 1.25× shoulder width
-     Fault:    peak spread 1.0–1.25× (logged at rep end)
+     Good:     peak spread >= 1.4× shoulder width
+     Fault:    peak spread 0.85–1.4× (logged at rep end)
    
    Vietnamese context:
    - Small apartment tile floors can be slippery
@@ -29,7 +29,7 @@ import '../jumping_jack.dart';
 class LegSpreadConfig {
   /// Good: feet clearly spread wider than shoulders
   // ignore: constant_identifier_names
-  static const double SPREAD_GOOD = 1.25;
+  static const double SPREAD_GOOD = 1.4;
 }
 
 class LegSpreadMetric extends JJMetricBase {
@@ -44,6 +44,8 @@ class LegSpreadMetric extends JJMetricBase {
 
   /// Prevent instruction spam
   bool _instructionSet = false;
+
+  double get peakSpread => _peakSpread;
 
   @override
   List<FaultRecord> get faults => _faults;

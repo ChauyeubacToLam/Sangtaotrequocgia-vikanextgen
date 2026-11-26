@@ -206,7 +206,7 @@ void main() {
       _hold(plank, _plank(leftNear: true), fromMs: 0, toMs: 4000);
       // Unconfident landmarks: geometry fails and the hold breaks.
       _pump(plank, _plank(leftNear: true, likelihood: 0.1), 4100);
-      expect(plank.plankState, PlankState.setup);
+      expect(plank.plankState, PlankState.paused);
 
       plank.onSetComplete();
       // Hold confirmed at 100 ms, last evaluated holding frame at 4000 ms.
@@ -231,6 +231,65 @@ void main() {
       expect(plank.plankState, PlankState.holding);
 
       _hold(plank, _plank(leftNear: true), fromMs: 16100, toMs: 18300);
+      expect(plank.repCount, 1);
+    });
+
+    test('a hold that ends within 3 s of 15 s counts with its real time', () {
+      final plank = _activePlank(leftNear: true);
+      _hold(plank, _plank(leftNear: true), fromMs: 0, toMs: 12600);
+      _pump(plank, _plank(leftNear: true, likelihood: 0.1), 12700);
+      expect(plank.repCount, 1);
+      expect(plank.plankState, PlankState.resting);
+      expect(plank.logger.repLogs.single.data['hold_time'], 12.5);
+    });
+
+    test('a hold that breaks at 8 s pauses instead of counting', () {
+      final plank = _activePlank(leftNear: true);
+      _hold(plank, _plank(leftNear: true), fromMs: 0, toMs: 8000);
+      _pump(plank, _plank(leftNear: true, likelihood: 0.1), 8100);
+      expect(plank.repCount, 0);
+      expect(plank.plankState, PlankState.paused);
+    });
+
+    test('a form break keeps the held time and the clock resumes on return',
+        () {
+      final plank = _activePlank(leftNear: true, maxRep: 1);
+      _hold(plank, _plank(leftNear: true), fromMs: 0, toMs: 8000);
+
+      _hold(plank, _plank(leftNear: true, hipDrop: 60),
+          fromMs: 8100, toMs: 12000);
+      expect(plank.plankState, PlankState.paused);
+      expect(plank.liveHoldSeconds, closeTo(8.0, 1e-9));
+      expect(plank.lastHoldFaultVoiceMessage, isNotNull);
+
+      _hold(plank, _plank(leftNear: true), fromMs: 12100, toMs: 19100);
+      expect(plank.plankState, PlankState.holding);
+      expect(plank.repCount, 0);
+      expect(plank.liveHoldSeconds, closeTo(14.9, 1e-9));
+
+      _hold(plank, _plank(leftNear: true), fromMs: 19200, toMs: 19300);
+      expect(plank.repCount, 1);
+      expect(plank.plankState, PlankState.resting);
+      expect(plank.logger.repLogs.single.data['hold_time'], 15.0);
+    });
+
+    test('time spent out of position is not logged as held', () {
+      final plank = _activePlank(leftNear: true);
+      _hold(plank, _plank(leftNear: true), fromMs: 0, toMs: 5000);
+      _hold(plank, _plank(leftNear: true, hipDrop: 60),
+          fromMs: 5100, toMs: 9000);
+      _hold(plank, _plank(leftNear: true), fromMs: 9100, toMs: 11000);
+      plank.onSetComplete();
+      expect(plank.logger.setLogs['total_seconds'] as num, closeTo(6.8, 1e-9));
+    });
+
+    test('the 3 s start-pose hold counts toward the first hold', () {
+      final plank = _activePlank(leftNear: true);
+      plank.frameTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
+      plank.onExerciseActivated();
+      _hold(plank, _plank(leftNear: true), fromMs: 0, toMs: 11900);
+      expect(plank.repCount, 0);
+      _hold(plank, _plank(leftNear: true), fromMs: 12000, toMs: 12200);
       expect(plank.repCount, 1);
     });
 

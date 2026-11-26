@@ -105,6 +105,7 @@ class LibraryCardData {
     this.hasAi = false,
     this.tag,
     this.icon,
+    this.imageAsset,
     this.exerciseName,
     this.albumId,
     this.sequenceExerciseIds,
@@ -145,6 +146,7 @@ class LibraryCardData {
   /// Illustrative glyph at the center of the visual area. Until photos
   /// arrive, an icon over a gradient stands in.
   final IconData? icon;
+  final String? imageAsset;
 
   /// Maps to a real `ExerciseDefinition` lookup key. In the Library this is
   /// normally the catalog id (`squat`, `mcgill_curlup`, ...).
@@ -271,6 +273,17 @@ class _Visual extends StatelessWidget {
                 ),
               ),
             ),
+            if (data.imageAsset case final asset?)
+              Positioned.fill(
+                child: Image.asset(
+                  asset,
+                  fit: BoxFit.cover,
+                  alignment: const Alignment(0, -0.5),
+                  errorBuilder: (context, error, stackTrace) => Center(
+                    child: Icon(data.icon, size: 32, color: palette.iconColor),
+                  ),
+                ),
+              ),
             // Watermark numeral — soft italic chapter mark in the
             // bottom-right. Adds editorial personality; reads as
             // "01 / 02 / 03" magazine chapter index per card.
@@ -296,27 +309,28 @@ class _Visual extends StatelessWidget {
               ),
             // Subtle radial halo top-right — adds depth, hides flat
             // gradient feel until photos replace it.
-            Positioned(
-              top: -30,
-              right: -30,
-              child: IgnorePointer(
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        palette.haloColor.withValues(alpha: 0.4),
-                        palette.haloColor.withValues(alpha: 0),
-                      ],
+            if (data.imageAsset == null)
+              Positioned(
+                top: -30,
+                right: -30,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          palette.haloColor.withValues(alpha: 0.4),
+                          palette.haloColor.withValues(alpha: 0),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
             // Centered illustrative icon
-            if (data.icon != null)
+            if (data.imageAsset == null && data.icon != null)
               Center(
                 child: Icon(
                   data.icon,

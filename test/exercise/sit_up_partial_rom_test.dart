@@ -23,6 +23,7 @@ PoseLandmark _landmark(
 Map<PoseLandmarkType, PoseLandmark> _sitUpPose({
   required double shoulderX,
   required double shoulderY,
+  double ankleY = 180,
 }) {
   return {
     PoseLandmarkType.leftShoulder:
@@ -33,9 +34,10 @@ Map<PoseLandmarkType, PoseLandmark> _sitUpPose({
     PoseLandmarkType.rightHip: _landmark(PoseLandmarkType.rightHip, 300, 300),
     PoseLandmarkType.leftKnee: _landmark(PoseLandmarkType.leftKnee, 420, 300),
     PoseLandmarkType.rightKnee: _landmark(PoseLandmarkType.rightKnee, 420, 300),
-    PoseLandmarkType.leftAnkle: _landmark(PoseLandmarkType.leftAnkle, 420, 180),
+    PoseLandmarkType.leftAnkle:
+        _landmark(PoseLandmarkType.leftAnkle, 420, ankleY),
     PoseLandmarkType.rightAnkle:
-        _landmark(PoseLandmarkType.rightAnkle, 420, 180),
+        _landmark(PoseLandmarkType.rightAnkle, 420, ankleY),
   };
 }
 
@@ -68,8 +70,7 @@ void main() {
     expect(tempo.faults, isEmpty);
   });
 
-  test('counts a controlled partial sit-up without requiring upright torso',
-      () {
+  test('a half sit-up (trunk 50 deg) counts and logs rom', () {
     final sitUp = _activatedSitUp();
     final lying = _sitUpPose(shoulderX: 180, shoulderY: 300);
     final halfway = _sitUpPose(shoulderX: 250, shoulderY: 240);
@@ -85,8 +86,45 @@ void main() {
     _pump(sitUp, lying, 1000);
 
     expect(sitUp.repCount, 1);
-    expect(sitUp.logger.repLogs.single.correctForm, isTrue);
-    expect(sitUp.logger.repLogs.single.data['fault_types'], isEmpty);
+    final rep = sitUp.logger.repLogs.single;
+    expect(rep.correctForm, isFalse);
+    expect(rep.data['fault_types'], ['rom']);
+    expect(rep.data['peak_trunk'] as double, closeTo(50.2, 0.5));
+  });
+
+  test('a full sit-up with feet down is clean; lifting the feet logs stability',
+      () {
+    for (final lift in [0.0, 30.0]) {
+      final sitUp = _activatedSitUp();
+      final lying = _sitUpPose(shoulderX: 180, shoulderY: 300);
+      final upright = _sitUpPose(shoulderX: 300, shoulderY: 180, ankleY: 180 - lift);
+      for (var t = 0; t < 400; t += 100) {
+        _pump(sitUp, lying, t);
+      }
+      for (var t = 400; t < 900; t += 100) {
+        _pump(sitUp, upright, t);
+      }
+      _pump(sitUp, lying, 900);
+      _pump(sitUp, lying, 1000);
+      expect(sitUp.repCount, 1, reason: '$lift');
+      expect(sitUp.logger.repLogs.single.data['fault_types'],
+          lift == 0 ? isEmpty : ['stability'],
+          reason: '$lift');
+    }
+  });
+
+  test('a small lift of the shoulders (trunk 25 deg) is not a rep', () {
+    final sitUp = _activatedSitUp();
+    final lying = _sitUpPose(shoulderX: 180, shoulderY: 300);
+    final small = _sitUpPose(shoulderX: 191, shoulderY: 249);
+    _pump(sitUp, lying, 0);
+    _pump(sitUp, lying, 100);
+    _pump(sitUp, small, 200);
+    _pump(sitUp, small, 300);
+    _pump(sitUp, small, 400);
+    _pump(sitUp, lying, 500);
+    _pump(sitUp, lying, 600);
+    expect(sitUp.repCount, 0);
   });
 
   test('leaves upright hold state and counts after lowering to the floor', () {

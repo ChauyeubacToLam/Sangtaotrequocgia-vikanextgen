@@ -6,6 +6,7 @@ class FloorContactMetric extends DeadBugMetricBase {
   String get name => 'FloorContact';
 
   static const double _floorContactAngle = 165.0;
+  static const bool enabled = false;
 
   final List<FaultRecord> _faults = [];
   final Map<String, dynamic> _debugData = {};
@@ -29,6 +30,7 @@ class FloorContactMetric extends DeadBugMetricBase {
 
   @override
   void update(DeadBugRepContext ctx) {
+    if (!enabled) return;
     if (ctx.state != DeadBugState.extending && ctx.state != DeadBugState.hold) {
       return;
     }

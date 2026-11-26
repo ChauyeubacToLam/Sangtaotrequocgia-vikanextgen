@@ -128,7 +128,7 @@ void main() {
       hipY: 160,
       supportY: 340,
     );
-    final landing = _jumpSquatPose(kneeAngle: 110, hipY: 220);
+    final landing = _jumpSquatPose(kneeAngle: 95, hipY: 235);
 
     expect(exercise.isInStartPosition(standing), isTrue);
 

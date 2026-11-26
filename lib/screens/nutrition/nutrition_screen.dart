@@ -74,6 +74,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
   StreamSubscription<int>? _stepSub;
   int _calView = 0;
   int _region = 0;
+  MealSlot _menuMeal = mealSlotForHour(DateTime.now().hour);
+  int _menuLimit = 6;
   MealSlot? _openMeal;
   bool _waterRemind = false;
   String? _recipeFilter;
@@ -349,7 +351,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
             .fold(Macros.zero, (a, b) => a + b)
             .scale(1 / loggedDays.length);
     final regionMenus = ctx.db.menus
-        .where((m) => !m.custom && m.region == Region.values[_region])
+        .where((m) =>
+            !m.custom &&
+            (m.region == null || m.region == Region.values[_region]) &&
+            m.servesAt(_menuMeal.name))
         .toList();
     final myMenus = ctx.db.menus.where((m) => m.custom).toList();
     return RefreshIndicator(
@@ -645,15 +650,27 @@ class _NutritionScreenState extends State<NutritionScreen> {
           TkSegmented(
             labels: const ['Bắc', 'Trung', 'Nam'],
             selected: _region,
-            onChanged: (i) => setState(() => _region = i),
+            onChanged: (i) => setState(() {
+              _region = i;
+              _menuLimit = 6;
+            }),
+          ),
+          const SizedBox(height: 8),
+          TkSegmented(
+            labels: const ['Sáng', 'Trưa', 'Tối', 'Ăn khuya'],
+            selected: _menuMeal.index,
+            onChanged: (i) => setState(() {
+              _menuMeal = MealSlot.values[i];
+              _menuLimit = 6;
+            }),
           ),
           const SizedBox(height: 12),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 260),
             child: Column(
-              key: ValueKey(_region),
+              key: ValueKey((_region, _menuMeal)),
               children: [
-                for (final (i, m) in regionMenus.indexed)
+                for (final (i, m) in regionMenus.take(_menuLimit).indexed)
                   FadeSlideIn(
                     index: i,
                     child: _MenuCard(
@@ -663,6 +680,19 @@ class _NutritionScreenState extends State<NutritionScreen> {
                           await logMenu(context, m, _day);
                           await _reload();
                         }),
+                  ),
+                if (regionMenus.length > _menuLimit)
+                  Semantics(
+                    button: true,
+                    child: TkCard(
+                      radius: 16,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      onTap: () => setState(() => _menuLimit += 6),
+                      child: Text('Xem thêm',
+                          style: Tk.text(15,
+                              weight: FontWeight.w800, color: Tk.primary)),
+                    ),
                   ),
               ],
             ),
@@ -1562,7 +1592,7 @@ class _MenuCard extends StatelessWidget {
                               Text(f.name,
                                   style: Tk.text(15, weight: FontWeight.w800)),
                               Text(
-                                f.isDish && f.defaultPortion != null
+                                f.isDish && f.defaultPortion?.grams == it.grams
                                     ? f.defaultPortion!.label
                                     : f.amountLabel(it.grams),
                                 style: Tk.text(12.5,

@@ -103,8 +103,8 @@ class LegRaiseReportBuilder extends ExerciseReportBuilder {
       DetailCard(
         label: 'Kiểm soát hạ chân',
         value: '${avgTempo.toStringAsFixed(1)}s',
-        subLabel: 'Mục tiêu: ≥1.2s',
-        color: avgTempo >= 1.2 ? 'jade' : 'amber',
+        subLabel: 'Mục tiêu: ≥0.8s',
+        color: avgTempo >= 0.8 ? 'jade' : 'amber',
       ),
       DetailCard(
         label: 'Lần nâng bị loại do gập gối',

@@ -12,6 +12,7 @@ class VikaAlbum {
     required this.level,
     required this.minutes,
     required this.icon,
+    required this.cover,
     required this.exerciseIds,
   });
 
@@ -21,6 +22,7 @@ class VikaAlbum {
   final String level;
   final int minutes;
   final IconData icon;
+  final String cover;
   final List<String> exerciseIds;
 
   String get cardMeta => '${exerciseIds.length} bài · ~$minutes phút';
@@ -33,6 +35,7 @@ class VikaAlbum {
       detail: '~$minutes phút',
       hasAi: true,
       icon: icon,
+      imageAsset: cover,
       albumId: id,
       sequenceExerciseIds: exerciseIds,
       episodeMeta: cardMeta,
@@ -43,6 +46,7 @@ class VikaAlbum {
 const List<VikaAlbum> _allVikaAlbums = [
   VikaAlbum(
     id: 'wake',
+    cover: 'assets/albums/wake.webp',
     vietnameseTitle: 'Tỉnh dậy cùng cơ thể',
     vietnameseSubtitle: 'Đánh thức năng lượng cho một ngày mới.',
     level: 'Dễ',
@@ -57,7 +61,8 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'desk',
-    vietnameseTitle: 'Nghỉ ngắn, tập luyên ngay tại bàn làm việc',
+    cover: 'assets/albums/desk.webp',
+    vietnameseTitle: 'Nghỉ ngắn, tập luyện ngay tại bàn làm việc',
     vietnameseSubtitle: 'Nhanh giữa giờ, không cần thay đồ.',
     level: 'Dễ–TB',
     minutes: 5,
@@ -71,6 +76,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'evening',
+    cover: 'assets/albums/evening.webp',
     vietnameseTitle: 'Buông một ngày',
     vietnameseSubtitle: 'Giãn cơ nhẹ để dễ ngủ hơn.',
     level: 'Người mới',
@@ -85,6 +91,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'core',
+    cover: 'assets/albums/core.webp',
     vietnameseTitle: 'Cốt lõi vững',
     vietnameseSubtitle: 'Phương pháp McGill, bảo vệ lưng.',
     level: 'TB',
@@ -99,6 +106,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'legs',
+    cover: 'assets/albums/legs.webp',
     vietnameseTitle: 'Chân khỏe, mông săn chắc',
     vietnameseSubtitle: 'Nền tảng cho phần thân dưới.',
     level: 'TB',
@@ -113,6 +121,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'upper',
+    cover: 'assets/albums/upper.webp',
     vietnameseTitle: 'Thân trên chắc',
     vietnameseSubtitle: 'Ngực, vai và tay sau.',
     level: 'TB',
@@ -127,6 +136,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'energy',
+    cover: 'assets/albums/energy.webp',
     vietnameseTitle: 'Đốt calo thần tốc',
     vietnameseSubtitle: 'Tăng nhịp tim, đốt calo.',
     level: 'TB–Khó',
@@ -141,6 +151,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'back',
+    cover: 'assets/albums/back.webp',
     vietnameseTitle: 'Lưng khỏe mỗi ngày',
     vietnameseSubtitle: 'Giãn cơ lưng, sau nhiều giờ làm việc',
     level: 'Dễ–TB',
@@ -156,6 +167,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'beginner',
+    cover: 'assets/albums/beginner.webp',
     vietnameseTitle: 'Dành cho người mới bắt đầu',
     vietnameseSubtitle: 'Cơ bản, nhịp chậm, tập chuẩn xác.',
     level: 'Dễ',
@@ -171,6 +183,7 @@ const List<VikaAlbum> _allVikaAlbums = [
   ),
   VikaAlbum(
     id: 'mobility',
+    cover: 'assets/albums/mobility.webp',
     vietnameseTitle: 'Tăng độ linh hoạt và giãn cơ',
     vietnameseSubtitle: 'Mở hông, giãn đùi sau, và thả lỏng cột sống.',
     level: 'Người mới–TB',
@@ -196,6 +209,7 @@ final List<VikaAlbum> vikaAlbums = [
         level: album.level,
         minutes: album.minutes,
         icon: album.icon,
+        cover: album.cover,
         exerciseIds: album.exerciseIds.where(isKeptExercise).toList(
               growable: false,
             ),

@@ -2,25 +2,10 @@
    Metric 1: Dynamic Trunk Alignment (Hip Sag & Pike)
    Priority: 🔴 CRITICAL — Ship Day 1
    
-   Uses trunk deviation from horizontal (same approach as Plank).
-   Calculated via calculateVerticalAngle(hip, shoulder) → clock angle
-   → deviation from horizontal target.
-   
-   Only needs SHOULDER + HIP landmarks — no ankle/knee required.
-   This avoids the problem of feet being cut off in small Vietnamese
-   apartments (1.5-2m camera distance with horizontal body).
-   
-   trunkDeviation:
-     0°  = perfectly horizontal
-     +N° = sag direction (hips dropping → lumbar hyperextension)
-     -N° = pike direction (hips too high → inverted V)
-   
-   Vietnamese context:
-   - Short torso + long legs → 165°-175° three-point angle is normal
-   - With horizontal deviation approach, slight pike (-2° to -5°) is
-     actually correct form with glute engagement
-   - Desk workers with weak cores sag quickly under fatigue
-   - CRITICAL: Never enforce strict 0° — slight pike is SAFE
+   trunkDeviation = body-line bend at the hip, 180 minus shoulder-hip-ankle:
+     0°  = straight body, whatever its tilt toward the floor
+     +N° = sag direction (hip below the shoulder-ankle line)
+     -N° = pike direction (hip above the line)
    
    Runs CONTINUOUSLY (not per-rep) during descending, bottom, ascending.
    Hip sag is the #1 acute spinal injury risk in push-ups.
@@ -30,17 +15,12 @@ import 'push_up_metric_base.dart';
 import '../../../utils/debouncer.dart';
 
 class TrunkAlignmentConfig {
-  /// Sag thresholds (positive deviation = hips dropping)
-  /// More lenient than plank because dynamic movement causes natural sway
-  static const double SAG_GOOD_MAX = 12.0; // degrees
-  static const double SAG_WARNING_MAX = 16.0;
-  static const double SAG_ERROR_MAX = 25.0; // STOP level
+  static const double SAG_GOOD_MAX = 10.0;
+  static const double SAG_WARNING_MAX = 15.0;
+  static const double SAG_ERROR_MAX = 25.0;
 
-  /// Pike thresholds (negative deviation = hips too high)
-  /// Slight pike is NORMAL for Vietnamese users — don't over-flag
-  static const double PIKE_GOOD_MAX = 6.0;
-  static const double PIKE_WARNING_MAX = 10.0;
-  static const double PIKE_ERROR_MAX = 16.0;
+  static const double PIKE_GOOD_MAX = 12.0;
+  static const double PIKE_WARNING_MAX = 18.0;
 }
 
 class TrunkAlignmentMetric extends PushUpMetricBase {

@@ -187,7 +187,7 @@ void main() {
     test(
       'every kept exercise has an entry whose orientation and view agree with the exercise class',
       () async {
-        expect(keptExerciseIds, hasLength(24));
+        expect(keptExerciseIds, hasLength(21));
         expect(kExercisePlacementByCatalogId.keys.toSet(), keptExerciseIds);
 
         final landmarks = _syntheticLandmarks();
@@ -373,7 +373,7 @@ void main() {
 
   group('CameraPlacementCard and ExerciseIntroPage at 320pt width', () {
     testWidgets(
-      'renders CameraPlacementCard and ExerciseIntroPage for all 24 kept exercises at 320pt without overflow',
+      'renders CameraPlacementCard and ExerciseIntroPage for all 21 kept exercises at 320pt without overflow',
       (tester) async {
         tester.view.physicalSize = const Size(320, 568);
         tester.view.devicePixelRatio = 1.0;

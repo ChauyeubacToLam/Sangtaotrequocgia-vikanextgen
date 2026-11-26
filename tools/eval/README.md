@@ -11,12 +11,13 @@ No third-party packages are required (Python 3.9+ standard library only).
 - `evaluate.py` — Single-file CLI entry point.
 - `test_evaluate.py` — `unittest` suite covering synthetic scenarios, edge cases, input recovery, and end-to-end CLI execution.
 - `camera_safety.py` — Separate CLI for the provoked bad-camera trials (`KE_HOACH_THU_SO_LIEU.md` section 5): `--trials an_toan_camera.csv --logs <dir> --out <dir>` writes `camera_safety.csv` and `camera_safety_summary.md` (detection, prompt kind, latency, reps/faults logged during the bad window, recovery). Checked by `test_camera_safety.py`.
-- `fault_catalog.csv` — The fault codes of all 24 kept exercises, read from the app source on 2026-11-23: `exercise_id, exercise_vi, unit (rep|hold), hold_s, fault, kind (form|status), description_vi`. `evaluate.py` loads it by default; `kind=status` codes (`bird_dog` `MissingBody`, `Plank`) are app states, not form faults, and are dropped from app reps silently.
+- `fault_catalog.csv` — The fault codes of the 21 studied exercises (the 21 kept ones; `step_up`, `neck_side_stretch`, `pushup_rotation` were hidden on 2026-11-24), read from the app source on 2026-11-23: `exercise_id, exercise_vi, unit (rep|hold), hold_s, fault, kind (form|status), description_vi`. `evaluate.py` loads it by default; `kind=status` codes (`bird_dog` `MissingBody`, `Plank`) are app states, not form faults, and are dropped from app reps silently.
 - `clips.py` — Video side of the study: `suggest` (predict each set's beep time in a camera video from one beep found by ear), `conditions` (append a `session_conditions.csv` row per set log), `cut` (one muted clip per set with a random name, plus a separate `clip_key.csv`), `merge` (coach sheets keyed by `clip_id` back to the 10-column label CSV), `overlay` (short excerpts of `wrong_detections.csv` with `HLV: … / AI: …` burned in). `cut` and `overlay` need `ffmpeg` on PATH (`winget install Gyan.FFmpeg`). Checked by `test_clips.py`.
-- `p00_gate.py` — Checks the P00 trial logs (`--logs <dir>`): per set, rep count against `--target` (default 10; `--hold-target` 3 for hold exercises) ± `--tolerance` 1, sync beep present, fault codes all in `fault_catalog.csv`, fault cues with audio in `ai`. Lists exercises with no log yet. Exit code 1 while any exercise fails or is missing.
-- `HUONG_DAN_GAN_NHAN.md` — Vietnamese instruction sheet for the video-labelling coaches, all 24 exercises. Section 3 mirrors `fault_catalog.csv`; `test_catalog_eval.py` fails if they drift apart.
+- `p00_gate.py` — Checks the P00 trial logs (`--logs <dir>`): per set, rep count against the app's per-set target (`reps` in `assets/data/exercise_catalog.json`, holds per set for hold exercises) ± `--tolerance` 1, sync beep present, fault codes all in `fault_catalog.csv`, fault cues with audio in `ai`. Lists exercises with no log yet and main exercises with no `control` set. Exit code 1 while any of these remain.
+- `KICH_BAN_P00.md` — Vietnamese step-by-step script for the P00 trial run: install, research settings, what to perform in each of the 21 exercises, the `control` sets, the skip and "Báo sai" checks, pulling logs and reading the `p00_gate.py` output.
+- `HUONG_DAN_GAN_NHAN.md` — Vietnamese instruction sheet for the video-labelling coaches, all 21 exercises. Section 3 mirrors `fault_catalog.csv`; `test_catalog_eval.py` fails if they drift apart.
 - `coach_labels_template.csv` — Spreadsheet-friendly CSV template with example rows across `squat`, `push_up`, `glute_bridge`, and `plank`.
-- `cue_fault_map.csv` — Optional mapping from Vika voice cue keys (`key`) to canonical fault IDs (`fault`) when `cue` log events omit `"fault"`. Covers the 24 exercises.
+- `cue_fault_map.csv` — Optional mapping from Vika voice cue keys (`key`) to canonical fault IDs (`fault`) when `cue` log events omit `"fault"`. Covers the 21 exercises.
 - `fixtures/` — Hand-written synthetic schema-1 logs and coach labels used for end-to-end testing.
 
 ---
@@ -45,7 +46,7 @@ python tools/eval/evaluate.py \
 - `--cue-map <csv>`: Optional CSV with columns `key,fault` (and optional `exercise_id`) used only when a `cue` event in a set log omits `"fault"`. Rows with `fault` set to `none` (or empty) explicitly mark non-fault cues (e.g. rep counts, setup prompts, praise).
 - `--tolerance-s <float>`: Time-matching tolerance in seconds when `video_t_s` and `sync_beep_t_ms` are present (default: `2.5`).
 - `--primary-coach <coach_id>`: Reference coach ID to prefer on sets double-labelled by two coaches when computing App-vs-Coach tables (default: the coach who labelled the most sets overall, tie-broken alphabetically).
-- `--catalog <csv|none>`: Fault catalog to measure against. Default: `fault_catalog.csv` next to `evaluate.py` (24 exercises). `none` keeps the built-in 4-exercise table the unit tests use.
+- `--catalog <csv|none>`: Fault catalog to measure against. Default: `fault_catalog.csv` next to `evaluate.py` (21 exercises). `none` keeps the built-in 4-exercise table the unit tests use.
 - `--conditions <csv>`: Optional `session_conditions.csv`: `participant_id, condition, exercise_id, set_index`, then one column per recording factor (`camera_angle`, `lux`, `clothing`, `body_type`, `device`, `location`, any others; `note` is ignored). Adds `fault_detection_by_condition.csv` and summary section 3.3. Labelled sets missing from the file are warned and left out of that table only. `clips.py conditions` writes the skeleton.
 - `--form-faults-only`: Optional flag that excludes non-form-affecting soft warnings on app `rep` events (faults emitted when `rep.correct == true` or `rep.data["fault_affects_form"][f] == false`). By default (`false`), `rep.faults` is evaluated verbatim per `session-log-schema.md`.
 
@@ -75,7 +76,7 @@ row per rep and never see the participant or the condition. `clip_key.csv` must 
 
 ## Measured Exercises and Canonical Fault IDs
 
-The full 24-exercise list is `fault_catalog.csv`. The table below is the built-in fallback used with `--catalog none`.
+The full 21-exercise list is `fault_catalog.csv`. The table below is the built-in fallback used with `--catalog none`.
 
 | `exercise_id` | Archetype | Canonical `fault` IDs (exact case) | Notes |
 |---|---|---|---|

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import 'package:vika/exercise/exercise_base.dart';
@@ -25,6 +27,7 @@ Map<PoseLandmarkType, PoseLandmark> _pose({
   required double elbowX,
   required double elbowY,
   double hipDrop = 0, // + = hips lower than the shoulder-knee line (sag)
+  double tiltDeg = 0, // whole scene rotated, + = head end raised
 }) {
   final points = <String, (double, double)>{
     'shoulder': (400, bodyY),
@@ -36,10 +39,13 @@ Map<PoseLandmarkType, PoseLandmark> _pose({
     'heel': (95, 300),
     'foot': (95, 300),
   };
+  final t = tiltDeg * math.pi / 180;
   final pose = <PoseLandmarkType, PoseLandmark>{};
   for (final entry in points.entries) {
     final (left, right) = _pairs[entry.key]!;
-    final (px, py) = entry.value;
+    final (rx, ry) = entry.value;
+    final px = 120 + (rx - 120) * math.cos(t) + (ry - 300) * math.sin(t);
+    final py = 300 - (rx - 120) * math.sin(t) + (ry - 300) * math.cos(t);
     final x = leftNear ? 500 - px : px;
     pose[left] = PoseLandmark(
         type: left, x: x, y: py, z: leftNear ? -0.1 : 0.1, likelihood: 0.99);
@@ -49,12 +55,17 @@ Map<PoseLandmarkType, PoseLandmark> _pose({
   return pose;
 }
 
-PushUp _activePushUp({required bool leftNear}) {
+PushUp _activePushUp({required bool leftNear, double tiltDeg = 0}) {
   final pushUp = PushUp(maxRep: 10);
   var facing = CameraFacing.undefined;
   for (var i = 0; i < 5; i++) {
     facing = pushUp.detectCameraFacing(
-        _pose(leftNear: leftNear, bodyY: 220, elbowX: 400, elbowY: 260));
+        _pose(
+            leftNear: leftNear,
+            bodyY: 220,
+            elbowX: 400,
+            elbowY: 260,
+            tiltDeg: tiltDeg));
   }
   expect(facing, leftNear ? CameraFacing.left : CameraFacing.right);
   return pushUp
@@ -69,8 +80,12 @@ void _pump(PushUp pushUp, Map<PoseLandmarkType, PoseLandmark> pose, int ms) {
 
 /// Top, descent, and [bottomFrames] frames held at the bottom.
 void _descendAndHold(PushUp pushUp,
-    {required bool leftNear, double hipDrop = 0, int bottomFrames = 2}) {
-  final top = _pose(leftNear: leftNear, bodyY: 220, elbowX: 400, elbowY: 260);
+    {required bool leftNear,
+    double hipDrop = 0,
+    double tiltDeg = 0,
+    int bottomFrames = 2}) {
+  final top = _pose(
+      leftNear: leftNear, bodyY: 220, elbowX: 400, elbowY: 260, tiltDeg: tiltDeg);
   expect(pushUp.isInStartPosition(top), isTrue);
   _pump(pushUp, top, 0);
   _pump(
@@ -80,7 +95,8 @@ void _descendAndHold(PushUp pushUp,
           bodyY: 235,
           elbowX: 408,
           elbowY: 272,
-          hipDrop: hipDrop),
+          hipDrop: hipDrop,
+          tiltDeg: tiltDeg),
       100);
   _pump(
       pushUp,
@@ -89,7 +105,8 @@ void _descendAndHold(PushUp pushUp,
           bodyY: 245,
           elbowX: 412,
           elbowY: 278,
-          hipDrop: hipDrop),
+          hipDrop: hipDrop,
+          tiltDeg: tiltDeg),
       200);
   for (var i = 0; i < bottomFrames; i++) {
     _pump(
@@ -99,15 +116,25 @@ void _descendAndHold(PushUp pushUp,
             bodyY: 270,
             elbowX: 415,
             elbowY: 285,
-            hipDrop: hipDrop),
+            hipDrop: hipDrop,
+          tiltDeg: tiltDeg),
         900 + i * 100);
   }
 }
 
-void _finishRep(PushUp pushUp, {required bool leftNear, required int fromMs}) {
-  _pump(pushUp,
-      _pose(leftNear: leftNear, bodyY: 245, elbowX: 412, elbowY: 278), fromMs);
-  final top = _pose(leftNear: leftNear, bodyY: 220, elbowX: 400, elbowY: 260);
+void _finishRep(PushUp pushUp,
+    {required bool leftNear, required int fromMs, double tiltDeg = 0}) {
+  _pump(
+      pushUp,
+      _pose(
+          leftNear: leftNear,
+          bodyY: 245,
+          elbowX: 412,
+          elbowY: 278,
+          tiltDeg: tiltDeg),
+      fromMs);
+  final top = _pose(
+      leftNear: leftNear, bodyY: 220, elbowX: 400, elbowY: 260, tiltDeg: tiltDeg);
   _pump(pushUp, top, fromMs + 500);
   _pump(pushUp, top, fromMs + 900);
 }
@@ -134,13 +161,60 @@ void main() {
       test('sagging hips log sag, not pike ($side)', () {
         final pushUp = _activePushUp(leftNear: leftNear);
         _descendAndHold(pushUp,
-            leftNear: leftNear, hipDrop: 25, bottomFrames: 6);
+            leftNear: leftNear, hipDrop: 15, bottomFrames: 6);
 
         final messages =
             pushUp.trunkAlignmentMetric.faults.map((f) => f.message).toSet();
         expect(messages, {'Hông hơi chùng'});
       });
+
+      test('raised hips log pike, not sag ($side)', () {
+        final pushUp = _activePushUp(leftNear: leftNear);
+        _descendAndHold(pushUp,
+            leftNear: leftNear, hipDrop: -15, bottomFrames: 6);
+
+        final messages =
+            pushUp.trunkAlignmentMetric.faults.map((f) => f.message).toSet();
+        expect(messages, {'Hông hơi cao'});
+      });
+
+      test('a straight body tilted toward the floor is not sag ($side)', () {
+        final pushUp = _activePushUp(leftNear: leftNear, tiltDeg: 15);
+        _descendAndHold(pushUp,
+            leftNear: leftNear, tiltDeg: 15, bottomFrames: 6);
+        _finishRep(pushUp, leftNear: leftNear, fromMs: 1500, tiltDeg: 15);
+
+        expect(pushUp.repCount, 1);
+        final repLog = pushUp.logger.repLogs.single;
+        expect(repLog.data['fault_types'], isNot(contains('sag')));
+        expect(repLog.data['max_abs_trunk_deviation'] as num, lessThan(1e-6));
+      });
     }
+  });
+
+  group('tempo', () {
+    test('descent is timed to the push back up, not to the 115° gate', () {
+      final pushUp = _activePushUp(leftNear: true);
+      final top = _pose(leftNear: true, bodyY: 220, elbowX: 400, elbowY: 260);
+      expect(pushUp.isInStartPosition(top), isTrue);
+      _pump(pushUp, top, 0);
+      _pump(pushUp,
+          _pose(leftNear: true, bodyY: 245, elbowX: 412, elbowY: 278), 100);
+      _pump(pushUp,
+          _pose(leftNear: true, bodyY: 258, elbowX: 414, elbowY: 282), 200);
+      _pump(pushUp,
+          _pose(leftNear: true, bodyY: 258, elbowX: 414, elbowY: 282), 300);
+      for (var ms = 500; ms <= 1100; ms += 200) {
+        _pump(pushUp,
+            _pose(leftNear: true, bodyY: 270, elbowX: 415, elbowY: 285), ms);
+      }
+      _finishRep(pushUp, leftNear: true, fromMs: 1400);
+
+      expect(pushUp.repCount, 1);
+      final repLog = pushUp.logger.repLogs.single;
+      expect(repLog.data['descending_time'] as num, greaterThan(1.0));
+      expect(repLog.data['fault_types'], isNot(contains('tempo')));
+    });
   });
 
   group('depth', () {

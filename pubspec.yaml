@@ -121,6 +121,7 @@ flutter:
     - assets/video/
     - assets/mascot/
     - assets/famous/
+    - assets/albums/
 #    - assets/images/onboarding/
 
   # ─── Fonts ───

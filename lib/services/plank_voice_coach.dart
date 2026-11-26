@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import '../exercise/exercise_base.dart';
 import '../exercise/plank/plank.dart';
 import '../voice/voice_content.dart' show CueType;
 import '../voice/voice_sink.dart';
 import 'generic_exercise_voice_assets.dart';
+import '../voice/policy_voice_coach.dart';
 import 'plank_voice_assets.dart';
 import 'queued_asset_voice_player.dart';
 
@@ -134,6 +137,7 @@ class PlankVoiceCoach implements ExerciseVoiceCoach {
   bool _didAnnounceReady = false;
   bool _didAnnounceSetComplete = false;
   String? _lastFaultVoice;
+  final Set<int> _countdownSpoken = <int>{};
 
   @override
   void processFrame({
@@ -186,9 +190,10 @@ class PlankVoiceCoach implements ExerciseVoiceCoach {
       return;
     }
 
-    final holdStopped = exercise is Plank &&
-        exercise.previousPlankState == PlankState.holding &&
-        exercise.plankState == PlankState.setup;
+    _speakHoldCountdown(exercise);
+
+    final holdStopped =
+        exercise is Plank && exercise.plankState == PlankState.paused;
     final faultVoice = _faultVoice(exercise, feedback) ??
         (holdStopped ? 'common.fix_pose' : null);
     final shouldSpeakFault = faultVoice != null &&
@@ -210,6 +215,40 @@ class PlankVoiceCoach implements ExerciseVoiceCoach {
 
     _lastRepCount = repCount;
   }
+
+  void _speakHoldCountdown(ExerciseBase exercise) {
+    if (exercise is Plank && exercise.plankState == PlankState.paused) return;
+    if (exercise is! Plank || exercise.plankState != PlankState.holding) {
+      _countdownSpoken.clear();
+      return;
+    }
+    final held = exercise.liveHoldSeconds;
+    if (held == null) return;
+    final target = exercise.holdSeconds;
+    final countUpTo = math.min(
+        PolicyVoiceCoach.kHoldCountUpSeconds, (target / 2).floor() - 1);
+    for (var n = 1; n <= countUpTo; n++) {
+      if (held >= n && held < n + 1 && _countdownSpoken.add(n)) {
+        _emit('$n', cueType: CueType.count);
+      }
+    }
+    if (held >= target / 2 &&
+        held < target / 2 + 1 &&
+        _countdownSpoken.add(_halfwayMarker)) {
+      _emit('common.time.halfway', cueType: CueType.count);
+    }
+    final remaining = target - held;
+    for (var n = 5; n >= 1; n--) {
+      if (remaining <= n &&
+          remaining > n - 1 &&
+          _countdownSpoken.add(_countdownMarker + n)) {
+        _emit('$n', cueType: CueType.count);
+      }
+    }
+  }
+
+  static const int _halfwayMarker = 100;
+  static const int _countdownMarker = 200;
 
   static String? _faultIdForPlankVoice(String voice) {
     return switch (voice) {

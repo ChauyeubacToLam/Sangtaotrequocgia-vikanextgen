@@ -25,6 +25,7 @@ class TricepDipConfig {
   static const double TOP_ELBOW_ANGLE = 150;
   static const double BOTTOM_ELBOW_ANGLE = 120;
   static const double RISE_ELBOW_ANGLE = 130;
+  static const double SHALLOW_COUNT_ANGLE = 140;
 }
 
 class TricepDip extends ExerciseBase with SideTrackedExerciseMixin {
@@ -256,6 +257,12 @@ class TricepDip extends ExerciseBase with SideTrackedExerciseMixin {
         if (_bottomDebouncer.update(isBent)) {
           _transitionState(TricepDipState.bottom);
         } else if (_topDebouncer.update(isTop)) {
+          final reached = _minElbowAngle;
+          if (supportsGrounded &&
+              reached != null &&
+              reached <= TricepDipConfig.SHALLOW_COUNT_ANGLE) {
+            _completeRep(elbowAngle);
+          }
           _transitionState(TricepDipState.setup_top);
         }
       case TricepDipState.bottom:
@@ -293,6 +300,17 @@ class TricepDip extends ExerciseBase with SideTrackedExerciseMixin {
     repCount++;
 
     final allFaults = <FaultRecord>[];
+    final reached = _minElbowAngle;
+    if (reached != null && reached > TricepDipConfig.BOTTOM_ELBOW_ANGLE) {
+      allFaults.add(FaultRecord(
+        type: 'rom',
+        message: 'Gập khuỷu chưa đủ sâu (${reached.toStringAsFixed(0)}°)',
+        voiceMessage: 'Xuống sâu hơn chút nữa!',
+        affectsForm: true,
+        phase: 'bottom',
+        priority: 3,
+      ));
+    }
 
     correctForm = !allFaults.any((f) => f.affectsForm);
     resultIssues.feedback['Result'] = correctForm ? 'Tốt lắm!' : 'Chỉnh tư thế';

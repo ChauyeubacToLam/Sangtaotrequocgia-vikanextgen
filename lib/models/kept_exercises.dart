@@ -29,9 +29,6 @@ const Set<String> keptExerciseIds = {
   'seated_forward_fold',
   'butterfly',
   'sphinx',
-  'step_up',
-  'neck_side_stretch',
-  'pushup_rotation',
 };
 
 /// Subset of [keptExerciseIds] whose real-time form checking is validated.

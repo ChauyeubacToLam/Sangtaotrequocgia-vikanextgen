@@ -224,6 +224,7 @@ class RegionalMenu {
     required this.items,
     required this.source,
     this.custom = false,
+    this.meals = const [],
   });
 
   final String id;
@@ -232,6 +233,9 @@ class RegionalMenu {
   final List<MenuItem> items;
   final String source;
   final bool custom;
+  final List<String> meals;
+
+  bool servesAt(String meal) => meals.isEmpty || meals.contains(meal);
 
   static RegionalMenu? fromJson(Map m, Map<String, Food> foods,
       {bool custom = false}) {
@@ -248,6 +252,7 @@ class RegionalMenu {
       source: '${m['src'] ?? ''}',
       items: items,
       custom: custom,
+      meals: [for (final s in (m['meals'] as List? ?? const [])) '$s'],
     );
   }
 
@@ -257,6 +262,7 @@ class RegionalMenu {
         'region': region?.name,
         'src': source,
         'items': [for (final i in items) i.toJson()],
+        if (meals.isNotEmpty) 'meals': meals,
       };
 }
 

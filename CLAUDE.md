@@ -111,11 +111,11 @@ inconsistent (`1.Bird Dog`, `glute bridge`, `push up`); keep existing names. 43 
   downward_dog, low_lunge, neck_side_stretch, prayer_pose, pushup_rotation, raised_arms,
   reverse_crunch, russian_twist, standing_knee_to_elbow, step_up, surya_namaskar. The recommendation
   engine only picks form-checked rows, so these never enter generated plans.
-- 24 kept exercises (`keptExerciseIds`): the 21 of 2026-11-20 plus step_up, neck_side_stretch and
-  pushup_rotation (added 2026-11-22, counts only, thresholds not measured on a device; see
-  `docs/field-test-log.md` 5.16). 4 are validated (`validatedExerciseIds`).
+- 21 kept exercises (`keptExerciseIds`), the set of 2026-11-20. step_up, neck_side_stretch and
+  pushup_rotation (added 2026-11-22) were hidden again on 2026-11-24; their code stays (see
+  `docs/field-test-log.md` 5.16, 5.21). 4 are validated (`validatedExerciseIds`).
 - Landscape is on (`kLandscapeRotationEnabled`): OS locked to portrait, UI rotated from the sensor
-  (`lib/pose/vika_image_orientation.dart`). All 24 kept exercises are landscape-only
+  (`lib/pose/vika_image_orientation.dart`). All 21 kept exercises are landscape-only
   with one shared placement (`kOnePlacementWhere` in `camera_placement_card.dart`: phone landscape,
   60–70 cm high, ~3 m away). In landscape the preview uses `BoxFit.contain` so the screen shows the
   whole frame the AI sees.

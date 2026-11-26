@@ -41,7 +41,7 @@ class TempoMetric extends VUpMetricBase {
 
   void evaluateRep(VUpRepContext ctx) {
     // Không được thả rơi thân người và chân
-    if (loweringDuration != null && loweringDuration! < 1.0) {
+    if (loweringDuration != null && loweringDuration! < VUpConfig.TEMPO_FAULT_SECONDS) {
       _faults.add(FaultRecord(
         phase: 'REP_COMPLETE',
         type: 'tempo',

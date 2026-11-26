@@ -181,6 +181,14 @@ class _LibraryAlbumCardState extends State<LibraryAlbumCard> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
+                    if (widget.data.imageAsset case final asset?)
+                      Image.asset(
+                        asset,
+                        fit: BoxFit.cover,
+                        alignment: const Alignment(0, -0.5),
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox.expand(),
+                      ),
                     // Terracotta halo top-right.
                     Positioned(
                       top: -40,

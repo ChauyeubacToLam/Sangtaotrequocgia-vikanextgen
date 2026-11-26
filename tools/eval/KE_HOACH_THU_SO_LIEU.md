@@ -1,10 +1,11 @@
 # Kế hoạch thu số liệu cho 3 yêu cầu của giám khảo (bản 2)
 
 Viết lại ngày 23/11/2026, thay bản 20/11 (bản cũ còn trong commit 43aa6da). Hạn nộp 23:59 ngày 26/11/2026.
-Phạm vi: **cả 24 bài đang hiện trong app** (`keptExerciseIds`). 19 bài còn lại đã ẩn khỏi app, không tuyên
-bố gì về chúng.
+Phạm vi: **21 bài**, đúng 21 bài app đang hiện (`keptExerciseIds`). 3 bài thêm ngày 22/11 (`step_up`,
+`neck_side_stretch`, `pushup_rotation`) không đưa vào nghiên cứu và đã ẩn khỏi app (quyết định 24/11): chưa đo ngưỡng trên
+máy và còn thiếu giọng nói. 19 bài khác đã ẩn khỏi app. Không tuyên bố gì về 22 bài này.
 
-Đọc kèm `HUONG_DAN_GAN_NHAN.md` (sẽ mở rộng ra 24 bài) và `README.md` (cách chạy `evaluate.py`).
+Đọc kèm `HUONG_DAN_GAN_NHAN.md` (21 bài) và `README.md` (cách chạy `evaluate.py`).
 
 ## 0. Năm nguyên tắc (giám khảo bắt bẻ được ở đâu thì chặn ở đó)
 
@@ -34,10 +35,10 @@ bố gì về chúng.
 | "ánh sáng" | Sáng, tối, ngược sáng; đo lux bằng app đo sáng | Bảng theo điều kiện |
 | "quần áo" | Bó, rộng, tối màu trùng nền; ghi quần áo thật của từng người | Bảng theo điều kiện |
 | "thiết bị" | Máy A (Android của nhóm) cho mọi khối; mượn 1 máy Android khác hãng (máy D2) chỉ cho khối thay đổi điều kiện. Không mượn được thì ghi thành giới hạn | Bảng theo thiết bị, FPS |
-| "precision/recall theo lỗi" | Mọi mã lỗi của cả 24 bài, kèm khoảng tin cậy 95% | `summary.md` |
+| "precision/recall theo lỗi" | Mọi mã lỗi của cả 21 bài, kèm khoảng tin cậy 95% | `summary.md` |
 | "nhất là plank" | Plank: mọi người tập, mọi khối, mọi điều kiện; cỡ mẫu lớn nhất | Mục riêng cho plank |
 | "Bảng số mẫu" | Mỗi bài: số người, hiệp, rep, số rep có lỗi theo từng mã | Bảng mẫu |
-| "confusion matrix theo tư thế" | 24 ma trận, mỗi bài một ma trận (ghép các mã lỗi) | `confusion_*.csv` |
+| "confusion matrix theo tư thế" | 21 ma trận, mỗi bài một ma trận (ghép các mã lỗi) | `confusion_*.csv` |
 | "video lỗi nhận diện" | Mỗi bài 1 clip AI bắt đúng và 1 clip AI sai (báo nhầm hoặc bỏ sót), video máy B ghép chữ "HLV: … / AI: …" | Thư mục video |
 
 ### Yêu cầu 2: Đảm bảo an toàn khi camera thiếu quan sát
@@ -45,7 +46,7 @@ bố gì về chúng.
 | Cụm từ trong đề | Hiện trạng | Việc cần làm |
 |---|---|---|
 | "Hướng dẫn vị trí camera" | Có thẻ đặt máy | Đo hiệu quả: người mới tự đặt máy chỉ theo hướng dẫn trong app (mục 5, bước 2) |
-| "landmark/độ tin cậy không đủ thì dừng đánh giá" | Có (`checkSafety`, `PresenceGate`) | Thử cả 24 bài vì `checkSafety` viết riêng từng bài (mục 8) |
+| "landmark/độ tin cậy không đủ thì dừng đánh giá" | Có (`checkSafety`, `PresenceGate`) | Thử cả 21 bài vì `checkSafety` viết riêng từng bài (mục 8) |
 | "cho phép bỏ qua cảnh báo" | **Đã làm 23/11.** Lời nhắc góc máy, hướng đứng, ánh sáng hiện ≥ 5 giây thì có nút "Bỏ qua cảnh báo". Bấm thì app vẫn đếm nhưng không chấm tư thế đến khi camera thấy rõ lại. Log ghi `guidance_skipped`, rep không chấm có `form_judged: false` | Thử trong bài thử an toàn (mục 8) |
 | "cho phép sửa cảnh báo" | **Đã làm 23/11.** "Báo sai" trên màn nghỉ giờ còn tắt giọng nhắc lỗi đó ở các hiệp sau của bài. Log AI vẫn giữ nguyên để đo | Không làm nút lúc đang tập: người tập đứng cách máy 3 m |
 | "nhắc tập an toàn" | **Đã làm 23/11.** Thẻ đặt máy của mọi bài có nhắc chung (chỗ trống, dừng nếu đau/chóng mặt/khó thở, hỏi bác sĩ). Khi AI chưa chấm hoặc đang chỉ đếm, màn tập hiện "Tập chậm và giữ an toàn" | Chỉ có chữ, chưa có giọng nói (cần thu thêm mp3) |
@@ -64,21 +65,21 @@ bố gì về chúng.
 | "mức hài lòng" | Câu hỏi hài lòng trong app sau mỗi điều kiện + 3 câu giấy (hữu ích, tin tưởng, phiền) + "muốn tập có AI hay không" |
 | "một ca thành công và một ca thất bại" | Chọn theo quy tắc viết sẵn ở mục 10.4, không chọn theo cảm tính |
 
-## 2. Phạm vi 24 bài
+## 2. Phạm vi 21 bài
 
 - **4 bài chính** (`squat`, `push_up`, `glute_bridge`, `plank`): đủ cả 3 yêu cầu, do nhóm A (P01–P10) tập.
-- **20 bài còn lại**: đủ yêu cầu 1 và 2, do nhóm B (P11–P20) tập. Yêu cầu 3 chỉ đo phía có AI (lời nhắc có làm rep sau hết lỗi
+- **17 bài còn lại**: đủ yêu cầu 1 và 2, do nhóm B (P11–P20) tập. Yêu cầu 3 chỉ đo phía có AI (lời nhắc có làm rep sau hết lỗi
   không), so với tỉ lệ tự sửa ở đối chứng của 4 bài chính. Lý do: lời nhắc của mọi bài đi qua cùng một bộ
-  máy giọng nói (`PolicyVoiceCoach`). Đo cặp đầy đủ cho 24 bài thì mỗi người phải tập 48 hiệp.
-- Chia 20 bài thành 5 gói, mỗi gói 4 bài (trộn bài đứng, bài sàn, bài giãn cơ để đỡ mệt):
+  máy giọng nói (`PolicyVoiceCoach`). Đo cặp đầy đủ cho 21 bài thì mỗi người phải tập 42 hiệp.
+- Chia 17 bài thành 5 gói, mỗi gói 3–4 bài (trộn bài đứng, bài sàn, bài giãn cơ để đỡ mệt):
 
 | Gói | Bài |
 |---|---|
 | 1 | lunge, situp, bird_dog, butterfly |
 | 2 | jump_squat, leg_raises, superman, seated_forward_fold |
-| 3 | jumping_jack, vup, tricep_dip, sphinx |
-| 4 | step_up, mcgill_curlup, mountain_climber, neck_side_stretch |
-| 5 | wall_pushup, dead_bug, pushup_rotation, side_plank_dip |
+| 3 | jumping_jack, vup, tricep_dip |
+| 4 | mcgill_curlup, mountain_climber, wall_pushup |
+| 5 | dead_bug, side_plank_dip, sphinx |
 
 Mỗi người nhóm B tập 2 gói. Mỗi gói có 4 người:
 
@@ -88,12 +89,12 @@ Mỗi người nhóm B tập 2 gói. Mỗi gói có 4 người:
 
 HLV còn thời gian thì mời thêm P21–P25 (gói 1–5, mỗi người 1 gói) để mỗi gói có 5 người.
 
-Dụng cụ thêm: ghế chắc 30–45 cm (step_up, tricep_dip), một mảng tường lọt khung máy ở 3 m (wall_pushup).
+Dụng cụ thêm: ghế chắc 30–45 cm (tricep_dip), một mảng tường lọt khung máy ở 3 m (wall_pushup).
 
 ## 3. Người tham gia
 
 - **20 người, chia 2 nhóm, mỗi người 1 buổi khoảng 50 phút.** Nhóm A (P01–P10): 4 bài chính. Nhóm B
-  (P11–P20): 20 bài còn lại. Chỉ có 1 máy Android nên chỗ nghẽn là giờ máy và giờ chấm của HLV, không
+  (P11–P20): 17 bài còn lại. Chỉ có 1 máy Android nên chỗ nghẽn là giờ máy và giờ chấm của HLV, không
   phải số người. Mỗi người tập ngắn thì đỡ mệt hơn, và có thêm người khác nhau.
 - Từ 16 tuổi; dưới 18 cần phụ huynh ký.
 - Hạn ngạch đa dạng, **áp cho từng nhóm**: ≥ 3 nữ, ≥ 3 nam; ≥ 2 người BMI ≥ 25 và ≥ 2 người BMI < 20;
@@ -115,10 +116,10 @@ Dụng cụ thêm: ghế chắc 30–45 cm (step_up, tricep_dip), một mảng t
       (`n_unjudged_reps`); các rep này vẫn tính vào độ chính xác đếm.
 
 ### 4.2. Công cụ (xong 23/11)
-- [x] **Danh mục lỗi chính thức của 24 bài**, trích từ code: `fault_catalog.csv`, 94 mã lỗi form và 2 mã trạng
+- [x] **Danh mục lỗi chính thức của 21 bài**, trích từ code: `fault_catalog.csv`, 88 mã lỗi form và 2 mã trạng
       thái (`bird_dog` `MissingBody`, `Plank`), loại khỏi phép đo.
-- [x] `evaluate.py` đọc 24 bài từ `fault_catalog.csv` (mặc định); `cue_fault_map.csv` đủ 24 bài.
-- [x] `HUONG_DAN_GAN_NHAN.md` có đủ 24 bài, mỗi bài ghi rõ lúc kết thúc 1 lần và bài nào tính mỗi bên 1 lần.
+- [x] `evaluate.py` đọc 21 bài từ `fault_catalog.csv` (mặc định); `cue_fault_map.csv` đủ 21 bài.
+- [x] `HUONG_DAN_GAN_NHAN.md` có đủ 21 bài, mỗi bài ghi rõ lúc kết thúc 1 lần và bài nào tính mỗi bên 1 lần.
       Cần HLV đọc lại câu chữ ở buổi hiệu chuẩn.
 - [x] `clips.py`:
   - `suggest`: đánh dấu 1 tiếng bíp bằng tai là đoán được mọi hiệp khác trong cùng video, nhờ đồng hồ trong log.
@@ -130,10 +131,12 @@ Dụng cụ thêm: ghế chắc 30–45 cm (step_up, tricep_dip), một mảng t
 - [x] Khoảng tin cậy bootstrap theo người (2000 lần), báo cáo kèm Wilson.
 - [x] `clips.py overlay`: cắt đoạn ngắn quanh từng lần nhận diện sai, ghép chữ "HLV: … / AI: …".
 
-### 4.3. Cổng chạy thử `P00` (cả 24 bài)
-Nhóm tự tập mỗi bài 1 hiệp 10 rep ở điều kiện `ai`, và 4 bài chính thêm 1 hiệp `control`. Một bài **qua
+### 4.3. Cổng chạy thử `P00` (cả 21 bài)
+Nhóm tự tập mỗi bài 1 hiệp ở điều kiện `ai`, và 4 bài chính thêm 1 hiệp `control`. Mỗi hiệp tập đúng số
+rep (bài giữ: số lượt) app ghi cho một hiệp, lấy từ `assets/data/exercise_catalog.json`. Ví dụ squat 8,
+jumping jack 20, plank 3 lượt, plank nghiêng 1 lượt. Kịch bản từng bài: `KICH_BAN_P00.md`. Một bài **qua
 cổng** khi đủ 5 điều kiện:
-1. Đếm 10 ± 1 rep.
+1. App đếm đúng số rep đó, lệch tối đa 1.
 2. Log có sự kiện `rep` và mã lỗi.
 3. Có tiếng bíp đồng bộ, ở cả `control`.
 4. Lời nhắc lỗi phát ra tiếng (hoặc ghi rõ bài nào chỉ có chữ).
@@ -143,7 +146,7 @@ Riêng plank: diễn võng lưng và vểnh mông, kiểm tra app gọi **đúng
 sign mapping").
 
 Điều kiện 1, 2, 3 và một phần điều kiện 4 kiểm tự động. Kéo log về, rồi chạy
-`python tools/eval/p00_gate.py --logs <thư mục log P00>`. Bài giữ mặc định 3 lượt; đổi bằng `--hold-target`.
+`python tools/eval/p00_gate.py --logs <thư mục log P00>`. Script cũng báo bài chính nào còn thiếu hiệp `control`.
 Script cũng báo mã lỗi app ghi ra mà `fault_catalog.csv` chưa có. Vẫn phải nghe bằng tai xem tiếng có phát
 thật không, và xem plank gọi đúng tên lỗi.
 
@@ -192,7 +195,7 @@ Hai bước mở đầu, chung cho cả 2 nhóm:
 
    Chuẩn bị sẵn áo hoodie rộng, quần rộng, đồ màu tối và một tấm vải tối làm nền.
 
-### Nhóm B: 20 bài còn lại (P11–P20)
+### Nhóm B: 17 bài còn lại (P11–P20)
 3. **2 gói bài (8 bài).** Mỗi bài 2 hiệp: 1 hiệp tự nhiên ở `ai`, rồi 1 hiệp lỗi cố ý ở `control` (mã
    `P13S`). Thứ tự bài trong gói đảo ngược ở người kế tiếp để mệt không dồn vào một bài.
 
@@ -207,10 +210,10 @@ Hai bước mở đầu, chung cho cả 2 nhóm:
 | plank | 10 | ≈ 170 lượt giữ | Back ≈ 20, Neck ≈ 10, Knees ≈ 10, cộng thêm lỗi tự nhiên |
 | squat | 10 | ≈ 400 | ≈ 20 mỗi mã |
 | push_up, glute_bridge | 10 | ≈ 300 | ≈ 15–20 mỗi mã |
-| 20 bài còn lại | 4 | ≈ 80 | ≈ 10–12 mỗi mã (với tối đa 3 lỗi diễn) |
+| 17 bài còn lại | 4 | ≈ 80 | ≈ 10–12 mỗi mã (với tối đa 3 lỗi diễn) |
 
 Khoảng tin cậy 95% (Wilson) cho recall thật 0,9: với 10 rep có lỗi là 0,60–0,98; với 20 rep là
-0,70–0,97; với 40 rep là 0,77–0,96. Vì vậy 20 bài phụ được ghi là "kiểm chứng sơ bộ", plank và 3 bài chính
+0,70–0,97; với 40 rep là 0,77–0,96. Vì vậy 17 bài phụ được ghi là "kiểm chứng sơ bộ", plank và 3 bài chính
 có độ chắc cao hơn. Mã lỗi không được diễn cố ý thì phụ thuộc lỗi tự nhiên, có thể rơi vào "chưa đủ mẫu".
 
 ## 6. Quy tắc diễn lỗi cố ý
@@ -236,7 +239,7 @@ có độ chắc cao hơn. Mã lỗi không được diễn cố ý thì phụ t
 Người trong nhóm làm (mã `T01`), điều kiện `ai`, quay màn hình máy A suốt buổi. Yêu cầu 2 đo hành vi
 của app, không cần người độc lập.
 
-| # | Tình huống | 4 bài chính | 20 bài còn lại |
+| # | Tình huống | 4 bài chính | 17 bài còn lại |
 |---|---|---|---|
 | 1 | Mất một phần cơ thể (bước ngang mất cẳng chân) | 3 lần | 2 lần |
 | 2 | Ra hẳn khỏi khung | 3 lần | — |
@@ -270,14 +273,14 @@ nút bỏ qua, và lời nhắc an toàn.
   đó chấm lại 20% clip sau ít nhất 12 giờ (độ đồng thuận với chính mình), và ghi rõ hạn chế này.
 - Khối lượng chấm: khoảng 18 phút video có tập mỗi người, chấm mất khoảng 45 phút. 20 người là khoảng 15
   giờ, cộng chấm chéo là khoảng 20 giờ công, tức khoảng 10 giờ mỗi HLV từ tối 24/11 đến trưa 26/11.
-- Thứ tự chấm: plank trước, rồi 3 bài chính, rồi 20 bài còn lại. Nếu hết giờ thì phần thiếu là bài phụ,
+- Thứ tự chấm: plank trước, rồi 3 bài chính, rồi 17 bài còn lại. Nếu hết giờ thì phần thiếu là bài phụ,
   không phải plank.
 - HLV chấm xong mới được xem kết quả của app.
 
 ## 10. Cách phân tích (đăng ký trước)
 
 ### 10.1. Yêu cầu 1
-- Precision, recall, F1 cho từng mã lỗi của 24 bài; confusion matrix mỗi bài; khoảng tin cậy Wilson và
+- Precision, recall, F1 cho từng mã lỗi của 21 bài; confusion matrix mỗi bài; khoảng tin cậy Wilson và
   bootstrap theo người.
 - **Quy tắc báo cáo:** mã lỗi có < 10 rep HLV gán lỗi thì ghi "chưa đủ mẫu (n = …)", không báo con số.
 - Đếm rep: sai số so với HLV, tỉ lệ hiệp đếm lệch không quá ±1.
@@ -318,7 +321,7 @@ nút bỏ qua, và lời nhắc an toàn.
 
 | Ngày | Việc |
 |---|---|
-| 23/11 | (Xong: nút bỏ qua, báo sai tắt nhắc, lời nhắc an toàn.) Danh mục lỗi, mở rộng `evaluate.py`, hướng dẫn gán nhãn, script cắt clip. Cổng `P00` cho 24 bài. Hiệu chuẩn HLV. Đóng băng build. Chốt người tập |
+| 23/11 | (Xong: nút bỏ qua, báo sai tắt nhắc, lời nhắc an toàn.) Danh mục lỗi, mở rộng `evaluate.py`, hướng dẫn gán nhãn, script cắt clip. Cổng `P00` cho 21 bài. Hiệu chuẩn HLV. Đóng băng build. Chốt người tập |
 | 24/11 | 8:00–19:00: nhóm A, P01–P10, mỗi người 1 khung 1 giờ (55 phút tập + 5 phút nghỉ máy). Từng người xong thì cắt clip luôn; HLV chấm từ chiều |
 | 25/11 | 8:00–19:00: nhóm B, P11–P20. Tối: thử an toàn `T01` (khoảng 3 giờ, cùng máy A). HLV chấm tiếp, chấm chéo |
 | 26/11 | Sáng: HLV chấm xong, chạy đánh giá cuối, chọn ca, dựng video. Chiều: điền báo cáo, xuất Word. Nộp trước 20:00 |
@@ -329,7 +332,7 @@ huỷ thì người dự phòng vào thay, giữ nguyên mã và gói của ngư
 ## 12. Thiếu nguồn lực thì cắt gì
 
 Người không thiếu. Thứ có thể thiếu là giờ máy, giờ HLV, hoặc máy A hỏng. Cắt theo thứ tự này:
-1. Bài thử an toàn trên 20 bài phụ, giảm còn 1 lần mỗi tình huống.
+1. Bài thử an toàn trên 17 bài phụ, giảm còn 1 lần mỗi tình huống.
 2. Mức Q3, rồi mức G3.
 3. Nhóm B giảm còn 3 người mỗi gói (bỏ P19, P20; P16–P18 đổi gói để mỗi gói vẫn có ≥ 3 người).
 4. HLV2 chấm chéo giảm từ 30% xuống 20%, vẫn đủ plank.
@@ -341,10 +344,10 @@ trên máy đó, ghi rõ từ người nào đổi máy.
 "chưa đủ mẫu".
 
 ## 13. Giới hạn sẽ ghi sẵn trong báo cáo
-- 20 người, một thành phố, là thử nghiệm sơ bộ; 4 bài chính có 10 người, 20 bài phụ có 4 người mỗi bài.
+- 20 người, một thành phố, là thử nghiệm sơ bộ; 4 bài chính có 10 người, 17 bài phụ có 4 người mỗi bài.
 - Lỗi cố ý dễ nhìn hơn lỗi tự nhiên, nên recall trên lỗi cố ý có thể cao hơn thực tế. Hai nhóm được báo
   riêng.
-- Yêu cầu 3 đo cặp trên 4 bài; 20 bài còn lại chỉ đo phía có AI.
+- Yêu cầu 3 đo cặp trên 4 bài; 17 bài còn lại chỉ đo phía có AI.
 - Thiết bị: 1 máy Android cho mọi buổi, thêm 1 máy Android mượn cho khối thay đổi điều kiện (nếu mượn
   được). Chưa đo trên iOS, dù app có bản iOS.
 - Ngưỡng được chỉnh trên dữ liệu của nhóm phát triển (`P00`); số liệu kiểm chứng chỉ lấy từ người mới.

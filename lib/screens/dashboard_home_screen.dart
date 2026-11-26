@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../models/exercise_definition.dart';
 import '../screens/exercise/exercise_launch_args.dart';
+import '../screens/exercise/workout_summary_screen.dart' show workoutFinished;
 import '../screens/nutrition/post_workout_card.dart';
 import '../services/research/research_preferences.dart';
 import '../services/session_persistence.dart';
@@ -47,9 +48,17 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     _launchStateFuture = _launches.resolveHomeState();
     _streakFuture = SessionPersistence().currentStreak();
     _formSummaryFuture = SessionPersistence().homeFormSummary();
+    workoutFinished.addListener(_reloadLaunchTarget);
+  }
+
+  @override
+  void dispose() {
+    workoutFinished.removeListener(_reloadLaunchTarget);
+    super.dispose();
   }
 
   void _reloadLaunchTarget() {
+    if (!mounted) return;
     setState(() {
       _launchStateFuture = _launches.resolveHomeState();
       _streakFuture = SessionPersistence().currentStreak();
@@ -133,9 +142,12 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               ],
               if (!loading && !ResearchPreferences.cachedConfig.isControl) ...[
                 const SizedBox(height: 16),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: PostWorkoutMealCard(compact: true),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: PostWorkoutMealCard(
+                    key: ValueKey(workoutFinished.value),
+                    compact: true,
+                  ),
                 ),
               ],
             ],

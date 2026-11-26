@@ -7,8 +7,8 @@ import 'package:vika/exercise/glute bridge/metrics/glute_bridge_speed_control.da
 void main() {
   group('hip extension', () {
     test('pins the tightened thresholds', () {
-      expect(HipExtensionConfig.GOOD_MIN_ANGLE, 152.0);
-      expect(HipExtensionConfig.WARNING_MIN_ANGLE, 140.0);
+      expect(HipExtensionConfig.GOOD_MIN_ANGLE, 160.0);
+      expect(HipExtensionConfig.WARNING_MIN_ANGLE, 155.0);
       expect(HipExtensionConfig.HYPEREXT_THRESHOLD, 0.045);
     });
 

@@ -25,6 +25,8 @@ class LandingKneeFlexionMetric extends JumpSquatMetricBase {
   double? _minLandingKneeAngle;
   bool _evaluated = false;
 
+  double? get minLandingKneeAngle => _minLandingKneeAngle;
+
   @override
   List<FaultRecord> get faults => _faults;
 
@@ -87,7 +89,7 @@ class LandingKneeFlexionMetric extends JumpSquatMetricBase {
         type: 'landing_depth',
         message:
             'Tiếp đất chưa đủ sâu (${angle.toStringAsFixed(0)}°). Hãy trùng gối thêm!',
-        affectsForm: false, // Cảnh báo
+        affectsForm: true,
         voiceMessage: 'Trùng gối thêm khi tiếp đất',
         priority: 2,
       ));

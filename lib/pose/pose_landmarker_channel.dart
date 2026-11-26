@@ -65,6 +65,42 @@ class PoseLandmarkerChannel {
   Future<void> switchCamera() =>
       _methodChannel.invokeMethod<void>('switchCamera');
 
+  Future<void> startReplayCapture() => _quiet(
+      () => _methodChannel.invokeMethod<void>('startReplayCapture'), null);
+
+  Future<void> stopReplayCapture() => _quiet(
+      () => _methodChannel.invokeMethod<void>('stopReplayCapture'), null);
+
+  Future<void> clearReplayClips() => _quiet(
+      () => _methodChannel.invokeMethod<void>('clearReplayClips'), null);
+
+  Future<int> saveReplayClip(String id, int durationMs) async =>
+      await _quiet(
+        () => _methodChannel.invokeMethod<int>('saveReplayClip',
+            <String, dynamic>{'id': id, 'durationMs': durationMs}),
+        0,
+      ) ??
+      0;
+
+  Future<Map<String, dynamic>?> loadReplayClip(String id) async {
+    final raw = await _quiet(
+      () => _methodChannel.invokeMethod<Map<Object?, Object?>>(
+          'loadReplayClip', <String, dynamic>{'id': id}),
+      null,
+    );
+    return raw == null ? null : Map<String, dynamic>.from(raw);
+  }
+
+  static Future<T?> _quiet<T>(Future<T?> Function() call, T? fallback) async {
+    try {
+      return await call();
+    } on MissingPluginException {
+      return fallback;
+    } on PlatformException {
+      return fallback;
+    }
+  }
+
   /// Throttles (or restores) native pose-landmarker inference cadence.
   /// `minDetectionIntervalMs` 0 = full rate; >0 = minimum gap between
   /// processed frames (native drops frames arriving inside that window).

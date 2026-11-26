@@ -113,9 +113,9 @@ void main() {
 
   group('Launch guard (/exercise)', () {
     testWidgets(
-      'refuses all 19 hidden exercises, warrior_one_assessment, and invalid args without crashing',
+      'refuses all 22 hidden exercises, warrior_one_assessment, and invalid args without crashing',
       (tester) async {
-        expect(hiddenIds, hasLength(19));
+        expect(hiddenIds, hasLength(22));
         final navKey = GlobalKey<NavigatorState>();
         await tester.pumpWidget(_guardedNavHost(navKey: navKey));
         await tester.pump();
@@ -306,8 +306,8 @@ void main() {
       },
     );
 
-    test('all 24 kept exercises build ExerciseExperienceSpec cleanly', () {
-      expect(keptIds, hasLength(24));
+    test('all 21 kept exercises build ExerciseExperienceSpec cleanly', () {
+      expect(keptIds, hasLength(21));
       for (final keptId in keptIds) {
         final def = lookupExerciseDefinition(keptId);
         final info = CatalogSource.instance.lookup(keptId);
@@ -323,12 +323,12 @@ void main() {
     });
 
     testWidgets(
-      'all 24 kept exercises launch onto ExerciseIntroPage and show the right status label',
+      'all 21 kept exercises launch onto ExerciseIntroPage and show the right status label',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
-        expect(keptIds, hasLength(24));
+        expect(keptIds, hasLength(21));
         final navKey = GlobalKey<NavigatorState>();
         await tester.pumpWidget(_guardedNavHost(navKey: navKey));
         await tester.pump();

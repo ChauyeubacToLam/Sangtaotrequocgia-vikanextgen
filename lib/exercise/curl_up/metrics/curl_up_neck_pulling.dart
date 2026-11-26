@@ -51,10 +51,12 @@ import 'curl_up_metric_base.dart';
 
 class NeckPullingConfig {
   /// Deviation from personal baseline that triggers a warning.
-  static const double WARNING_DEVIATION = 18.0;
+  static const double WARNING_DEVIATION = 15.0;
 
   /// Deviation from personal baseline that triggers an error.
-  static const double ERROR_DEVIATION = 24.0;
+  static const double ERROR_DEVIATION = 20.0;
+
+  static const double MIN_TRUNK_LIFT = 5.0;
 
   /// Number of resting frames averaged when hold-still snapshot is missing.
   static const int BASELINE_SAMPLE_COUNT = 5;
@@ -93,6 +95,7 @@ class NeckPullingMetric extends CurlUpMetricBase {
   /// Personal baseline — ear-shoulder-hip interior angle while lying flat.
   /// Persists across reps; never cleared by reset().
   double? _baselineAngle;
+  double? _baselineTrunk;
 
   /// Fallback averaging state — used only when hold-still is unavailable.
   double _baselineSum = 0.0;
@@ -105,6 +108,10 @@ class NeckPullingMetric extends CurlUpMetricBase {
   /// fallback. Once a baseline is set, it stays for the whole set.
   @override
   void onRestingFrame(RepContext ctx) {
+    final trunkBase = _baselineTrunk;
+    _baselineTrunk = trunkBase == null
+        ? ctx.trunkAngle
+        : trunkBase * 0.8 + ctx.trunkAngle * 0.2;
     if (_baselineAngle != null) return;
 
     if (ctx.holdStillEarShoulderHip != null) {
@@ -140,7 +147,15 @@ class NeckPullingMetric extends CurlUpMetricBase {
     // Deviation: baseline is the relaxed (large) angle. Pulling chin to
     // chest moves the ear toward the shoulder, shrinking the interior
     // angle, so deviation = baseline - current.
-    final deviation = (base - _neckAngle!).clamp(0.0, 90.0);
+    final trunkLift =
+        (ctx.trunkAngle - (_baselineTrunk ?? ctx.trunkAngle)).clamp(0.0, 90.0);
+    final deviation =
+        ((base - _neckAngle!).clamp(0.0, 90.0) - trunkLift).clamp(0.0, 90.0);
+    _debugData['trunkLift'] = trunkLift;
+    if (trunkLift < NeckPullingConfig.MIN_TRUNK_LIFT) {
+      _debugData['neckDev'] = 'trunk not up';
+      return;
+    }
     _neckDeviation = deviation;
     _debugData['neckDev'] = deviation;
 

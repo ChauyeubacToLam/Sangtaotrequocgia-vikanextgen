@@ -222,24 +222,6 @@ const Map<String, ExercisePlacementSpec> kExercisePlacementByCatalogId =
     posture: PlacementPostureGlyph.floor,
     placementWhere: kOnePlacementWhere,
   ),
-  'step_up': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.landscape,
-    view: UserCameraView.sideOn,
-    posture: PlacementPostureGlyph.standing,
-    placementWhere: kOnePlacementWhere,
-  ),
-  'neck_side_stretch': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.landscape,
-    view: UserCameraView.facingCamera,
-    posture: PlacementPostureGlyph.standing,
-    placementWhere: kOnePlacementWhere,
-  ),
-  'pushup_rotation': ExercisePlacementSpec(
-    orientation: PhonePlacementOrientation.landscape,
-    view: UserCameraView.sideOn,
-    posture: PlacementPostureGlyph.floor,
-    placementWhere: kOnePlacementWhere,
-  ),
 };
 
 final RegExp _assessmentSuffix = RegExp(

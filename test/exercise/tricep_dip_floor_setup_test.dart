@@ -90,12 +90,17 @@ void main() {
     expect(exercise.repCount, 0);
   });
 
-  test('a shallow bend that never reaches 120 deg is not a rep', () {
+  test('a shallow dip to 128 deg counts and logs rom; a 145 deg bend does not',
+      () {
     final exercise = _started();
 
     _run(exercise, [170, 135, 135, 128, 128, 135, 170, 170, 170]);
 
-    expect(exercise.repCount, 0);
+    expect(exercise.repCount, 1);
     expect(exercise.tricepState, TricepDipState.setup_top);
+    expect(exercise.logger.repLogs.single.data['fault_types'], ['rom']);
+
+    _run(exercise, [170, 145, 145, 145, 170, 170, 170]);
+    expect(exercise.repCount, 1);
   });
 }

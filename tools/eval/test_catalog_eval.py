@@ -115,9 +115,9 @@ class TestCatalogAndConditions(unittest.TestCase):
 
 
 class TestFaultCatalogFile(unittest.TestCase):
-    def test_catalog_covers_the_24_kept_exercises(self) -> None:
+    def test_catalog_covers_the_21_studied_exercises(self) -> None:
         form, status, names = evaluate.read_fault_catalog(evaluate.DEFAULT_CATALOG_PATH)
-        self.assertEqual(len(form), 24)
+        self.assertEqual(len(form), 21)
         self.assertEqual(status, {"bird_dog": frozenset({"MissingBody", "Plank"})})
         self.assertEqual(form["plank"], ("Back", "Neck", "Knees"))
         self.assertEqual(set(names), set(form))

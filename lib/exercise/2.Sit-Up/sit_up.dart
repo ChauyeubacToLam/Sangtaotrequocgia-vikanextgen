@@ -26,14 +26,10 @@ class SitUpConfig {
   // FIX: Spec yêu cầu 100° (code cũ là 110°)
   static const double START_KNEE_MAX = 115.0;
 
-  static const double RISING_TRUNK_START =
-      30.0; // Must be > LYING_TRUNK_THRESHOLD
-  static const double COUNTABLE_TOP_KHS_THRESHOLD = 142.0;
-  static const double UPRIGHT_KHS_THRESHOLD = 105.0;
-  static const double LOWERING_KHS_THRESHOLD = 110.0;
-  static const double LOWERING_KHS_DIFF =
-      15.0; // Increased to prevent noise bouncing
-  static const double LYING_TRUNK_THRESHOLD = 22.0;
+  static const double LYING_TRUNK_MAX = 15.0;
+  static const double RISING_TRUNK_MIN = 20.0;
+  static const double MIN_COUNTED_TRUNK = 30.0;
+  static const double TURN_BACK_DROP = 10.0;
 }
 
 class SitUp extends ExerciseBase with SideTrackedExerciseMixin {
@@ -49,7 +45,7 @@ class SitUp extends ExerciseBase with SideTrackedExerciseMixin {
 
   int? _exerciseStartTimeMs;
   bool _timeoutReached = false;
-  double? _minKhsThisRep;
+  double? _peakTrunkThisRep;
 
   final List<Map<String, dynamic>> _diagnosticLog = [];
   int _lastDiagnosticTime = 0;
@@ -142,7 +138,7 @@ class SitUp extends ExerciseBase with SideTrackedExerciseMixin {
       case SitUpState.rising:
         return 'Cuộn người lên';
       case SitUpState.upright:
-        return 'Giữ!';
+        return 'Đã lên, hạ xuống';
       case SitUpState.lowering:
         return 'Hạ người';
     }
@@ -264,58 +260,58 @@ class SitUp extends ExerciseBase with SideTrackedExerciseMixin {
       _lastDiagnosticTime = now;
     }
 
-    _updateStateMachine(trunkHoriz, khsAngle, now);
+    debugData['trunk'] = trunkHoriz;
+    debugData['khs'] = khsAngle;
+    debugData['peakTrunk'] = _peakTrunkThisRep ?? 0.0;
 
-    final completedFromLowering =
-        state == SitUpState.lying && previousState == SitUpState.lowering;
-    final completedFromPartialCurl = state == SitUpState.lying &&
-        previousState == SitUpState.rising &&
-        _hasReachedCountableTop;
+    _updateStateMachine(trunkHoriz, now);
 
-    if (completedFromLowering || completedFromPartialCurl) {
-      _completeRep(ctx);
-      previousState = SitUpState.lying; // Thêm dòng này để reset trạng thái
+    if (state == SitUpState.lying && previousState != SitUpState.lying) {
+      final peak = _peakTrunkThisRep ?? 0.0;
+      if (peak >= SitUpConfig.MIN_COUNTED_TRUNK) {
+        _completeRep(ctx);
+      } else {
+        for (final metric in _metrics) metric.reset();
+      }
+      _peakTrunkThisRep = null;
+      previousState = SitUpState.lying;
       return;
     }
 
-    if (state != SitUpState.lying) {
+    if (state == SitUpState.lying) {
+      stabilityMetric.observeLying(ankle.y);
+      resultIssues.feedback['Lên'] = 'Chuẩn bị';
+      resultIssues.feedback.remove('Chân');
+    } else {
       for (final metric in _metrics) metric.update(ctx);
     }
 
     resultIssues.setPhaseStatus(state.name, currentPhaseLabel);
   }
 
-  void _updateStateMachine(double trunkHoriz, double khsAngle, int now) {
-    if (state == SitUpState.rising || state == SitUpState.upright) {
-      if (_minKhsThisRep == null || khsAngle < _minKhsThisRep!) {
-        _minKhsThisRep = khsAngle;
-      }
+  void _updateStateMachine(double trunkHoriz, int now) {
+    if (state != SitUpState.lying) {
+      final peak = _peakTrunkThisRep;
+      if (peak == null || trunkHoriz > peak) _peakTrunkThisRep = trunkHoriz;
     }
+    final peak = _peakTrunkThisRep ?? trunkHoriz;
 
     if (_risingDebouncer.update(state == SitUpState.lying &&
-        trunkHoriz > SitUpConfig.RISING_TRUNK_START)) {
+        trunkHoriz > SitUpConfig.RISING_TRUNK_MIN)) {
+      _peakTrunkThisRep = trunkHoriz;
       _transitionState(SitUpState.rising, now);
     } else if (_uprightDebouncer.update(state == SitUpState.rising &&
-        khsAngle <= SitUpConfig.UPRIGHT_KHS_THRESHOLD)) {
+        trunkHoriz >= RomMetric.fullTrunkAngle)) {
       _transitionState(SitUpState.upright, now);
-    } else if (_lyingDebouncer.update(
-        (state == SitUpState.lowering || state == SitUpState.rising) &&
-            trunkHoriz < SitUpConfig.LYING_TRUNK_THRESHOLD)) {
+    } else if (_lyingDebouncer.update(state != SitUpState.lying &&
+        trunkHoriz < SitUpConfig.LYING_TRUNK_MAX)) {
       _transitionState(SitUpState.lying, now);
     } else if (_loweringDebouncer.update(
-      (state == SitUpState.rising &&
-              _hasReachedCountableTop &&
-              khsAngle > _minKhsThisRep! + SitUpConfig.LOWERING_KHS_DIFF) ||
-          (state == SitUpState.upright &&
-              khsAngle > SitUpConfig.LOWERING_KHS_THRESHOLD),
-    )) {
+        (state == SitUpState.rising || state == SitUpState.upright) &&
+            trunkHoriz < peak - SitUpConfig.TURN_BACK_DROP)) {
       _transitionState(SitUpState.lowering, now);
     }
   }
-
-  bool get _hasReachedCountableTop =>
-      _minKhsThisRep != null &&
-      _minKhsThisRep! <= SitUpConfig.COUNTABLE_TOP_KHS_THRESHOLD;
 
   void _transitionState(SitUpState newState, int now) {
     if (newState == state) return;
@@ -354,6 +350,8 @@ class SitUp extends ExerciseBase with SideTrackedExerciseMixin {
     logger
         .addRepLog(RepLog(correctForm: correctForm, repNumber: repCount, data: {
       "min_khs_angle": romMetric.minKneeHipShoulder ?? 180.0,
+      "peak_trunk": romMetric.peakTrunk ?? 0.0,
+      "max_ankle_lift": stabilityMetric.maxLift,
       "lowering_time": tempoMetric.loweringDuration ?? 0.0,
       "fault_types": allFaults.map((e) => e.type).toSet().toList(),
       "fault_affects_form": faultAffectsForm,
@@ -361,7 +359,6 @@ class SitUp extends ExerciseBase with SideTrackedExerciseMixin {
     }));
 
     correctForm = true;
-    _minKhsThisRep = null;
     for (var metric in _metrics) {
       metric.resetAndCountFault();
     }

@@ -19,6 +19,8 @@
 ///   closed.
 library;
 
+import 'dart:math' as math;
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -42,6 +44,8 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
   // TUNE-ON-CALIBRATION: placeholder lower bound to ignore tiny transitions.
   static const int kMinArmGapMs = 800;
 
+  static const int maxCountDelayMs = 800;
+
   /// Feel-tune (NOT canonical): elapsed-hold offsets, in ms, at which the
   /// voiced activation countdown fires "ba / hai / một". Each is a threshold
   /// into the 3s hold; the last is deliberately < HOLD_STILL_REQUIRED_DURATION
@@ -63,6 +67,7 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
   static const double kMinHalfwayHoldSeconds = 10.0;
   static const double kMinFinalTenHoldSeconds = 30.0;
   static const double kMinSpokenCountdownHoldSeconds = 20.0;
+  static const int kHoldCountUpSeconds = 7;
 
   PolicyVoiceCoach({
     required this.script,
@@ -149,6 +154,7 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
   double? _previousHoldSeconds;
   final Set<String> _holdMilestonesFired = <String>{};
   final Set<int> _holdCountdownSpoken = <int>{};
+  final Set<int> _holdCountUpSpoken = <int>{};
   bool _cleanSinceLastHoldMilestone = true;
   bool _lastHoldMilestoneWasPraise = false;
   bool _rehHoldHustleArmed = false;
@@ -562,6 +568,7 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
       _previousHoldSeconds = 0.0;
       _holdMilestonesFired.clear();
       _holdCountdownSpoken.clear();
+      _holdCountUpSpoken.clear();
       _cleanSinceLastHoldMilestone = true;
       _rehHoldHustleArmed = false;
     }
@@ -571,6 +578,24 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
     }
 
     final previous = _previousHoldSeconds ?? live;
+    final countUpTo = math.min(kHoldCountUpSeconds, (target / 2).floor() - 1);
+    for (var number = 1; number <= countUpTo; number++) {
+      if (_holdCountUpSpoken.contains(number)) continue;
+      if (!_crossed(previous, live, number.toDouble())) continue;
+      _holdCountUpSpoken.add(number);
+      _coach.say(
+        CueType.count,
+        VoiceContent.key('$number'),
+        CueContext(repNumber: inProgressHold, contentKey: 'hold_count_$number'),
+        isStillRelevant: () {
+          final now = exercise.liveHoldSeconds;
+          return exercise.currentPhaseKey == REP_COUNTED_HOLD_PHASE_HOLDING &&
+              exercise.repCount + 1 == inProgressHold &&
+              now != null &&
+              now < number + 1;
+        },
+      );
+    }
     if (target >= kMinHalfwayHoldSeconds) {
       _maybeFireHoldMilestone(
         id: 'halfway',
@@ -746,7 +771,17 @@ class PolicyVoiceCoach implements ExerciseVoiceCoach {
         ? VoiceContent.key(repCount.toString())
         : VoiceContent.pool(script.countPool);
     final sinkBusyBeforeCount = _coach.isBusy;
-    final countSpoke = _coach.say(CueType.count, countContent, baseCtx);
+    final countQueuedAt = Stopwatch()..start();
+    final target = targetReps;
+    final isLastRep = target != null && target > 0 && repCount >= target;
+    final countSpoke = _coach.say(
+      CueType.count,
+      countContent,
+      baseCtx,
+      isStillRelevant: isLastRep
+          ? null
+          : () => countQueuedAt.elapsedMilliseconds <= maxCountDelayMs,
+    );
     // Device-log observability: rep counts and the activation countdown share
     // the numeral keys ('1'..'3'), so a bare player "queued: 3" can't be
     // attributed. This line + the [VoiceCoach] say-type log make count

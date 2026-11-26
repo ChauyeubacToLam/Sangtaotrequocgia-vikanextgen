@@ -423,6 +423,7 @@ class GenericExerciseVoiceAssets {
   static String? _specialCueFilename(String key) {
     const specialCueFiles = {
       'jump_squat.setup_position': 'set_up position.mp3',
+      'jump_squat.landing_depth': 'landing_stiff.mp3',
       'seated_forward_fold.setup_position': 'set_up position.mp3',
     };
     return specialCueFiles[key];

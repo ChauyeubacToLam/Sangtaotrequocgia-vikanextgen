@@ -727,7 +727,7 @@ void main() {
         final plankExercise = Plank(maxRep: 3)
           ..exerciseState = ExerciseState.activated
           ..previousPlankState = PlankState.holding
-          ..plankState = PlankState.setup
+          ..plankState = PlankState.paused
           ..lastHoldFaultVoiceMessage = 'Gồng cơ bụng, nâng hông lên';
 
         plankCoach.processFrame(

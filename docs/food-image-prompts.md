@@ -89,3 +89,7 @@ Khẩu phần trong ảnh nên gần với cỡ "Vừa" ghi bên cạnh.
 
 - Ảnh chỉ để minh họa. Số calo và chất dinh dưỡng trong app không lấy từ ảnh mà từ Bảng thành phần thực phẩm Việt Nam 2007, USDA FoodData Central và album khẩu phần IFPRI 2021.
 - Nên ghi trong phần giới thiệu app là ảnh món ăn do AI tạo.
+
+## Image manifest
+
+See `docs/food-image-manifest.csv` for prompts and review status. The food images are AI-generated illustrations.

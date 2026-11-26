@@ -476,20 +476,20 @@ void main() {
 
   group('per-rep and per-hold log integrity', () {
     test(
-        'PROBE plank leak: faults of a hold that broke do not appear in the '
-        'next completed hold', () {
+        'a hold that breaks pauses and keeps its own short sag, which does '
+        'not mark the hold as wrong', () {
       final plank = _activePlank(_levelPlank(leftNear: true),
           expected: CameraFacing.left);
       _hold(plank, _levelPlank(leftNear: true, hipDrop: 16),
-          fromMs: 0, toMs: 1000); // sagging hold
+          fromMs: 0, toMs: 1000);
       _pump(plank, _levelPlank(leftNear: true, hipDrop: 40), 1100);
-      expect(plank.plankState, PlankState.setup,
-          reason: 'fixture precondition: body angle < 150 breaks the hold');
+      expect(plank.plankState, PlankState.paused,
+          reason: 'body angle < 150 pauses the hold');
       _hold(plank, _levelPlank(leftNear: true), fromMs: 1200, toMs: 17000);
-      expect(plank.repCount, 1, reason: 'fixture precondition');
-      expect(plank.logger.repLogs.single.data['fault_types'], isEmpty,
-          reason: 'metrics are reset only in _onHoldComplete, so the broken '
-              "hold's sag is logged against this clean hold");
+      expect(plank.repCount, 1);
+      final repLog = plank.logger.repLogs.single;
+      expect(repLog.data['fault_types'], ['Back']);
+      expect(repLog.correctForm, isTrue);
     });
 
     test(
@@ -581,8 +581,8 @@ void main() {
   // Regression tests for docs/scratch/kept-exercises-fix-batch-A.md.
   group('batch A fixes', () {
     test(
-        'FIX D3: resetting metrics on a broken hold leaves the set totals '
-        'as integrated', () {
+        'FIX D3: a broken hold that resumes keeps the set totals as '
+        'integrated', () {
       final plank = _ClockedPlank();
       var facing = CameraFacing.undefined;
       for (var i = 0; i < 5; i++) {
@@ -597,30 +597,25 @@ void main() {
         }
       }
 
-      // Same sequence as "PROBE plank leak": a sagging hold that breaks at
-      // 1100 ms, then a clean hold that completes at 16300 ms.
       hold(_levelPlank(leftNear: true, hipDrop: 16), 0, 1000);
       hold(_levelPlank(leftNear: true, hipDrop: 40), 1100, 1100);
-      expect(plank.plankState, PlankState.setup);
+      expect(plank.plankState, PlankState.paused);
       hold(_levelPlank(leftNear: true), 1200, 17000);
       expect(plank.repCount, 1);
-      expect(plank.logger.repLogs.single.data['fault_types'], isEmpty);
+      expect(plank.logger.repLogs.single.data['fault_types'], ['Back']);
 
       plank.onSetComplete();
       final logs = plank.logger.setLogs;
-      // Hold 1: 100 -> 1100 ms (1.0 s); hold 2: 1300 -> 16300 ms (15.0 s).
-      expect(logs['total_seconds'] as num, closeTo(16.0, 1e-9));
-      // Sag debounced on the 5th hold frame (500 ms): 500..1000 = 0.6 s.
+      expect(logs['total_seconds'] as num, closeTo(15.0, 1e-9));
       expect(logs['trunk_seconds'] as num, closeTo(0.6, 1e-9));
-      // 200..400 ms of hold 1 plus 1400..16200 ms of hold 2.
-      expect(logs['good_seconds'] as num, closeTo(15.2, 1e-9));
+      expect(logs['good_seconds'] as num, closeTo(14.2, 1e-9));
       expect(logs['neck_seconds'] as num, 0.0);
       expect(logs['knee_seconds'] as num, 0.0);
     });
 
     test(
-        'FIX D1 log: on straight bodies line and bend read ~0 while dev reads '
-        'the horizontal tilt', () {
+        'FIX D1 log: on straight bodies line and bend read ~0; plank dev reads '
+        'the horizontal tilt, push-up dev is the bend', () {
       final lines = <String>[];
       final saved = debugPrint;
       debugPrint = (String? message, {int? wrapWidth}) {
@@ -669,7 +664,7 @@ void main() {
 
         final pushUpTop = read(lines[side * 4 + 3]);
         expect(lines[side * 4 + 3], startsWith('[Vika][facing] PushUp'));
-        expect(pushUpTop['dev']!, closeTo(21.3, 0.1));
+        expect(pushUpTop['dev']!, closeTo(0, 0.1));
         expect(pushUpTop['line']!, closeTo(0, 0.1));
         expect(pushUpTop['bend']!, closeTo(0, 0.1));
       }

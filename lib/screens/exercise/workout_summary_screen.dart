@@ -12,6 +12,8 @@ import '../../widgets/tk/tk.dart';
 import '../nutrition/post_workout_card.dart';
 import 'widgets/sensor_rotated_box.dart';
 
+final workoutFinished = ValueNotifier<int>(0);
+
 class WorkoutSummaryScreen extends StatefulWidget {
   const WorkoutSummaryScreen({
     super.key,
@@ -49,6 +51,14 @@ class WorkoutSummaryScreen extends StatefulWidget {
 }
 
 class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
+  bool _activityLogged = false;
+
+  @override
+  void dispose() {
+    Future.microtask(() => workoutFinished.value++);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -69,6 +79,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
         l.activities.add(label);
       });
     } catch (_) {}
+    if (mounted) setState(() => _activityLogged = true);
   }
 
   Future<void> _promptLastExercise() async {
@@ -266,7 +277,11 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                     ],
                     if (!control) ...[
                       const SizedBox(height: 16),
-                      const PostWorkoutMealCard(compact: true),
+                      PostWorkoutMealCard(
+                        key: ValueKey(_activityLogged),
+                        compact: true,
+                        justTrained: true,
+                      ),
                     ],
                     const SizedBox(height: 14),
                     Center(

@@ -23,7 +23,7 @@ import 'metrics/tempo_metric.dart';
 
 class JumpingJackConfig {
   // All normalized to shoulder width for body-size independence
-  static const double OPEN_ANKLE_SPREAD_THRESHOLD = 1.0;
+  static const double OPEN_ANKLE_SPREAD_THRESHOLD = 0.85;
   static const double CLOSED_ANKLE_SPREAD_THRESHOLD = 0.65;
   static const double OPEN_ARM_ELEVATION_MIN = 90.0;
   static const double CLOSED_ARM_ELEVATION_MAX = 110.0;
@@ -304,8 +304,7 @@ class JumpingJack extends ExerciseBase {
     final avgArmElevation = (leftArmElevation + rightArmElevation) / 2.0;
     final meetsOpenGate =
         ankleSpreadNorm > JumpingJackConfig.OPEN_ANKLE_SPREAD_THRESHOLD &&
-            avgArmElevation > JumpingJackConfig.OPEN_ARM_ELEVATION_MIN &&
-            wristAboveHead;
+            avgArmElevation > JumpingJackConfig.OPEN_ARM_ELEVATION_MIN;
 
     int now = frameTimestampMs;
 
@@ -339,6 +338,7 @@ class JumpingJack extends ExerciseBase {
       repCount += 1;
       previousJJState = jjState;
 
+      armExtensionMetric.evaluateRep();
       legSpreadMetric.evaluateRep(ctx);
       tempoMetric.evaluateRep(ctx, now);
 
@@ -391,6 +391,8 @@ class JumpingJack extends ExerciseBase {
           "fault_types": allFaults.map((f) => f.type).toSet().toList(),
           "fault_affects_form": faultAffectsForm,
           "fault_priorities": faultPriorities,
+          "peak_arm_elevation": armExtensionMetric.peakElevation,
+          "peak_ankle_spread": legSpreadMetric.peakSpread,
         },
       ));
 

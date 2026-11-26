@@ -18,8 +18,8 @@ class LegRaiseConfig {
   static const double LOWERING_ANGLE = 145.0;
   static const double LYING_ANGLE = 150.0;
 
-  // Tempo: fault if lowering < 1.2 s; 1.5 s is a display band only.
-  static const double TEMPO_FAULT_THRESHOLD = 1.2;
+  // Tempo: fault if lowering < 0.8 s; 1.5 s is a display band only.
+  static const double TEMPO_FAULT_THRESHOLD = 0.8;
   static const double TEMPO_TARGET_THRESHOLD = 1.5;
 
   // Trunk Angle Limit

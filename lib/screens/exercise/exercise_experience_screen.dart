@@ -65,6 +65,7 @@ import '../../services/research/research_log_exporter.dart';
 import '../../services/research/research_preferences.dart';
 import '../../services/research/research_session_tracker.dart';
 import '../../services/research/set_recorder.dart';
+import '../../services/rep_replay.dart';
 import '../../services/session_summary_builder.dart';
 import '../../services/session_trophy_picker.dart';
 import '../../utils/exercise_logger.dart';
@@ -169,6 +170,8 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
   ResearchSession? _researchSession;
   ResearchSetSlot? _activeSetSlot;
   SetRecorder? _activeSetRecorder;
+  RepReplayCollector? _activeReplay;
+  Map<String, String> _faultTitles = const <String, String>{};
   bool _advancingToNextExercise = false;
   late final Future<void> _researchPreloadFuture;
   bool _researchPreloadDone = false;
@@ -292,6 +295,10 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
 
   @override
   void dispose() {
+    if (_activeReplay != null) {
+      _activeReplay!.end();
+      unawaited(PoseLandmarkerChannel().clearReplayClips());
+    }
     _flushActiveSetRecording();
     final session = _researchSession;
     if (!_advancingToNextExercise && session != null && !session.isEnded) {
@@ -423,7 +430,9 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
       // Apply conservative adjustment from last session's self-reported
       // difficulty: heavy = -1 rep, light = +1 rep, else no change.
       // Only applied before workout starts (intro phase).
-      if (_phase == _WorkoutFlowPhase.intro && history.isNotEmpty) {
+      if (_phase == _WorkoutFlowPhase.intro &&
+          history.isNotEmpty &&
+          !_spec.fixedTargetPerSet) {
         final lastDifficulty = history.last.overallDifficulty;
         final base = _spec.repsPerSet;
         _currentRepsTarget = switch (lastDifficulty) {
@@ -523,6 +532,9 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
       exerciseId: exerciseId,
       setIndex: slot.setIndex,
     );
+    _activeReplay = kRepReplayEnabled && !_researchConfig.isControl
+        ? (RepReplayCollector()..begin())
+        : null;
     _phase = _WorkoutFlowPhase.active;
   }
 
@@ -639,6 +651,9 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
   }
 
   void _handleSetComplete(ExerciseLogger logger) {
+    _activeReplay?.end();
+    _faultTitles =
+        faultTitlesFromSetFeedback(_activeExercise?.setFeedback ?? const []);
     _flushActiveSetRecording(loggerOverride: logger);
     _setLoggers.add(logger);
 
@@ -743,11 +758,13 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
     final isLastSet = _currentSet >= _spec.sets;
     final prescribedRest = isLastSet ? 10 : _spec.restSeconds;
     final restSeconds = prescribedRest + (difficulty == 'heavy' ? 15 : 0);
-    final nextReps = switch (difficulty) {
-      'light' => _currentRepsTarget + 2,
-      'heavy' => _currentRepsTarget > 1 ? _currentRepsTarget - 1 : 1,
-      _ => _currentRepsTarget,
-    };
+    final nextReps = _spec.fixedTargetPerSet
+        ? _currentRepsTarget
+        : switch (difficulty) {
+            'light' => _currentRepsTarget + 2,
+            'heavy' => _currentRepsTarget > 1 ? _currentRepsTarget - 1 : 1,
+            _ => _currentRepsTarget,
+          };
 
     _pendingNextRepsTarget = nextReps;
     _persistDifficultyLog({
@@ -1203,6 +1220,7 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
           showRepTracking: _spec.hybrid ? true : null,
           controlCondition: _researchConfig.isControl,
           setRecorder: _activeSetRecorder,
+          replayCollector: _activeReplay,
           onFlushSetRecording: _flushActiveSetRecording,
           onSetComplete: _handleSetComplete,
           onBack: () => Navigator.of(context).pop(),
@@ -1212,6 +1230,7 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
           setIndex: _currentSet - 1,
           totalSets: _spec.sets,
           currentReps: _currentRepsTarget,
+          adjustsTarget: !_spec.fixedTargetPerSet,
           baseRestSeconds: _spec.restSeconds,
           isLastSet: _currentSet >= _spec.sets,
           exerciseName: widget.definition.displayName,
@@ -1226,6 +1245,15 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
           onReportFault: _researchConfig.isControl ? null : _handleFaultReport,
           onExportLogs:
               _researchConfig.hasParticipantId ? _exportLogsSoFar : null,
+          replayGoodRep:
+              _researchConfig.isControl ? null : _activeReplay?.goodRep,
+          replayFaultReps: _researchConfig.isControl
+              ? const <RepReplayEntry>[]
+              : _activeReplay?.faultReps ?? const <RepReplayEntry>[],
+          loadReplayClip: _researchConfig.isControl || _activeReplay == null
+              ? null
+              : PoseLandmarkerChannel().loadReplayClip,
+          faultTitles: _faultTitles,
         ),
       _WorkoutFlowPhase.transition => ExerciseTransitionMoment(
           exerciseName: widget.definition.displayName,
@@ -1316,10 +1344,12 @@ class _ExerciseExperienceSpec {
     this.timeBased = false,
     this.hybrid = false,
     this.repHeroTarget,
+    this.fixedTargetPerSet = false,
   });
 
   final int sets;
   final int repsPerSet;
+  final bool fixedTargetPerSet;
   final int restSeconds;
   final String targetLabel;
   final double secondsPerUnit;
@@ -1481,12 +1511,22 @@ class _ExerciseExperienceSpec {
           createExercise: (repsPerSet) => PushUp(maxRep: repsPerSet),
         );
       case 'plank':
+        final plankHoldSeconds = (volume.seconds ?? 0) >= 1
+            ? volume.seconds!.toDouble()
+            : PlankConfig.HOLD_DURATION;
+        final holdsPerSet = !isHold
+            ? target
+            : (volume.reps ?? 0) >= 1
+                ? volume.reps!
+                : 1;
         return _plankSpec(
           definition: definition,
           sets: sets,
-          repsPerSet: target,
+          repsPerSet: holdsPerSet,
           restSeconds: overrideRest,
-          createExercise: (repsPerSet) => Plank(maxRep: repsPerSet),
+          holdSeconds: plankHoldSeconds,
+          createExercise: (holds) =>
+              Plank(maxRep: holds, holdSeconds: plankHoldSeconds),
         );
       case 'high__plank':
         final holdCount =
@@ -1797,21 +1837,23 @@ class _ExerciseExperienceSpec {
     required int sets,
     required int repsPerSet,
     int? restSeconds,
+    double holdSeconds = PlankConfig.HOLD_DURATION,
     required ExerciseBase Function(int repsPerSet) createExercise,
   }) {
     return _ExerciseExperienceSpec(
       sets: sets,
       repsPerSet: repsPerSet,
-      restSeconds: restSeconds ?? PlankConfig.REST_DURATION.round(),
+      fixedTargetPerSet: true,
+      restSeconds: restSeconds ?? PlankConfig.SET_REST_SECONDS,
       targetLabel: 'LẦN GIỮ/HIỆP',
-      secondsPerUnit: PlankConfig.HOLD_DURATION,
+      secondsPerUnit: holdSeconds,
       posture: SkeletonPosture.lyingFaceDown,
       muscles: definition.targetMuscles,
       tips: definition.setupTips,
       badges: [
         ExerciseIntroBadge(
           title: 'Thời gian giữ',
-          value: '${PlankConfig.HOLD_DURATION.round()}s',
+          value: '${holdSeconds.round()}s',
           color: const Color(0xFF7040B8),
         ),
       ],
@@ -1877,8 +1919,9 @@ class _ExerciseExperienceSpec {
           anchor: const Offset(0.25, 0.32),
         ),
         SkeletonCallout(
-          title: 'Khuỷu tay',
-          value: '≥ ${jj_arm.ArmExtensionConfig.ELBOW_GOOD.round()}°',
+          title: 'Tay nâng',
+          value:
+              '≥ ${jj_arm.ArmExtensionConfig.OVERHEAD_ELEVATION_MIN.round()}°',
           color: const Color(0xFF1B6B52),
           alignment: const Alignment(0.90, -0.04),
           anchor: const Offset(0.30, 0.40),

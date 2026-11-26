@@ -17,9 +17,9 @@
                Negative = hip below line (sagging).
 
    Threshold Table — Vietnamese-adjusted:
-     Good         : 152–175°
-     Warning      : 140–152°  (affectsForm = false)
-     Error (low)  : < 140°    (affectsForm = true)
+     Good         : 160–175°
+     Warning      : 155–160°  (affectsForm = false)
+     Error (low)  : < 155°    (affectsForm = true)
      Error (hyper): deviation > 0.045 (affectsForm = true)
 
    When to check:
@@ -33,8 +33,9 @@ import '../../../utils/debouncer.dart';
 
 class HipExtensionConfig {
   // Shoulder-hip-knee angle thresholds (Vietnamese adjusted)
-  static const double GOOD_MIN_ANGLE = 152.0;
-  static const double WARNING_MIN_ANGLE = 140.0;
+  static const double GOOD_MIN_ANGLE = 160.0;
+  static const double WARNING_MIN_ANGLE = 155.0;
+  static const double MIN_LIFT_RATIO = 0.22;
   // Below WARNING_MIN_ANGLE → affectsForm = true (error)
   // Between WARNING_MIN_ANGLE and GOOD_MIN_ANGLE → affectsForm = false (warning)
 
@@ -104,7 +105,8 @@ class HipExtensionMetric extends GluteBridgeMetricBase {
      peakAngle    : shoulderHipKneeAngle at the highest hip point this rep.
      peakDeviation: normalizedHipDeviation at that same peak frame.
      ----------------------------------------------------------------------- */
-  void checkRepCompletion(double? peakAngle, double? peakDeviation) {
+  void checkRepCompletion(double? peakAngle, double? peakDeviation,
+      {double? liftRatio}) {
     if (peakAngle == null) return;
 
     _debugData['peakAngle'] = '${peakAngle.toStringAsFixed(1)}°';
@@ -128,8 +130,11 @@ class HipExtensionMetric extends GluteBridgeMetricBase {
     }
 
     // --- Insufficient extension / sagging hips ---
-    if (peakAngle < HipExtensionConfig.GOOD_MIN_ANGLE) {
-      final bool isError = peakAngle < HipExtensionConfig.WARNING_MIN_ANGLE;
+    final lowLift =
+        liftRatio != null && liftRatio < HipExtensionConfig.MIN_LIFT_RATIO;
+    if (lowLift || peakAngle < HipExtensionConfig.GOOD_MIN_ANGLE) {
+      final bool isError =
+          lowLift || peakAngle < HipExtensionConfig.WARNING_MIN_ANGLE;
       _faults.add(FaultRecord(
         phase: 'topHold',
         type: 'hip_extension',

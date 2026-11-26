@@ -38,7 +38,7 @@ void main() {
     final fifteen = _runHoldTo(target: 15, seconds: 10);
     expect(fifteen, contains('common.time.halfway'));
     expect(fifteen, isNot(contains('common.time.10s_left')));
-    expect(fifteen.where(_isNumeral), isEmpty);
+    expect(fifteen.where(_isCount).toList(), ['1', '2', '3', '4', '5', '6']);
 
     final twenty = _runHoldTo(target: 20, seconds: 15);
     expect(twenty, contains('common.time.halfway'));
@@ -48,16 +48,17 @@ void main() {
     final thirty = _runHoldTo(target: 30, seconds: 20);
     expect(thirty, contains('common.time.halfway'));
     expect(thirty, contains('common.time.10s_left'));
-    expect(thirty.where(_isNumeral), isEmpty);
+    expect(thirty.where(_isCount).toList(),
+        ['1', '2', '3', '4', '5', '6', '7']);
   });
 
   test('every hold milestone queues exactly one forced outcome follow-up', () {
     final halfway = _runHoldTo(target: 20, seconds: 10);
-    expect(halfway, hasLength(2));
+    expect(halfway.where((k) => !_isCount(k)), hasLength(2));
     expect(halfway, contains('common.time.halfway'));
 
     final twoMilestones = _runHoldTo(target: 30, seconds: 20);
-    expect(twoMilestones, hasLength(4));
+    expect(twoMilestones.where((k) => !_isCount(k)), hasLength(4));
     expect(twoMilestones, contains('common.time.halfway'));
     expect(twoMilestones, contains('common.time.10s_left'));
     expect(twoMilestones, contains('common.hold_push'));
@@ -239,7 +240,6 @@ List<String> _runHoldTo({required double target, required double seconds}) {
   return keys;
 }
 
-bool _isNumeral(String key) => const {'1', '2', '3', '4', '5'}.contains(key);
 
 PolicyVoiceCoach _coach({
   required VoiceSink sink,
@@ -416,3 +416,5 @@ class _RecordingEarconSink implements EarconSink {
   @override
   void dispose() {}
 }
+
+bool _isCount(String key) => int.tryParse(key) != null;

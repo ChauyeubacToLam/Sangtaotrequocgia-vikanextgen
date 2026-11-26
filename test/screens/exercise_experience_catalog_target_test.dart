@@ -105,6 +105,33 @@ void main() {
     expect(exercise.holdSeconds, 30);
   });
 
+  test('forearm plank runs one hold per set with the catalog seconds', () {
+    final definition = lookupExerciseDefinition('plank')!;
+
+    final catalogBacked = debugBuildExerciseExperienceSpec(
+      definition,
+      catalogInfo: catalogInfo(id: 'plank', baseReps: 1, baseSeconds: 20),
+    );
+    expect(catalogBacked.targetPerSet, 1);
+    expect((catalogBacked.exercise as Plank).maxRep, 1);
+    expect((catalogBacked.exercise as Plank).holdSeconds, 20);
+
+    final planned = debugBuildExerciseExperienceSpec(
+      definition,
+      prescription: const VolumePrescription(
+        sets: 3,
+        restSeconds: 30,
+        reps: 1,
+        seconds: 25,
+      ),
+      catalogInfo: catalogInfo(id: 'plank', baseReps: 1, baseSeconds: 20),
+    );
+    expect(planned.sets, 3);
+    expect(planned.targetPerSet, 1);
+    expect((planned.exercise as Plank).maxRep, 1);
+    expect((planned.exercise as Plank).holdSeconds, 25);
+  });
+
   test('catalog base reps are the fallback when prescription is absent', () {
     final definition = lookupExerciseDefinition('mountain__climber')!;
 

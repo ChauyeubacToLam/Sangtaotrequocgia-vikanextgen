@@ -109,13 +109,13 @@ void main() {
     expect(e.debugData['hipY'], 320);
   });
 
-  test('lowering-time card states the 1.2 s the code enforces', () {
+  test('lowering-time card states the 0.8 s the code enforces', () {
     final e = _active();
     _fullRaise(e);
     e.onSetComplete();
     final cards = LegRaiseReportBuilder().buildDetailCards([e.logger]);
     final tempo = cards.singleWhere((c) => c.label == 'Kiểm soát hạ chân');
     expect(tempo.subLabel, isNot(contains('2.0')));
-    expect(tempo.subLabel, contains('1.2'));
+    expect(tempo.subLabel, contains('0.8'));
   });
 }

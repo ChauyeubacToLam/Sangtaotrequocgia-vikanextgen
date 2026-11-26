@@ -44,6 +44,7 @@ class GluteBridgeConfig {
   static const double BOTTOM_TOLERANCE_RATIO = 0.12;
   static const double BOTTOM_TOLERANCE_PIXELS = 18.0;
   static const double REP_RETURN_FRACTION = 0.3;
+  static const double MIN_COUNTED_LIFT_RATIO = 0.15;
 
   // --- Start-position geometry ---
   /// Max shoulder-hip line angle from horizontal (degrees, unsigned).
@@ -628,9 +629,12 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
         else if (_descendDebouncer.update(isDescending && isElevated)) {
           _transitionState(GluteBridgeState.descending, timestampMs);
         }
-        // Abort: hip never got high enough and stopped moving.
         else if (_bottomDebouncer.update(isAtRest && isAtBottom)) {
-          if (_continuingRep) {
+          final double lift = baseline - (_peakHipY ?? baseline);
+          final double minCountedLift = scaleFactor > 0
+              ? scaleFactor * GluteBridgeConfig.MIN_COUNTED_LIFT_RATIO
+              : GluteBridgeConfig.HIP_ELEVATED_PIXELS * 2;
+          if (_continuingRep || lift >= minCountedLift) {
             _onRepCompleted(timestampMs);
           } else {
             for (final metric in _metrics) {
@@ -671,13 +675,21 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
      REP COMPLETION — Evaluate metrics and record set feedback.
      Called just before completing the descent phase.
      ----------------------------------------------------------------------- */
+  double? _hipLiftRatio() {
+    final baseline = _baselineHipY;
+    final peak = _peakHipY;
+    if (baseline == null || peak == null || scaleFactor <= 0) return null;
+    return (baseline - peak) / scaleFactor;
+  }
+
   void _onRepCompleted(int timestampMs) {
     repCount += 1;
     _continuingRep = false;
 
     // Let HipExtensionMetric evaluate the peak angle and deviation.
     hipExtensionMetric.checkRepCompletion(
-        _peakShoulderHipKneeAngle, _peakNormalizedDeviation);
+        _peakShoulderHipKneeAngle, _peakNormalizedDeviation,
+        liftRatio: _hipLiftRatio());
 
     // Let KneeAngleMetric evaluate foot placement at top hold.
     kneeAngleMetric.checkRepCompletion(_peakKneeAngle);
@@ -738,6 +750,7 @@ class GluteBridge extends ExerciseBase with SideTrackedExerciseMixin {
         "peak_hip_extension_angle": _peakShoulderHipKneeAngle ?? 0.0,
         "peak_normalized_hip_deviation": _peakNormalizedDeviation ?? 0.0,
         "peak_knee_angle": _peakKneeAngle ?? 0.0,
+        "hip_lift_ratio": _hipLiftRatio() ?? 0.0,
         "head_lift_rest": neckHeadMetric.restingLift,
         "peak_head_lift": neckHeadMetric.peakLift,
         "fault_types": allFaults.map((f) => f.type).toSet().toList(),

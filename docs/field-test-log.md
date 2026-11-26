@@ -526,6 +526,388 @@ nhưng không gắn cờ yoga), `docs/reference/voice-coach/missing-audio.md` (d
 **Kiểm tra:** `flutter analyze` trên các file đã sửa: không có lỗi. Toàn bộ test 798 qua, 14 bỏ qua
 (777 trước đó, 13 test mới, 8 test của việc khác đang làm dở trong checkout). Chưa thử trên máy.
 
+### 5.17 Lunge: đổ người về trước không bị bắt lỗi (P00, 24/11)
+
+- Hiện tượng (log `20261123T172851Z-P00`): 10 rep, rep 1–5 tập đúng, rep 6–10 cố ý đổ người về trước.
+  App đếm 10/10 nhưng không ghi lỗi `trunk` nào, không có giọng nhắc.
+- Số đo trong log (`max_trunk_lean` mỗi rep): rep đúng 10,6° / 5,4° / 2,8° / 7,3° / 3,7°; rep đổ người
+  37,1° / 45,9° / 33,2° / 26,9° / 31,3°. App đo đúng, hai nhóm tách rõ.
+- Nguyên nhân: ngưỡng cũ trong `metrics/lunge_trunk_lean_metric.dart` chỉ ghi lỗi khi thân nghiêng
+  ≥ 56° liền 12 khung (khoảng 0,65 s ở 18 khung/s). 46–55° chỉ hiện chữ trên màn hình, không ghi lỗi.
+  Không rep nào tới 56°.
+- Sửa: nghiêng ≥ 20° liền 5 khung (khoảng 0,27 s) là lỗi `trunk`; 15–19° chỉ hiện chữ "Hơi gập người";
+  dưới 15° là "Lưng tốt". Ngả ra sau giữ nguyên (< −10° liền 8 khung).
+- Ngưỡng 20° là ước lượng từ một người tập (P00): rep đúng cao nhất 10,6°, cách ngưỡng khoảng 9°. Cần
+  xem lại khi có log của người khác.
+- Chưa sửa: khi thân đổ, có khung app tưởng người đứng chéo camera và đọc góc thân = 0 (đầu rep 7 trong
+  log). Khung đó làm đứt chuỗi 5 khung.
+- Test mới trong `lunge_form_test.dart`: 20° liền 5 khung là lỗi; 11° không lỗi; 46° chỉ 4 khung rồi về
+  0° không lỗi. 12/12 test lunge qua, analyze sạch.
+- Thử lại trên máy (log `20261123T173951Z-P00`): rep 6, 8, 9, 10 đổ người (21–29°) đều bị ghi `trunk`
+  và có giọng nhắc; rep 1–5 và rep 7 tập đúng (−2° tới 9°) không bị báo.
+
+### 5.18 Jump Squat: nhún nông không được tính rep, app kẹt ở pha "lơ lửng" (P00, 24/11)
+
+- Hiện tượng (log `174127Z`, `174210Z`, `174342Z`, cùng P00): kịch bản 12 rep, app đếm 1, 5 và 10. Lần
+  1 kẹt ở pha "lơ lửng" 8 s; lần 2 sau rep 5 không ghi lần lấy đà nào trong 13 s (lúc tập rep nhún
+  nông), rồi kẹt "lơ lửng" 35 s; lần 3 kẹt ở pha "tiếp đất" tới 7,5 s rồi lấy một lần đung đưa làm cú
+  nhảy mới.
+- Nguyên nhân 1: app chỉ vào pha "lấy đà" khi gối < 140°, và chỉ từ pha đó mới sang được pha "lơ
+  lửng". Nhún nông hơn 140° thì không có rep, cũng không có lỗi `takeoff_depth` (ngưỡng lỗi 125°).
+- Nguyên nhân 2: mốc mặt sàn là độ cao bàn chân lúc bắt đầu, chỉ cập nhật khi đứng thẳng và chân
+  lệch mốc dưới nửa ngưỡng bay (vài pixel). Tiếp đất xa hoặc gần camera hơn chỗ bật vài cm là bàn chân
+  trong ảnh lệch khỏi mốc, app coi như chưa chạm đất và mốc không bao giờ tự sửa. Log lần 2 có lúc
+  chân lệch mốc 144 px khi đang đứng.
+- Sửa (`jump_squat.dart`):
+  - Vào pha "lấy đà" khi gối < 160° (trước 140°); về pha đứng khi gối > 165° (trước 150°), để hai ngưỡng
+    không chồng nhau. Cú nhảy từ tư thế nhún nông giờ được đếm và bị ghi `takeoff_depth` nếu gối
+    không gập quá 125°.
+  - Tiếp đất khi: chân về mốc sàn như cũ, hoặc chân đã rơi xuống khỏi điểm cao nhất hơn một ngưỡng bay
+    rồi dừng lại, hoặc đã "lơ lửng" quá 0,8 s. Hai trường hợp sau đặt lại mốc sàn theo chỗ chân vừa
+    chạm.
+  - Đứng hoặc tiếp đất với gối > 165°, hông và chân yên (lệch < 3% chiều dài thân) liền 8 khung thì đặt
+    lại mốc sàn (và mốc hông nếu gối ≥ 170°) theo vị trí hiện tại.
+- Ngưỡng 160° / 165°, 0,8 s, 8 khung, 3% là ước lượng, chưa đo trên máy.
+- Không làm: cho nhảy thẳng từ pha đứng sang "lơ lửng" mà không qua "lấy đà". Cú bật gối gần thẳng
+  (gối không xuống dưới 160°) vẫn không được tính.
+- Test mới trong `jump_squat_form_test.dart`: nhún tới 150° rồi bật được đếm và ghi `takeoff_depth`;
+  tiếp đất cao hơn mốc 20 px vẫn đếm rep; "lơ lửng" quá 1 s thì thoát; đứng yên ở chỗ mới 10 khung thì
+  mốc sàn và hông về 0. 115 test trong 5 file có dùng Jump Squat qua (5 bỏ qua), analyze sạch.
+- Thử lại trên máy (log `20261123T180542Z-P00`): đếm 12/12, không kẹt pha nào. Nhưng lỗi bắt sai, xem
+  5.19.
+
+### 5.19 Jump Squat: nhún nông, tiếp đất nông, nhảy nhẹ vẫn được tính "đúng" (P00, 24/11)
+
+- Số đo (log `180542Z`, góc gối nhỏ nhất): rep đúng 1–6 lấy đà 85–96°, tiếp đất 61–91°. Rep nhún nông
+  7–9 lấy đà 101°, 105°, 107°. Rep bật thấp 10–12 lấy đà 121°, 104°, 91°, tiếp đất 118°, 107°, 134°.
+  App chỉ ghi `landing_stiff` ở rep 9 (tiếp đất 155°); các rep còn lại có `landing_depth` nhưng lỗi này
+  không tính sai form, nên 11/12 rep "đúng".
+- Nguyên nhân: ngưỡng `takeoff_depth` là 125°, không rep nào tới. `landing_depth` (tiếp đất 105–145°)
+  là cảnh báo, không làm rep sai. Không có metric nào đo độ cao bật.
+- Sửa:
+  - `metrics/take_off_depth_metric.dart`: lấy đà mà gối không gập tới 100° là lỗi `takeoff_depth`
+    (trước 125°).
+  - `metrics/landing_knee_flexion_metric.dart`: `landing_depth` (tiếp đất 105–145°) giờ tính sai form.
+    Giọng nhắc đổi từ câu khen nhẹ `landing_depth_soft.mp3` sang `landing_stiff.mp3` ("tiếp đất nhẹ, trùng
+    gối để giảm sốc"), qua `generic_exercise_voice_assets.dart`.
+  - Log mỗi rep thêm `takeoff_knee`, `landing_knee` (độ) và `jump_height_ratio` (hông nâng cao nhất khi
+    bay so với lúc đứng, chia chiều dài thân). Chưa có lỗi theo độ cao bật, cần số liệu trước.
+- Với log này, ngưỡng mới bắt rep 7–11; rep 1–6 vẫn đúng. Rep 12 lấy đà 91° nên chỉ bị bắt nếu góc
+  tiếp đất nhỏ nhất > 105° (log chỉ có 134° lúc vừa chạm đất, không có giá trị nhỏ nhất).
+- Rủi ro: ngưỡng lấy đà 100° chỉ cách rep đúng sâu nhất của P00 (96°) 4°. Cần xem lại với người khác.
+- Test: lấy đà 105° là lỗi, 90° không; tiếp đất 115° làm rep sai; log rep có 3 trường mới. Sửa fixture
+  tiếp đất của test cũ từ 110–115° xuống 95°. Toàn bộ 817 test qua (14 bỏ qua), analyze sạch.
+- Thử lại trên máy (log `20261123T182738Z-P00`, tập tự do, P00 xác nhận app chấm đúng): 12 rep, 6
+  đúng, 6 sai. Rep đúng: lấy đà 83–94°, tiếp đất 82–96°, `jump_height_ratio` 0,32–0,55. Rep sai: lấy đà
+  102–138° hoặc tiếp đất 119–175°, `jump_height_ratio` 0,06–0,25. Nếu sau này thêm lỗi "bật thấp", ngưỡng
+  nằm giữa 0,25 và 0,32 với người này; chưa thêm.
+
+### 5.20 Jumping Jack: chân mở hẹp không bị báo, tay qua đầu vẫn bị báo `arms` (P00, 24/11)
+
+- Hiện tượng (log `20261123T183059Z-P00`, kịch bản 20 rep: 1–10 đúng, 11–15 tay không qua đầu, 16–20 chân
+  hẹp): app đếm 14. `arms` ở 8 rep, kể cả các rep tay giơ thẳng qua đầu (góc tay 154–180° lúc vào pha
+  mở); `legs` chỉ ở rep 14.
+- Nguyên nhân 1: lỗi `arms` trong code là "khuỷu tay gập < 105° liền 3 khung", không phải "tay chưa qua
+  đầu" như danh mục lỗi và file giọng `arms.mp3` ("vung tay lên cao qua đầu"). Lỗi bật ở đúng lúc tay
+  giơ cao (0,1–0,4 s sau khi vào pha mở), nghi do khung xương cổ tay, khuỷu tay vẽ lệch khi tay vung
+  nhanh; log không có góc khuỷu từng khung để kiểm.
+- Nguyên nhân 2: pha mở đòi cả hai cổ tay cao hơn mũi và chân mở > 1,0 lần vai. Rep tay thấp hoặc chân
+  quá hẹp không vào pha mở nên không được đếm (khoảng trống 9 s sau rep 8 và 6 s sau rep 11), vì vậy
+  không thể có lỗi. Rep chân hẹp mà vẫn vào pha mở (1,13–1,23 lần vai lúc vào pha) thường có đỉnh vượt
+  1,25 nên không bị `legs`.
+- Sửa:
+  - Pha mở: chân > 0,85 lần vai (trước 1,0) và tay trung bình > 90° (trên vai); bỏ điều kiện cổ tay cao
+    hơn mũi. Rep tay thấp, chân hẹp giờ được đếm để chấm lỗi.
+  - `metrics/arm_extension_metric.dart`: bỏ kiểm tra khuỷu tay. `arms` = góc tay cao nhất trong rep (lấy
+    bên thấp hơn) < 150°. Màn tập hiện "Vung tay cao qua đầu!" khi tay chưa tới.
+  - `metrics/leg_spread_metric.dart`: `legs` khi chân mở rộng nhất < 1,4 lần vai (trước 1,25).
+  - Log mỗi rep thêm `peak_arm_elevation`, `peak_ankle_spread`.
+  - `exercise_experience_screen.dart`: chú thích "Khuỷu tay ≥ 135°" ở màn giới thiệu bài đổi thành
+    "Tay nâng ≥ 150°".
+- Ngưỡng 150° và 1,4 là ước lượng: log cũ chỉ có góc lúc vào pha mở (rep đúng: tay 154–180°, chân
+  1,26–1,74), không có giá trị lớn nhất. Cần tập lại để đọc `peak_*`.
+- Test: chân 0,95 và 1,3 lần vai được đếm và có `legs`; tay chỉ tới ngang vai được đếm và có `arms`;
+  khuỷu gập mà tay vẫn qua đầu không còn lỗi. 818 test qua (14 bỏ qua), analyze sạch. Chưa thử trên máy.
+
+### 5.21 Chỉ đo 21 bài (24/11)
+
+- Quyết định của nhóm: đợt đo chỉ gồm 21 bài. `step_up`, `neck_side_stretch`, `pushup_rotation` (thêm
+  22/11, chưa đo ngưỡng trên máy, thiếu giọng nói) bỏ khỏi `fault_catalog.csv`, `cue_fault_map.csv`,
+  `HUONG_DAN_GAN_NHAN.md`, `KICH_BAN_P00.md`, `KE_HOACH_THU_SO_LIEU.md`. Cùng ngày ẩn luôn khỏi app: bỏ khỏi `keptExerciseIds` và
+  `kExercisePlacementByCatalogId` (code của bài vẫn giữ để bật lại); app còn 21 bài. Sửa số đếm 24/19 thành
+  21/22 trong 3 file test (`kept_exercises_allowlist_test`, `camera_setup_guide_test`,
+  `kept_exercises_launch_and_labels_test`).
+- `p00_gate.py` chỉ xét hiệp mới nhất (đã có tiếng bíp) của mỗi bài ở mỗi điều kiện, để hiệp tập lại sau
+  khi sửa thay hiệp cũ.
+
+### 5.22 Màn nghỉ phát lại rep đúng cạnh rep sai (24/11, tính năng mới)
+
+- Ý tưởng của nhóm: ở màn nghỉ, phát lại rep tập đúng bên cạnh rep tập sai. Hiệp đúng hết thì không hiện;
+  nhiều loại lỗi thì nhiều cặp (tối đa 3).
+- Cách làm, giữ FPS lúc tập:
+  - Android (`RepReplayBuffer.kt`, gọi trong `PoseLandmarkerPlugin.analyzeFrame`): khoảng 10 lần/giây thu
+    nhỏ khung ảnh mà app vốn đã tạo cho MediaPipe xuống 320 px, giữ 4 s gần nhất trong RAM. Không mở thêm
+    camera, không ghi video, không nén lúc đang tập.
+  - Dart (`lib/services/rep_replay.dart`): mỗi rep xong, đánh dấu đoạn từ rep trước tới rep này (0,8–3,5
+    s). Giữ rep đúng gần nhất và rep sai đầu tiên của mỗi loại lỗi mới (bỏ lỗi đã "Báo sai" và rep không
+    chấm form).
+  - Màn nghỉ (`lib/widgets/rep_replay_view.dart`): lúc này mới nén JPEG (luồng phụ) rồi phát lặp chậm
+    0,5×, rep đúng viền xanh bên trái, rep sai viền cam bên phải, ghi số rep và câu lỗi.
+  - Ảnh chỉ trong RAM, không lưu file, không tải lên mạng; xoá khi sang hiệp mới hoặc rời bài.
+- Không hiện ở điều kiện `control`. iOS chưa có phần native nên không hiện gì. Tắt toàn bộ bằng
+  `kRepReplayEnabled` trong `lib/services/rep_replay.dart`.
+- Điều kiện `ai` của đợt đo giờ có thêm phản hồi này: phải ghi vào báo cáo.
+- Kiểm tra: 6 test mới (`test/services/rep_replay_test.dart`), 824 test qua (14 bỏ qua), analyze sạch,
+  `flutter build apk --profile` thành công. Chưa chạy trên máy: chưa đo FPS, chưa xem hình có đúng chiều
+  và đúng đoạn rep không.
+- Thử trên máy (log `20261123T192334Z-P00`, squat 2 hiệp): P00 thấy video chậm, và thấy "từ rep 2 trở đi
+  check hơi lag". Đã sửa video về tốc độ thật (1×), mỗi clip chỉ nén một lần dù hiện ở nhiều ô.
+
+### 5.23 Giọng đếm rep phát trễ sau lời nhắc lỗi (P00, 24/11)
+
+- Đo FPS từ logcat (`perf` mỗi 3 s): hiệp 1 (đang ghi hình cho phát lại) 17,5–20,2 kết quả/s, suy luận
+  77–86 ms; hiệp 2 lúc tập 16,6–19,7/s, 80–91 ms. Không thấy tụt FPS do phát lại; mức tụt nhỏ ở hiệp 2
+  nằm trong dao động, nghi máy nóng.
+- Cái "lag" thật là giọng đếm: số rep phải chờ lời nhắc lỗi đang phát xong. Hiệp 1: rep 2 đếm trễ 1,2 s
+  (sau `trunk.mp3`), rep 3 trễ 1,3 s (sau `trunk_reminder.mp3`). Hiệp 2 (đổ người gần như mọi rep): rep 2
+  trễ 2,3 s, rep 6 trễ 2,5 s, rep 7 trễ 1,1 s. App vẫn đếm đúng lúc trên màn hình; chỉ giọng bị lùi.
+- Sửa (`policy_voice_coach.dart`): giọng đếm của rep (không phải rep cuối) chỉ phát nếu bắt đầu được trong
+  0,8 s sau rep (`maxCountDelayMs`); trễ hơn thì bỏ, số trên màn hình vẫn đúng. Rep cuối luôn đọc.
+- Test mới `test/voice/count_staleness_test.dart`. 826 test qua (14 bỏ qua), analyze sạch, build APK
+  profile thành công. Chưa thử lại trên máy.
+
+### 5.24 Sit-up: lên nửa chừng không báo lỗi, nhấc chân không báo, màn hình không nói đang chấm gì (P00, 24/11)
+
+- Hiện tượng (log `20261123T200048Z-P00`, kịch bản 1–5 đúng, 6–8 lên nửa chừng, 9–10 nhấc chân): app đếm
+  10, `rom` 0 lần, `stability` ở rep 2, 6, 9. Màn tập không có dòng chữ nào ngoài tên pha. P00 báo thêm:
+  rep lên nửa chừng có lúc không được đếm.
+- Nguyên nhân:
+  - `rom` không thể xảy ra: lỗi cần góc gối–hông–vai nhỏ nhất > 142°, nhưng rep chỉ được đếm khi góc đó
+    ≤ 142° (hoặc ≤ 105° để vào pha "lên").
+  - Rep chỉ bắt đầu khi thân rời sàn > 30°; lên nửa chừng thấp hơn thì không đếm, không báo.
+  - Nhấc chân đo bằng độ dịch 2 chiều của mắt cá > 22% chiều dài thân, mốc lấy lúc bắt đầu lên: nhấc
+    vài cm không tới ngưỡng.
+  - Các metric không ghi chữ nào ra màn hình; `debugData` trống nên log không có số đo.
+- Sửa (`2.Sit-Up/sit_up.dart`, `metrics/rom_metric.dart`, `metrics/stability_metric.dart`):
+  - Pha theo góc thân so với sàn: nằm < 15°, bắt đầu lên > 20°, "đã lên" ≥ 60°, hạ khi thân thấp hơn đỉnh
+    10°. Về nằm thì tính 1 rep nếu đỉnh ≥ 30°; dưới 30° (chỉ nhấc vai) không tính.
+  - `rom`: đỉnh thân < 60° là lỗi "Chưa ngồi lên hết: thân mới lên X°".
+  - `stability`: mốc là độ cao mắt cá lúc nằm (trung bình động); mắt cá cao hơn mốc > 10% chiều dài thân
+    liền 3 khung là lỗi "Nhấc chân khỏi sàn".
+  - Màn tập hiện chữ: "Cuộn người lên cao hơn" / "Đã lên đủ cao", "Chân tốt" / "Giữ chân trên sàn". Pha trên
+    cùng đổi tên "Giữ!" thành "Đã lên, hạ xuống".
+  - Log: mỗi khung có `trunk`, `khs`, `peakTrunk`; mỗi rep có `peak_trunk`, `max_ankle_lift`.
+- Ngưỡng 60°, 30°, 10% là ước lượng, log cũ không có góc thân. Câu giọng `sit_up/stability.mp3` ("lên
+  xuống đều, giữ người ổn định") chưa nói rõ về chân; cần thu lại.
+- Test: thân 50° được đếm và có `rom`; ngồi thẳng chân yên không lỗi, nhấc mắt cá 25% thân có
+  `stability`; nhấc vai 25° không tính rep. 828 test qua (14 bỏ qua), analyze sạch, build APK profile
+  thành công. Chưa thử trên máy.
+- Thử trên máy (log `20261123T203009Z-P00`): `rom` ở rep 1, 3, 4, 6 (đỉnh thân 35–60°), rep đúng đỉnh
+  62–77°. `stability` ở rep 2 (mắt cá nhấc 0,13). Rep đúng có độ nhấc mắt cá 0,07–0,11, sát ngưỡng 0,10;
+  rep 9–10 (kịch bản nhấc chân) chỉ 0,10 và 0,07 nên không bị bắt. Cần xem P00 nhấc chân thế nào trước
+  khi đổi ngưỡng.
+
+### 5.25 Màn nghỉ hiện mã lỗi thay vì tên; plank 3 lượt chỉ tính 1; video chỉ 1 dù nhiều lỗi (P00, 24/11)
+
+- Tên lỗi: thẻ "CẦN CHÚ Ý" ở màn nghỉ chỉ có tên tiếng Việt cho vài mã squat cũ; mã khác hiện nguyên mã
+  ("rom"). Sửa: lấy câu lỗi của chính bài (`setFeedback`), bỏ phần số sau dấu ":" hoặc "(" làm tên
+  (`faultTitlesFromSetFeedback` trong `lib/services/rep_replay.dart`), truyền vào `RestScreen.faultTitles`.
+- Plank (log `20261123T203133Z-P00`): lượt 1 giữ được 11,8 s thì thân lệch quá giới hạn, lượt 2 được
+  13,6 s thì gối co 133°; cả hai về "chuẩn bị" và đồng hồ về 0, không tính. Lượt 3 đủ 15 s và mang cả 3 lỗi.
+  Đồng hồ của app chậm hơn cảm nhận người tập: 3 s giữ yên để bắt đầu không được tính vào lượt 1, và app
+  không đọc đếm ngược nên người tập tự đếm rồi dừng sớm.
+  - Sửa (`plank/plank.dart`): lượt kết thúc khi đã giữ ≥ 12 s (thiếu ≤ 3 s) vẫn tính, `hold_time` ghi số
+    giây thật (trước luôn ghi 15); lượt đầu ngay sau khi bắt đầu được cộng 3 s giữ yên; mất khung hình
+    hoặc mất điểm khớp cũng áp dụng cùng quy tắc.
+  - `plank_voice_coach.dart`: đọc "3, 2, 1" ở 3 giây cuối mỗi lượt.
+- Video phát lại: trước chỉ lấy 1 clip cho mỗi mã lỗi, nên plank võng (`Back`) và vểnh (`Back`) chỉ có 1
+  video, và 1 lượt plank nhiều lỗi chỉ là 1 video. Sửa: mỗi cặp (mã lỗi, tên lỗi) khác nhau có clip riêng,
+  tối đa 3. Một lượt giữ vẫn là một clip (3,5 s cuối lượt).
+- Test mới: tên lỗi bỏ số; thẻ lỗi hiện "Chưa ngồi lên hết" thay vì "rom"; `Back` võng và `Back` vểnh có 2
+  clip; plank dừng ở 12,5 s được tính với `hold_time` 12,5, dừng ở 8 s không tính, lượt đầu được cộng 3 s.
+  834 test qua (14 bỏ qua), analyze sạch, build APK profile thành công. Chưa thử trên máy.
+
+### 5.26 Sáu bài sàn: cầu mông, nâng chân, V-up, McGill, dead bug, dip tay sau (P00, 24/11)
+
+Log `20261123T2039–2048Z-P00`. Ngưỡng mới đều là ước lượng từ một người tập; chưa thử lại trên máy.
+
+- **Cầu mông.** "Vừa vào đã báo lỗi": trước khi bắt đầu, app nói "quay ngang" và "đưa toàn thân vào khung"
+  (lời hướng dẫn đặt máy, 30 s mới bắt đầu được). Nhấc hông nhẹ không tính: có 7 lần nâng hông (đỉnh
+  cao hơn sàn 62–88 px, có lần bằng rep đúng) bị bỏ vì hạ nhanh quá nên app không kịp thấy pha "hạ".
+  Sửa: hông về sàn mà đã nâng ≥ 15% chiều dài thân thì vẫn tính rep; lỗi `hip_extension` (hông thấp) khi
+  góc vai–hông–gối < 155° (trước 140°), cảnh báo 155–160°. Log rep thêm `hip_lift_ratio`. `speed_control`
+  (cảnh báo nhẹ) bật ở cả 10 rep, chưa sửa.
+- **Nâng chân.** `tempo` ("hạ chân thật chậm") bật ở rep hạ 1,0–1,2 s là tốc độ bình thường; rep thấp
+  (`rom`) có lúc không có giọng vì giọng lỗi bốc ngẫu nhiên. Sửa: `tempo` khi hạ < 0,8 s (trước 1,2 s).
+- **V-up.** `tempo` bật ở 5/6 rep (hạ 0,63–0,97 s); `rom` gần như không thể bật (cần góc > 135° và tay xa
+  chân, lại chỉ là cảnh báo); `knee` không thể bật vì co gối dưới 130° thì app không cho vào pha "lên".
+  Sửa: `tempo` < 0,5 s; `rom` khi góc vai–hông–cổ chân nhỏ nhất > 100°, tính sai form; đếm rep khi gối ≥
+  90°, lỗi `knee` khi gối < 140°.
+- **McGill.** "Thả lỏng cổ" ở mọi rep: độ lệch góc tai–vai–hông so với lúc nằm là 22–48°, nhưng phần lớn
+  là do lưng trên cuộn lên chứ không phải cổ. Sửa: trừ độ nâng thân khỏi độ lệch, chỉ chấm khi thân đã
+  nâng ≥ 5°, ngưỡng 15° (cảnh báo) / 20° (lỗi).
+- **Dead bug.** `floor_contact` ("giữ tay chân trên không") ở 7/8 rep: metric coi tay hoặc chân duỗi ≥ 165°
+  là chạm sàn, nhưng duỗi thẳng chính là động tác đúng. Camera 2 chiều ở 3 m không phân biệt được tay
+  cách sàn vài cm. Tắt lỗi này (`FloorContactMetric.enabled = false`). `tempo` < 0,5 s (trước 0,8 s). Lỗi
+  cùng bên / không đổi bên dựa vào tay chân phía xa camera, bị che nên không tin được (rep 3 báo sai, rep
+  5–8 không bắt): chưa sửa, ghi là giới hạn.
+- **Dip tay sau.** Trên sàn khuỷu không gập tới 120° nên không có rep nào; chống tay mép giường thì đếm
+  được. Các metric lỗi có sẵn nhưng chưa được nối vào, nên app chỉ đếm rep, không chấm gì. Sửa: nhún
+  nông (khuỷu dừng ở 120–140°) giờ được tính rep với lỗi `rom`; `hip_thrust`, `shrug`, `extension` vẫn chưa
+  nối. Kịch bản P00 đổi sang chống mép ghế hoặc giường.
+- Test sửa và thêm cho từng bài; 837 test qua (14 bỏ qua), analyze sạch, build APK profile thành công.
+
+### 5.27 Lần thử thứ hai: V-up không đếm, McGill đếm đôi, plank, cầu mông, nhân sư, plank nghiêng (P00, 24/11)
+
+Log `20261123T2132–2148Z-P00`. Chưa thử lại trên máy.
+
+- **V-up không đếm rep nào** (lỗi do 5.26): rep có lỗi `knee` bị loại hẳn, và ngưỡng `knee` mới 140° làm mọi
+  rep đều có lỗi. Sửa: rep co gối vẫn được đếm và ghi `knee`; ngưỡng `knee` trả về 130°.
+- **McGill đếm đôi**: sau mỗi rep, 0,2 s sau đã vào rep mới (điểm vai nhảy, thân chưa về hẳn). Sửa: phải
+  nằm yên ≥ 0,6 s mới bắt đầu rep sau. Số rep mỗi hiệp 6 → 10 (`exercise_catalog.json`, `seed.sql`).
+- **Plank**: đổi thành 3 hiệp × 1 lượt 20 s, nghỉ 20 s giữa hiệp (trước 1 hiệp × 3 lượt 15 s, nghỉ 5 s).
+  Thời lượng lượt lấy từ `seconds` của danh mục (`Plank.holdSeconds`, mặc định 15 cho chỗ khác).
+- **Đếm giây bằng giọng cho mọi bài giữ** (plank và các bài giữ chung khung: con bướm, nhân sư, ngồi gập
+  người, plank nghiêng…): đọc 1–7 ở đầu lượt, "được một nửa" ở giữa lượt, rồi 5–1 ở 5 giây cuối. Lượt ngắn
+  thì đếm tới giữa lượt trừ 1.
+- **Cầu mông**: nâng cao hay thấp đều "Tốt" vì góc vai–hông–gối ở rep nâng thấp vẫn 162–167°. Số đo đúng
+  hơn là độ nâng hông: rep thấp 0,17–0,20, rep cao 0,25–0,34 chiều dài thân. Sửa: `hip_extension` khi độ
+  nâng < 0,22. Lời nói lúc vừa vào bài là hai câu hướng dẫn đặt máy và "quay nghiêng người với màn hình"
+  khi app chưa thấy người nằm nghiêng; nội dung file mp3 chưa kiểm được.
+- **Nhân sư không báo lỗi**: rụt vai chỉ bị bắt khi khoảng tai–vai < 0,10 chiều dài thân, trong khi đo
+  được 0,31–0,38. Sửa: rụt vai khi khoảng tai–vai giảm ≥ 25% so với lúc thả lỏng của chính người tập.
+- **Plank nghiêng nằm im cũng đếm**: người nằm nghiêng thẳng trên sàn có thân thẳng giống plank nghiêng.
+  Sửa: vai phải cao hơn cổ chân ≥ 12% chiều dài vai–cổ chân mới tính là đang giữ. P00 đã bấm "Bỏ qua cảnh
+  báo" nên hiệp đó không chấm form.
+- Test mới hoặc sửa cho từng điểm; 840 Flutter + 49 Python test qua, build APK profile thành công.
+
+### 5.26 Gợi ý món ăn theo giờ và theo kcal đã đốt, popup sau buổi tập (24/11, tính năng mới)
+
+- Yêu cầu của chủ dự án: tập bài lẻ trong Thư viện xong thì trang chủ phải cập nhật; về màn hình chính
+  thì hiện popup "hôm nay ăn gì", món hợp với số kcal vừa đốt và với giờ tập (sáng, trưa, tối).
+- Trước khi sửa: trang chủ chỉ tải lại sau buổi tập theo kế hoạch; mức kcal mỗi bữa luôn là 1/3 nhu cầu
+  ngày; cùng một danh sách món cho mọi giờ.
+- Cách làm:
+  - Mức kcal của bữa = min(nhu cầu ngày / 3 + kcal đã đốt hôm nay, nhu cầu ngày + kcal đã đốt − kcal đã
+    ăn). Nhu cầu ngày theo Mifflin-St Jeor × 1,4 (đã có); kcal đốt lấy từ nhật ký ngày, ước theo MET
+    (Compendium 2011). Mỗi thực đơn chọn khẩu phần lớn nhất còn nằm trong mức này, nên tập nhiều thì
+    phần ăn lớn hơn, đã ăn gần đủ thì phần nhỏ lại.
+  - Đạm vẫn 0,25–0,4 g/kg (20–40 g), ISSN 2017.
+  - Thực đơn có thêm trường `meals`: sáng (phở, bún bò, mì Quảng, hủ tiếu, xôi giò, bánh mì nem, cơm
+    tấm), trưa/tối (các mâm cơm, bún), sau 21 giờ chỉ gợi ý 3 bữa nhẹ mới (sữa tươi + trứng, sữa đậu nành
+    + trứng, yến mạch nấu sữa), nguồn ISSN 2017 về ăn đạm trước khi ngủ. Giờ chia bữa theo
+    `mealSlotForHour` (trước 10 h sáng, trước 15 h trưa, trước 21 h tối).
+  - `workoutFinished` (`workout_summary_screen.dart`) tăng khi rời màn tổng kết, áp dụng cho mọi cách
+    mở bài (kế hoạch, Thư viện, bộ bài). Trang chủ tải lại chuỗi ngày, tiến độ tuần và thẻ món;
+    `MainShell` mở popup gợi ý món. Không hiện ở điều kiện `control`.
+- Kiểm tra: 2 test mới trong `test/nutrition/nutrition_test.dart` (mức kcal, lọc theo bữa, khẩu phần
+  tăng theo kcal đốt), 15/15 test dinh dưỡng qua, analyze sạch. Chưa chạy trên máy.
+
+### 5.28 Chống đẩy: tập đúng vẫn bị báo `tempo` và `sag` ở mọi rep (P01, 24/11, sửa sau khi đã đóng băng build)
+
+Đây là lần sửa code sau khi build đã đóng băng (kế hoạch, nguyên tắc 3). Phải ghi rõ trong báo cáo.
+
+- Hiện tượng (log `20261124T100014Z-P01`, điều kiện `ai`): app đếm đúng 10/10 nhưng 0 rep được chấm đúng.
+  `tempo` có ở cả 10 rep, `sag` ở 8 rep. P01 tập đúng, nhất là 4 rep cuối, vẫn bị nhắc.
+- Nguyên nhân 1, `tempo` ("Không thả rơi"): thời gian hạ người được tính từ lúc khuỷu gập khoảng 130° tới lúc
+  vào trạng thái "đáy" ở khuỷu 115°. Như vậy chỉ đo khoảng 20° đầu của pha hạ. P01 xuống sâu tới khuỷu 44–56°, nên
+  số đo luôn là 0,09–0,24 s, dưới mốc lỗi 0,3 s. Tính lại từ log, P01 thật sự hạ người mất 0,73–1,7 s mỗi rep,
+  tức là đều đạt mốc "tốt" 0,6 s.
+- Nguyên nhân 2, `sag` (võng hông / hông cao): code đo góc của đoạn hông–vai so với phương ngang của ảnh, tức độ
+  nghiêng của thân so với sàn, không đo người có thẳng không. Người thẳng ở tư thế tay duỗi có vai cao hơn hông
+  khoảng 15–20° (test có sẵn đo được 21,3° với một thân thẳng hoàn toàn), nên bị tính là "võng" (mốc 12°). Ở đáy, vai
+  thấp hơn hông vài độ nên bị tính là "hông cao" (mốc 6°). Trong log, lỗi võng bắt đầu lúc đang đẩy lên gần đỉnh, lỗi
+  hông cao bắt đầu đúng lúc ở đáy.
+- Sửa:
+  - `tempo_metric.dart`: thời gian hạ người tính tới lúc bắt đầu đẩy lên (chuyển sang `ascending`), không dừng ở
+    mốc 115°. Mốc 0,3 s / 0,6 s giữ nguyên.
+  - `push_up.dart`: `trunkDeviation` đổi thành độ gập của thân tại hông, bằng 180° trừ góc vai–hông–cổ chân,
+    dương là hông thấp hơn đường vai–cổ chân (võng), âm là hông cao hơn (vểnh). Số đo này không phụ thuộc thân
+    nghiêng bao nhiêu so với sàn. Cách tính lấy từ `_bodyLine`, trước đây chỉ in ra để gỡ lỗi.
+  - `trunk_alignment_metric.dart`: ngưỡng mới cho số đo mới. Võng: nhắc nhẹ > 10°, lỗi > 15°, nguy hiểm > 25°.
+    Vểnh: nhắc nhẹ > 12°, lỗi > 18°. Ngưỡng là ước lượng, chưa đo trên máy. Rep có thân gập > 30° vẫn bị chặn
+    không tính như trước (`ACTIVE_BODY_LINE_MIN` 150°).
+- Không đổi: mã lỗi vẫn là `sag` cho cả võng và vểnh. Khi vểnh, giọng vẫn phát `push_up/sag.mp3` ("siết bụng, giữ
+  người thành một đường thẳng") vì chưa có file giọng cho vểnh (`missing-audio.md` dòng 83).
+- Log: khoá `max_abs_trunk_deviation` và `descending_time` giữ tên nhưng đổi nghĩa từ build này (độ gập tại hông;
+  thời gian hạ tới lúc đẩy lên). Không so trực tiếp với log chống đẩy trước 24/11 chiều.
+- Hệ quả cho đợt đo: hiệp chống đẩy `ai` của P01 (`100014Z`) bị loại khỏi precision/recall chống đẩy. P01 tập lại
+  chống đẩy ở cả `ai` và `control` bằng bản mới. Các bài khác của P01 (squat, cầu mông, plank) không bị ảnh hưởng
+  vì code của chúng không đổi. Từ P01 trở đi, mọi người dùng bản mới.
+- Test: 3 test mới trong `push_up_form_test.dart` (hông cao báo vểnh; thân thẳng nghiêng 15° không báo võng; thời
+  gian hạ đo tới lúc đẩy lên, không báo `tempo`). Test võng đổi độ võng 25 thành 15 px cho khớp ngưỡng mới. Test
+  `batch_a_review_probe_test.dart` trước đây khẳng định thân thẳng có `dev` 21,3°, nay là 0°. 845 test qua (14 bỏ
+  qua), analyze không có lỗi mới, build APK profile thành công. Chưa thử trên máy. Chưa commit.
+
+### 5.29 Sổ sự cố đợt đo: 3 buổi của P02 ghi nhầm mã P01 (24/11)
+
+- Người điều phối quên đổi mã sau P01. Các buổi `20261124T101449Z` (squat), `101907Z` (cầu mông), `102133Z`
+  (plank) là của P02 nhưng ghi `P01`, điều kiện `ai`, trên build cũ (trước 5.28).
+- Đã sửa trên máy tính: đổi tên tệp và `participant_id`, `session_id` sang `P02`. Bản gốc chưa sửa được sao lưu ngoài
+  repo. Bản trên điện thoại vẫn mang tên `P01` cho tới khi sửa nốt; kéo log lần sau sẽ chép lại 8 tệp tên `P01`
+  này, phải xoá chúng khỏi `phone_logs`.
+- P02 mã chẵn, theo kế hoạch phải tập `control` trước, nhưng đã tập `ai` trước. Ghi nhận lệch thứ tự này trong báo cáo.
+- Bổ sung sau khi hỏi người điều phối: các buổi `102514Z`, `102528Z` (chống đẩy bản mới) và `102809Z` (squat 2 rep, để
+  chạy 49 phút) cũng là của P02. Buổi `111748Z` (squat) đúng là của P01. Buổi mã `P010` (`122347Z`, squat) là của
+  P04. Đã đổi tên và `participant_id` ở cả máy tính và điện thoại; bản gốc sao lưu ngoài repo.
+
+### 5.30 Sổ sự cố đợt đo: tình trạng số liệu P01–P06 (24/11, đợt đo dừng ở P06)
+
+- Danh sách người tập, vai trò và điều kiện nằm ngoài repo (`D:\VikaStudy\participants.csv`, có họ tên thật).
+- Chỉ P04 có hiệp `control`. P04 tập xen kẽ `control`/`ai` theo từng bài và có P03 đứng hướng dẫn, chấm trong buổi,
+  nên không phải đối chứng sạch (nghiêng về điều kiện "có HLV").
+- P05: một người trong nhóm phát triển (P00) cùng tập trong một số hiệp mang mã P05. Chưa tách được hiệp nào của ai.
+  Theo quyết định của chủ dự án (25/11), P05 vẫn được đưa vào bảng số liệu; báo cáo phải ghi rõ điều này.
+- Làm sạch (25/11): giữ 39/70 hiệp. Loại hiệp 0 rep, hiệp để app chạy không (người ngoài khung > 50% thời gian), các
+  lần tập lỗi của P01 trước lần cuối, và hiệp bỏ dở rồi mở lại (trừ plank). Hiệp chống đẩy cũ của P01 (`100014Z`) được
+  giữ làm số liệu "trước khi sửa" (5.28), không gộp vào số liệu chống đẩy sau sửa. App đếm đúng (±1 rep) 36/39 hiệp;
+  3 hiệp đếm sai (McGill, gập bụng của P03; cầu mông `control` của P04) được giữ vì là lỗi của app.
+- Điều kiện: mọi người đặt máy ở vị trí chuẩn theo thẻ đặt máy trong app. Đặt máy ở góc khác thì app báo lỗi vị trí và
+  không chấm, nên không có hiệp nào được chấm ở góc khác. Ánh sáng: ngược sáng (P01, P02), thiếu sáng (P05), đủ sáng
+  (P03, P04, P06). Quần áo dày: P02, P05.
+- Mỗi người chỉ có 1 lượt plank (thoát sau hiệp 1 trong 3). Chưa ai có hiệp lỗi cố ý (`P0xS`). App không hỏi mức hài
+  lòng khi thoát giữa chừng, nên ô `satisfaction` trống ở mọi buổi.
+- 26/11: theo quyết định của chủ dự án, hiệp cầu mông đầu tiên của P01 (`095416Z`, 10 rep, app chấm đúng 4) được
+  đưa trở lại vì là lần tập hợp lệ. Số hiệp sạch thành 40/70, app đếm đúng (±1 rep) 37/40.
+- Rà soát kết quả (26/11): bỏ người chấm C2; hai chuyên gia C1, C3 xem video máy B và rà soát kết quả app in sẵn trong
+  phiếu, chủ dự án ghi phiếu theo nhận xét của họ, họ đọc lại và ký. Không phải chấm mù. Trên 306 rep (không tính
+  chống đẩy trước bản sửa): C1 đồng ý 85,3%, C3 87,3%; kappa C1–C3 0,98; kappa app với kết luận chung 0,87; recall
+  99,5%; precision 81,2% (C1) / 83,7% (C3), không tính `speed_control` của cầu mông thì 94,3% / 97,7%.
+- Điểm không đồng ý: `speed_control` cầu mông ở P03, P04, P06 (chuyên gia: chỉ cần lên và giữ, hạ có kiểm soát nhưng
+  không cần chậm như ngưỡng hiện tại; không áp dụng cho P01, P02 theo chủ dự án); gập bụng P03 (`rom`, C1 không đồng
+  ý vì người cơ bụng to khó cuộn tròn, C3 đồng ý); chống đẩy tường P03 rep 5, 6; squat `control` P04 rep 2 (app nhạy);
+  squat P05 rep 1 (app bỏ sót `tempo`). Không chuyên gia nào ghi rep bị bỏ sót hay rep "không tính".
+- Chuyên gia đồng ý với cả hiệp chống đẩy trước bản sửa của P01 (sag 8 rep, tempo 10 rep), trái với phân tích ở 5.28.
+  Hiệp này vẫn để riêng, không tính vào các chỉ số trên. Kết quả lưu ở `D:\VikaStudy\cham_diem\ket_qua_ra_soat.json`.
+
+### 5.31 Plank thấp: một hiệp đòi nhiều lượt liền nhau; sai tư thế giữa lượt thì đồng hồ về 0 (26/11, sửa sau khi đã đóng băng build)
+
+Chủ dự án báo: một hiệp bắt giữ nhiều lượt liền nhau (thấy 3), chỉ nghỉ 5 s ngay trong màn tập thay vì ra màn
+nghỉ; sai tư thế giữa lượt thì đồng hồ đếm lại từ 0.
+
+- **Một hiệp nhiều lượt**, hai nguyên nhân:
+  - `exercise_experience_screen.dart`, nhánh `plank`: với bài giữ, `target` là số giây, nhưng lại được truyền làm
+    số lượt. Danh mục sau 5.27 (3 hiệp × 1 lượt × 20 s) cho ra `Plank(maxRep: 20)`, tức mỗi hiệp đòi 20 lượt
+    20 s. Trước 5.27 danh mục ghi 1 hiệp × 3 lượt nên một hiệp là 3 lượt. Khớp với 5.30: người tập dừng sau lượt
+    đầu của hiệp 1.
+  - Màn nghỉ: chọn "Nhẹ" thì hiệp sau +2 rep, "Nặng" thì −1 rep, áp cả cho plank. Hiệp 1 có 1 lượt, chọn "Nhẹ" thì
+    hiệp 2 có 3 lượt liền nhau. Buổi trước đánh giá "nhẹ" thì ngay hiệp 1 đã thêm 1 lượt.
+- **Đồng hồ về 0**: trong `plank.dart`, thân lệch, gối co, bỏ cẳng tay, mất khung hình hoặc mất điểm khớp giữa lượt
+  (khi đã giữ chưa tới thời gian lượt − 3 s) đều đưa về "chuẩn bị", xóa thời gian đã giữ và xóa lỗi của lượt đó.
+- Sửa:
+  - Số lượt mỗi hiệp lấy từ `reps` (plank = 1), thời gian lượt lấy từ `seconds`. Danh mục cũ chỉ có `reps` vẫn chạy
+    như trước.
+  - Plank không đổi số lượt theo câu trả lời độ khó, màn nghỉ không còn hiện "Set sau tăng 2 reps" cho plank.
+    "Nặng" vẫn +15 s nghỉ.
+  - Thêm pha `paused` ("Tạm dừng"): sai tư thế thì đồng hồ dừng ở số giây đã giữ và giọng nhắc lỗi; về đúng tư thế
+    2 khung hình liên tiếp thì đếm tiếp. Thời gian sai tư thế không cộng vào `total_seconds` và `hold_time`. Lỗi
+    xảy ra trước lúc dừng vẫn thuộc lượt đó. Lượt dừng khi đã giữ ≥ thời gian lượt − 3 s vẫn tính xong (giữ quy
+    tắc 5.25). Giọng đếm giây không đọc lại số trong lúc dừng.
+- Số liệu: các hiệp plank P01–P06 chạy cách đếm cũ, không gộp chung với số liệu plank sau lần sửa này.
+- Test: dừng rồi đếm tiếp (8,0 s → dừng 4 s → đủ 15 s ở đúng 15,0 s giữ thật), thời gian sai tư thế không tính,
+  danh mục 3 × 1 × 20 s ra 1 lượt 20 s mỗi hiệp, kế hoạch 25 s ra 1 lượt 25 s. Sửa 5 test cũ đang khẳng định
+  hành vi về 0. 874 Flutter test qua (14 bỏ qua), analyze sạch các file đã sửa. Chưa thử trên máy, chưa build APK.
+
 ## 6. Việc còn mở
 
 - Jumping Jack: 24% thời gian tập bị chặn, nhiều nhất là "quay mặt vào camera" (29 lần, 5,2 s). Chưa

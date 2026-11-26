@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 from pathlib import Path
 import sys
 from typing import Optional, Sequence
@@ -10,11 +11,14 @@ from typing import Optional, Sequence
 from clips import load_set_logs
 
 EVAL_DIR = Path(__file__).resolve().parent
+APP_CATALOG = EVAL_DIR.parents[1] / "assets" / "data" / "exercise_catalog.json"
+MAIN_EXERCISES = ("squat", "push_up", "glute_bridge", "plank")
 COLUMNS = (
     "exercise_id",
     "condition",
     "set_index",
     "file",
+    "target",
     "reps",
     "reps_ok",
     "has_sync_beep",
@@ -27,16 +31,17 @@ COLUMNS = (
 )
 
 
-def read_catalog(path: Path) -> tuple[dict[str, set[str]], set[str]]:
+def read_catalog(path: Path) -> dict[str, set[str]]:
     known: dict[str, set[str]] = {}
-    holds: set[str] = set()
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
         for r in csv.DictReader(fh):
-            ex = r["exercise_id"].strip()
-            known.setdefault(ex, set()).add(r["fault"].strip())
-            if r.get("unit", "").strip() == "hold":
-                holds.add(ex)
-    return known, holds
+            known.setdefault(r["exercise_id"].strip(), set()).add(r["fault"].strip())
+    return known
+
+
+def read_set_targets(path: Path) -> dict[str, int]:
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    return {str(r["catalogId"]): int(r["reps"]) for r in rows if r.get("reps")}
 
 
 def check_set(obj: dict, known: dict[str, set[str]], target: int, tolerance: int) -> dict:
@@ -71,6 +76,7 @@ def check_set(obj: dict, known: dict[str, set[str]], target: int, tolerance: int
         "condition": cond,
         "set_index": obj.get("set_index", ""),
         "file": obj.get("_file", ""),
+        "target": target,
         "reps": len(reps),
         "reps_ok": "yes" if reps_ok else "NO",
         "has_sync_beep": "yes" if has_beep else "NO",
@@ -87,17 +93,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description="P00 gate: check each exercise's trial set log before the study.")
     p.add_argument("--logs", required=True, help="Directory with the P00 set logs.")
     p.add_argument("--catalog", default=str(EVAL_DIR / "fault_catalog.csv"))
-    p.add_argument("--target", type=int, default=10, help="Reps the tester performed per set.")
-    p.add_argument("--hold-target", type=int, default=3, help="Holds the tester performed per set of a hold exercise.")
+    p.add_argument("--app-catalog", default=str(APP_CATALOG),
+                   help="App exercise catalog; its reps field is the per-set target (holds per set for hold exercises).")
+    p.add_argument("--participant", default="P00",
+                   help="Only check set logs of this participant id; empty = all. "
+                        "Only the newest set of each exercise and condition is checked, so a retest replaces it.")
     p.add_argument("--tolerance", type=int, default=1)
     p.add_argument("--out", default=None, help="Optional CSV output.")
     a = p.parse_args(argv)
 
-    known, holds = read_catalog(Path(a.catalog))
-    rows = [
-        check_set(o, known, a.hold_target if o.get("exercise_id") in holds else a.target, a.tolerance)
-        for o in load_set_logs(Path(a.logs))
-    ]
+    known = read_catalog(Path(a.catalog))
+    targets = read_set_targets(Path(a.app_catalog))
+    pid = a.participant.strip().upper()
+    logs = [o for o in load_set_logs(Path(a.logs)) if not pid or str(o.get("participant_id", "")).upper() == pid]
+    if not logs:
+        print(f"No set log with participant_id {pid or '(any)'} in {a.logs}. Check Cài đặt nghiên cứu on the phone.")
+        return 1
+    latest: dict[tuple[str, str], dict] = {}
+    started = lambda o: isinstance(o.get("sync_beep_t_ms"), (int, float))
+    for o in sorted(logs, key=lambda o: (started(o), str(o.get("started_at_utc", "")))):
+        latest[(str(o.get("exercise_id", "")), str(o.get("condition", "")))] = o
+    rows = [check_set(o, known, targets.get(ex, 0), a.tolerance) for (ex, _), o in latest.items()]
     rows.sort(key=lambda r: (r["exercise_id"], r["condition"], str(r["set_index"])))
     if a.out:
         with Path(a.out).open("w", encoding="utf-8", newline="") as fh:
@@ -109,7 +125,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     for r in rows:
         print(
-            f"{r['exercise_id']:<20} {r['condition']:<8} set {r['set_index']}  reps {r['reps']:>2}  "
+            f"{r['exercise_id']:<20} {r['condition']:<8} set {r['set_index']}  reps {r['reps']:>2}/{r['target']:<2}  "
             f"cues {r['fault_cues_played']}/{r['fault_cues_played'] + r['fault_cues_silent']}  "
             f"codes [{r['fault_codes']}]  {r['verdict']}"
         )
@@ -117,14 +133,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     missing = sorted(set(known) - tested)
     ai_tested = {r["exercise_id"] for r in rows if r["condition"] == "ai"}
     failed = sorted({r["exercise_id"] for r in rows if r["verdict"] != "PASS"})
+    control_tested = {r["exercise_id"] for r in rows if r["condition"] == "control"}
+    no_control = [ex for ex in MAIN_EXERCISES if ex not in control_tested]
     print()
     print(f"Exercises with a log: {len(tested)}/{len(known)}; with an ai set: {len(ai_tested)}")
     if missing:
         print("No log yet: " + ", ".join(missing))
+    if no_control:
+        print("No control set yet: " + ", ".join(no_control))
     if failed:
         print("Failing: " + ", ".join(failed))
     print("Still check by eye: the voice actually sounded, and the plank names sag vs pike correctly.")
-    return 0 if not missing and not failed else 1
+    return 0 if not missing and not failed and not no_control else 1
 
 
 if __name__ == "__main__":

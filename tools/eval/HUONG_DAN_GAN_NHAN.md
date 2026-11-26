@@ -1,4 +1,4 @@
-# Hướng dẫn gán nhãn video cho huấn luyện viên (24 bài)
+# Hướng dẫn gán nhãn video cho huấn luyện viên (21 bài)
 
 Tài liệu này hướng dẫn HLV xem video người tập và điền bảng nhãn trong Excel hoặc Google Sheets, rồi xuất ra
 **CSV UTF-8 (`.csv`)**. File mẫu: `tools/eval/coach_labels_template.csv`. Mã lỗi ở Mục 3 lấy đúng từ
@@ -284,35 +284,6 @@ Kết thúc 1 lần: hết 30 giây giữ.
 | `upper_arm` | Cánh tay trên không vuông góc sàn, khuỷu không ở dưới vai. |
 | `shrug` | Rụt vai lên tai. |
 | `neck` | Ngửa cổ ra sau quá mức. |
-
-### 3.22. `step_up` — Bước lên ghế (đếm rep)
-
-Kết thúc 1 lần: bước xuống, hai chân về sàn. **Mỗi lần bước lên tính 1 lần**, người tập đổi chân trước giữa các lần.
-
-| Mã lỗi | Mô tả lỗi nhìn trên video |
-|---|---|
-| `trunk` | Đổ người ra trước khi đứng trên ghế. |
-| `alternate` | Không đổi chân bước lên giữa các lần. |
-
-### 3.23. `neck_side_stretch` — Giãn cổ nghiêng (giữ, mỗi lượt 20 giây)
-
-Kết thúc 1 lần: hết 20 giây giữ một bên. **Mỗi bên tính 1 lần.**
-
-| Mã lỗi | Mô tả lỗi nhìn trên video |
-|---|---|
-| `shrug` | Nhún vai khi nghiêng đầu. |
-| `shoulder` | Vai nghiêng theo đầu. |
-
-### 3.24. `pushup_rotation` — Chống đẩy xoay người (đếm rep)
-
-Kết thúc 1 lần: xoay mở tay xong và về plank cao. **Mỗi lần chống đẩy + xoay một bên tính 1 lần.**
-
-| Mã lỗi | Mô tả lỗi nhìn trên video |
-|---|---|
-| `body_line` | Hông võng hoặc nhô khi chống đẩy. |
-| `alternate` | Không đổi tay mở lên giữa các lần. |
-
----
 
 ## 4. Kiểm tra nhanh trước khi gửi file CSV
 

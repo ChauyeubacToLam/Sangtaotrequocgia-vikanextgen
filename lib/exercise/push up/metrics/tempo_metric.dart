@@ -2,7 +2,7 @@
    Metric 3: Descent Tempo Control
    Priority: 🟡 IMPORTANT — Joint safety + effectiveness
    
-   Measures descent duration (plank → bottom).
+   Measures descent duration (descent start → start of pushing back up).
    Detects uncontrolled free-fall dropping and bouncing.
    
    Architecture mirrors squat TempoMetric exactly:
@@ -63,15 +63,15 @@ class TempoMetric extends PushUpMetricBase {
         break;
 
       case PushUpState.bottom:
+        break;
+
+      case PushUpState.ascending:
+        _ascentStartMs = timestampMs;
         if (_descentStartMs != null) {
           _descentDuration = (timestampMs - _descentStartMs!) / 1000.0;
           _debugData['descentDur'] =
               _descentDuration?.toStringAsFixed(2) ?? '-';
         }
-        break;
-
-      case PushUpState.ascending:
-        _ascentStartMs = timestampMs;
         break;
 
       case PushUpState.plank:

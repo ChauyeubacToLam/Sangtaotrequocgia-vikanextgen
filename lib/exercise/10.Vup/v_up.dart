@@ -315,7 +315,7 @@ class VUp extends ExerciseBase with SideTrackedExerciseMixin {
         ctx.shoulderHipAnkleAngle < VUpConfig.RISING_ANGLE &&
         ctx.shoulderLiftFromBaseline >= VUpConfig.RISING_MIN_LIFT &&
         ctx.ankleLiftFromBaseline >= VUpConfig.RISING_MIN_LIFT &&
-        ctx.hipKneeAnkleAngle >= VUpConfig.ACTIVE_KNEE_MIN;
+        ctx.hipKneeAnkleAngle >= VUpConfig.KNEE_COUNT_MIN;
 
     if (_risingDebouncer.update(canStartRising)) {
       _beginRep(ctx);
@@ -485,17 +485,9 @@ class VUp extends ExerciseBase with SideTrackedExerciseMixin {
     final allFaults = <FaultRecord>[];
     for (final metric in _metrics) allFaults.addAll(metric.faults);
 
-    final hasDisqualifyingFault = allFaults.any((f) => f.type == 'knee');
-
     correctForm = !allFaults.any((f) => f.affectsForm);
-
-    if (hasDisqualifyingFault) {
-      resultIssues.feedback['Result'] = 'Không tính rep';
-      correctForm = false;
-    } else {
-      repCount++;
-      if (!correctForm) resultIssues.feedback['Result'] = 'Chỉnh tư thế';
-    }
+    repCount++;
+    if (!correctForm) resultIssues.feedback['Result'] = 'Chỉnh tư thế';
 
     final faultAffectsForm = <String, bool>{};
     final faultPriorities = <String, int>{};
@@ -508,10 +500,8 @@ class VUp extends ExerciseBase with SideTrackedExerciseMixin {
       }
     }
 
-    // One log per counted rep: a knee-disqualified attempt is not a rep.
-    if (!hasDisqualifyingFault) {
-      logger.addRepLog(
-          RepLog(correctForm: correctForm, repNumber: repCount, data: {
+    logger.addRepLog(
+        RepLog(correctForm: correctForm, repNumber: repCount, data: {
       "min_v_angle": romMetric.minVAngle ?? 180.0,
       "max_shoulder_lift": _maxShoulderLiftThisRep,
       "max_ankle_lift": _maxAnkleLiftThisRep,
@@ -520,23 +510,12 @@ class VUp extends ExerciseBase with SideTrackedExerciseMixin {
       "fault_types": allFaults.map((e) => e.type).toSet().toList(),
       "fault_affects_form": faultAffectsForm,
       "fault_priorities": faultPriorities,
-      }));
-    }
+    }));
 
     correctForm = true;
     _resetRepAttempt(clearBaseline: true);
     for (final metric in _metrics) {
-      if (hasDisqualifyingFault) {
-        // knee_fails_count = knee-disqualified attempts; other metrics'
-        // faults from a non-rep are dropped.
-        if (metric == kneeMetric) {
-          metric.resetAndCountFault();
-        } else {
-          metric.reset();
-        }
-      } else {
-        metric.resetAndCountFault();
-      }
+      metric.resetAndCountFault();
     }
   }
 
@@ -600,7 +579,7 @@ class VUp extends ExerciseBase with SideTrackedExerciseMixin {
             wristClosureFromBaseline >= VUpConfig.TOP_ARM_REACH_CLOSURE_MIN;
 
     final isStrictVPosition = vAngle <= VUpConfig.V_POSITION_THRESHOLD &&
-        kneeAngle >= VUpConfig.ACTIVE_KNEE_MIN &&
+        kneeAngle >= VUpConfig.KNEE_COUNT_MIN &&
         trunkHorizontal >= VUpConfig.TOP_TRUNK_HORIZ_MIN &&
         legHorizontal >= VUpConfig.TOP_LEG_HORIZ_MIN &&
         shoulderLiftFromBaseline >= VUpConfig.TOP_MIN_LIFT &&

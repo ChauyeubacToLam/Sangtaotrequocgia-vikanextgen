@@ -2,7 +2,7 @@
    Metric 2: Take-Off Depth (Biên độ lấy đà)
    Priority: 🟡 MEDIUM — Hiệu suất sức mạnh bùng nổ
    
-   Nếu góc lấy đà cạn (> 125 độ), bài tập biến thành Calf Jump, mất đi
+   Nếu góc lấy đà cạn (> 100 độ), bài tập biến thành Calf Jump, mất đi
    tác dụng plyometric cho đùi và mông.
    ========================================================================= */
 
@@ -11,7 +11,7 @@ import 'jump_squat_metric_base.dart';
 class TakeOffConfig {
   static const double GOOD_DEPTH_MIN = 60.0;
   static const double GOOD_DEPTH_MAX = 110.0;
-  static const double SHALLOW_WARNING = 125.0;
+  static const double SHALLOW_WARNING = 100.0;
 }
 
 class TakeOffDepthMetric extends JumpSquatMetricBase {
@@ -22,6 +22,8 @@ class TakeOffDepthMetric extends JumpSquatMetricBase {
   final Map<String, dynamic> _debugData = {};
 
   double? _minSquatAngle;
+
+  double? get minSquatAngle => _minSquatAngle;
 
   @override
   List<FaultRecord> get faults => _faults;

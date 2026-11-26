@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/post_exercise_data.dart';
+import '../../services/rep_replay.dart';
 import '../../services/session_persistence.dart';
 import '../../utils/exercise_logger.dart';
+import '../../widgets/rep_replay_view.dart';
 import '../../widgets/tk/tk.dart';
 
 class RestScreen extends StatefulWidget {
@@ -19,6 +21,7 @@ class RestScreen extends StatefulWidget {
     required this.baseRestSeconds,
     required this.isLastSet,
     required this.onNext,
+    this.adjustsTarget = true,
     this.exerciseName,
     this.onDifficultyAnswer,
     this.setLogger,
@@ -27,12 +30,17 @@ class RestScreen extends StatefulWidget {
     this.aiVisibleRatio,
     this.onReportFault,
     this.onExportLogs,
+    this.replayGoodRep,
+    this.replayFaultReps = const <RepReplayEntry>[],
+    this.loadReplayClip,
+    this.faultTitles = const <String, String>{},
   });
 
   final SetReportData setReport;
   final int setIndex;
   final int totalSets;
   final int currentReps;
+  final bool adjustsTarget;
   final int baseRestSeconds;
   final bool isLastSet;
   final String? exerciseName;
@@ -48,6 +56,11 @@ class RestScreen extends StatefulWidget {
 
   final Future<bool> Function(BuildContext buttonContext)? onExportLogs;
 
+  final RepReplayEntry? replayGoodRep;
+  final List<RepReplayEntry> replayFaultReps;
+  final ReplayClipLoader? loadReplayClip;
+  final Map<String, String> faultTitles;
+
   @override
   State<RestScreen> createState() => _RestScreenState();
 }
@@ -62,9 +75,12 @@ class _RestScreenState extends State<RestScreen> with TickerProviderStateMixin {
   late int _remaining;
   late final AnimationController _dotController;
   late final List<CurvedAnimation> _dotAnimations;
+  late final ReplayClipLoader? _clipLoader = widget.loadReplayClip == null
+      ? null
+      : cachedClipLoader(widget.loadReplayClip!);
 
   List<_FaultObservation> get _faultObservations =>
-      _groupFaultObservations(widget.setLogger);
+      _groupFaultObservations(widget.setLogger, widget.faultTitles);
 
   bool get _lockedDifficulty => _selectedDifficulty != null;
 
@@ -197,6 +213,9 @@ class _RestScreenState extends State<RestScreen> with TickerProviderStateMixin {
 
   String? get _adjustmentText {
     if (_selectedDifficulty == null || widget.isLastSet) return null;
+    if (!widget.adjustsTarget) {
+      return _selectedDifficulty == 'heavy' ? '+15 giây nghỉ' : null;
+    }
     return switch (_selectedDifficulty!) {
       'light' => 'Set sau tăng 2 reps',
       'medium' => 'Set sau giữ ${widget.currentReps} reps',
@@ -317,6 +336,16 @@ class _RestScreenState extends State<RestScreen> with TickerProviderStateMixin {
               mascotSize: mascotSize,
               message: bubble,
             ),
+          if (!control &&
+              _clipLoader != null &&
+              widget.replayFaultReps.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            RepReplayCard(
+              goodRep: widget.replayGoodRep,
+              faultReps: widget.replayFaultReps,
+              loadClip: _clipLoader!,
+            ),
+          ],
           if (!control && faults.isNotEmpty) ...[
             const SizedBox(height: 12),
             _FaultsCard(
@@ -693,7 +722,10 @@ class _FaultObservation {
   final List<int> reps;
 }
 
-List<_FaultObservation> _groupFaultObservations(ExerciseLogger? logger) {
+List<_FaultObservation> _groupFaultObservations(
+  ExerciseLogger? logger,
+  Map<String, String> titles,
+) {
   if (logger == null) return const [];
   final groups = <String, List<int>>{};
   for (final rep in logger.repLogs) {
@@ -709,7 +741,7 @@ List<_FaultObservation> _groupFaultObservations(ExerciseLogger? logger) {
     final meta = _faultMeta(entry.key);
     return _FaultObservation(
       type: entry.key,
-      title: meta.title,
+      title: titles[entry.key] ?? meta.title,
       tip: meta.tip,
       reps: copy,
     );

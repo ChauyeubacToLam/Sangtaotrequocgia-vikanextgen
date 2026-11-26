@@ -191,16 +191,16 @@ void main() {
   });
 
   group('single source of truth (kept_exercises.dart)', () {
-    test('partitions the 43-exercise catalog into 24 kept (4 validated + 20 counts-only) and 19 hidden', () {
+    test('partitions the 43-exercise catalog into 21 kept (4 validated + 17 counts-only) and 22 hidden', () {
       expect(catalogRows, hasLength(43));
-      expect(keptExerciseIds, hasLength(24));
+      expect(keptExerciseIds, hasLength(21));
       expect(validatedExerciseIds, hasLength(4));
       expect(keptExerciseIds.containsAll(validatedExerciseIds), isTrue);
       expect(allCatalogIds.containsAll(keptExerciseIds), isTrue);
-      expect(hiddenCatalogIds, hasLength(19));
+      expect(hiddenCatalogIds, hasLength(22));
     });
 
-    test('resolves isKeptExercise and exerciseValidationStatus for all 24 kept exercises across catalogId, definitionId, and classKey forms', () {
+    test('resolves isKeptExercise and exerciseValidationStatus for all 21 kept exercises across catalogId, definitionId, and classKey forms', () {
       for (final row in catalogRows) {
         final catalogId = row['catalogId'] as String;
         if (!keptExerciseIds.contains(catalogId)) continue;
@@ -245,7 +245,7 @@ void main() {
       }
     });
 
-    test('rejects all 19 hidden exercises across catalogId, definitionId, and classKey forms, plus edge inputs', () {
+    test('rejects all 22 hidden exercises across catalogId, definitionId, and classKey forms, plus edge inputs', () {
       for (final row in catalogRows) {
         final catalogId = row['catalogId'] as String;
         if (keptExerciseIds.contains(catalogId)) continue;
@@ -311,18 +311,18 @@ void main() {
   });
 
   group('Library & album routes', () {
-    test('libraryMockAllExercises exposes exactly the 24 kept exercises and zero hidden exercises', () {
+    test('libraryMockAllExercises exposes exactly the 21 kept exercises and zero hidden exercises', () {
       final exposedIds = {
         for (final row in libraryMockAllExercises) row.definitionName!,
       };
-      expect(libraryMockAllExercises, hasLength(24));
+      expect(libraryMockAllExercises, hasLength(21));
       expect(exposedIds, equals(keptExerciseIds));
       for (final hidden in hiddenCatalogIds) {
         expect(exposedIds, isNot(contains(hidden)));
       }
       expect(
         [for (final row in libraryMockAllExercises) row.idx],
-        List<int>.generate(24, (i) => i + 1),
+        List<int>.generate(21, (i) => i + 1),
       );
     });
 
@@ -352,9 +352,9 @@ void main() {
       }
 
       final byId = {for (final f in libraryFilters) f.id: f.count};
-      expect(byId['exercise'], 24);
+      expect(byId['exercise'], 21);
       expect(byId['album'], vikaAlbumCards.length);
-      expect(byId['all'], 24 + vikaAlbumCards.length);
+      expect(byId['all'], 21 + vikaAlbumCards.length);
       expect(byId['yoga'], 3);
     });
 
@@ -732,7 +732,7 @@ void main() {
       expect(target1!.hasLaunchableSlots, isFalse);
       expect(target1.firstLaunchArgs(), isNull);
 
-      // resolveFromSnapshot skips all 19 hidden ids in a plan session.
+      // resolveFromSnapshot skips all 22 hidden ids in a plan session.
       final allHiddenPlan = Plan(
         recommendationId: 'all-hidden-rec',
         userId: 'user-1',
@@ -776,7 +776,7 @@ void main() {
       final keptSeq = await launches.buildSequenceFromCatalogIds(
         keptExerciseIds.toList(),
       );
-      expect(keptSeq, hasLength(24));
+      expect(keptSeq, hasLength(21));
 
       // buildSequenceFromCatalogIds filters out hidden ids at the service boundary.
       final mixedSeq = await launches.buildSequenceFromCatalogIds([
@@ -837,7 +837,7 @@ void main() {
       }
     });
 
-    test('past history still resolves display names for all 19 hidden exercises without crashing', () {
+    test('past history still resolves display names for all 22 hidden exercises without crashing', () {
       for (final hiddenId in hiddenCatalogIds) {
         final def = lookupExerciseDefinition(hiddenId);
         final catalog = CatalogSource.instance.lookup(hiddenId);

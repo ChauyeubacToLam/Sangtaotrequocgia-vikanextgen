@@ -114,6 +114,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             exerciseIds: a.exerciseIds,
             color: Tk.primary,
             icon: a.icon,
+            portrait: a.cover,
           ),
       ];
 
@@ -463,7 +464,12 @@ class _SetArt extends StatelessWidget {
           height: double.infinity,
           fit: BoxFit.cover,
           alignment: const Alignment(0, -0.5),
-          excludeFromSemantics: true);
+          excludeFromSemantics: true,
+          errorBuilder: (context, error, stackTrace) => Icon(
+                set.icon ?? Icons.playlist_play_rounded,
+                size: size,
+                color: Colors.white.withValues(alpha: 0.95),
+              ));
     }
     final mono = set.mono;
     final fg = Colors.white.withValues(alpha: 0.95);
@@ -638,7 +644,13 @@ class _Thumb extends StatelessWidget {
               fit: BoxFit.contain,
               cacheWidth: 720,
               excludeFromSemantics: true,
-              frameBuilder: (context, child, frame, sync) => sync ? child : AnimatedOpacity(opacity: frame == null ? 0 : 1, duration: const Duration(milliseconds: 220), curve: Curves.easeOut, child: child)),
+              frameBuilder: (context, child, frame, sync) => sync
+                  ? child
+                  : AnimatedOpacity(
+                      opacity: frame == null ? 0 : 1,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      child: child)),
     );
   }
 }

@@ -9,6 +9,7 @@ class SidePlankConfig {
   static const double MIN_BODY_ANGLE = 155.0;
   static const double MAX_SHOULDER_ELBOW_OFFSET_RATIO = 0.55;
   static const int MAX_FRAME_DELTA_MS = 250;
+  static const double MIN_SHOULDER_RAISE_RATIO = 0.12;
 }
 
 class _SidePlankPoseFrame {
@@ -368,7 +369,9 @@ class SidePlankDip extends RepCountedHoldExercise {
       bodyStraight: bodyAngle >= SidePlankConfig.MIN_BODY_ANGLE,
       shoulderAligned:
           shoulderOffset <= SidePlankConfig.MAX_SHOULDER_ELBOW_OFFSET_RATIO,
-      bodyHorizontal: dx.abs() > dy.abs(),
+      bodyHorizontal: dx.abs() > dy.abs() &&
+          lineLength > 1e-6 &&
+          dy / lineLength >= SidePlankConfig.MIN_SHOULDER_RAISE_RATIO,
     );
   }
 }

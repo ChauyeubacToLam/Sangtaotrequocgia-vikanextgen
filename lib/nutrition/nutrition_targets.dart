@@ -120,12 +120,19 @@ class NutritionTargets {
     );
   }
 
-  static PostWorkoutTarget postWorkout(BodyInfo b, DailyTargets daily) {
+  static PostWorkoutTarget postWorkout(
+    BodyInfo b,
+    DailyTargets daily, {
+    double eatenKcal = 0,
+    double burnedKcal = 0,
+  }) {
+    final perMeal = daily.macros.kcal / 3 + burnedKcal;
+    final left = daily.macros.kcal + burnedKcal - eatenKcal;
     return PostWorkoutTarget(
       protein: (b.weightKg * 0.30).clamp(20.0, 40.0),
       proteinLow: (b.weightKg * 0.25).clamp(20.0, 40.0),
       proteinHigh: (b.weightKg * 0.40).clamp(20.0, 40.0),
-      kcalCap: daily.macros.kcal / 3,
+      kcalCap: math.max(0, math.min(perMeal, left)),
     );
   }
 }

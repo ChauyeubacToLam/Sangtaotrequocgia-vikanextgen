@@ -153,6 +153,14 @@ class TestP00Gate(unittest.TestCase):
         for part in ("1 reps", "no beep", "codes not in catalog", "fault cues have no audio"):
             self.assertIn(part, verdict)
 
+    def test_every_catalog_exercise_has_an_app_set_target(self) -> None:
+        import p00_gate
+
+        targets = p00_gate.read_set_targets(p00_gate.APP_CATALOG)
+        known = p00_gate.read_catalog(EVAL_DIR / "fault_catalog.csv")
+        self.assertEqual(sorted(ex for ex in known if targets.get(ex, 0) < 1), [])
+        self.assertEqual(targets["plank"], 1)
+
 
 class TestFfmpegArgs(unittest.TestCase):
     def test_windows_paths_are_escaped_for_drawtext(self) -> None:

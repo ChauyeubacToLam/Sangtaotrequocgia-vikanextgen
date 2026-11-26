@@ -32,16 +32,16 @@ void main() {
     final info = source.lookup('curl_up');
     expect(info, isNotNull);
     expect(info!.id, 'mcgill_curlup');
-    expect(info.baseReps, 6);
+    expect(info.baseReps, 10);
     expect(info.baseSets, 3);
   });
 
-  test('rep entry carries reps; plank is 1 set x 3 reps', () {
+  test('plank is 3 sets x 1 hold of 20 s', () {
     final plank = source.lookup('plank')!;
-    expect(plank.baseReps, 3);
-    expect(plank.baseSets, 1);
-    expect(plank.baseSeconds, isNull);
-    expect(plank.volumeLabel, '1 x 3 rep');
+    expect(plank.baseReps, 1);
+    expect(plank.baseSets, 3);
+    expect(plank.baseSeconds, 20);
+    expect(plank.volumeLabel, contains('20'));
   });
 
   test('hybrid hold entry carries per-hold seconds AND a hold-count reps', () {
