@@ -116,6 +116,37 @@ class _ResearchSettingsScreenState extends State<ResearchSettingsScreen> {
     }
   }
 
+  Future<void> _deleteAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xóa tất cả tệp nhật ký?'),
+        content: Text(
+          'Xóa $_storedFileCount tệp nhật ký đang lưu trên máy này. '
+          'Không thể khôi phục sau khi xóa.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Xóa', style: TextStyle(color: Tk.redInk)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final deleted = await _storage.deleteAllLogFiles();
+    final files = await _storage.listStoredLogFiles();
+    if (!mounted) return;
+    setState(() => _storedFileCount = files.length);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('Đã xóa $deleted tệp nhật ký.')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeConfig = ResearchConfig(
@@ -223,6 +254,13 @@ class _ResearchSettingsScreenState extends State<ResearchSettingsScreen> {
                                   busy: _sharing,
                                   onTap: _storedFileCount == 0 ? null : () => _shareAll(buttonContext),
                                 ),
+                              ),
+                              const SizedBox(height: 10),
+                              TkButton(
+                                label: 'Xóa tất cả tệp nhật ký',
+                                icon: Icons.delete_outline_rounded,
+                                tone: TkButtonTone.outline,
+                                onTap: _storedFileCount == 0 || _sharing ? null : _deleteAll,
                               ),
                             ],
                           ),

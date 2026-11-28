@@ -78,6 +78,7 @@ import 'widgets/reviewer_tracking_demo_overlay.dart';
 import 'widgets/sensor_rotated_box.dart';
 import 'widgets/skeleton_annotation.dart';
 import 'workout_summary_screen.dart';
+import '../../widgets/limits_notice.dart';
 import 'package:vika/services/session_persistence.dart';
 import '../../exercise/warrior_1/warrior_one.dart';
 
@@ -473,7 +474,11 @@ class _ExerciseExperienceScreenState extends State<ExerciseExperienceScreen> {
     }
   }
 
-  void _beginWorkout() {
+  Future<void> _beginWorkout() async {
+    if (!_isContinuationSlot) {
+      final acknowledged = await showLimitsNotice(context, requireAck: true);
+      if (!acknowledged || !mounted) return;
+    }
     // Lifecycle boundary: the user pressed start on the intro and the first set
     // is being prepared. No-op without consent; exercise_id is the catalog id,
     // never anything user-identifying.

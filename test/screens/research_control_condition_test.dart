@@ -44,6 +44,8 @@ import 'package:vika/utils/exercise_logger.dart';
 import 'package:vika/voice/voice_sink.dart';
 import 'package:vika/screens/exercise/widgets/exercise_guide_video.dart';
 import 'package:vika/widgets/exercise/session_satisfaction_dialog.dart';
+import 'package:vika/widgets/limits_notice.dart';
+import 'package:vika/widgets/tk/tk.dart';
 
 class _FakeResearchLogStorage extends ResearchLogStorage {
   _FakeResearchLogStorage(this._files);
@@ -1129,6 +1131,10 @@ void main() {
 
         // Start set from ExerciseIntroPage immediately (no sleep workaround)
         await tester.tap(find.text('BẮT ĐẦU TẬP'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.text(kLimitsNoticeTitle), findsOneWidget);
+        await tester.tap(find.widgetWithText(TkButton, 'TÔI ĐÃ HIỂU'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 1700));
         await tester.pump();

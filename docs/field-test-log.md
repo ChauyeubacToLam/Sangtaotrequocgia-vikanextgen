@@ -1025,6 +1025,51 @@ nghỉ; sai tư thế giữa lượt thì đồng hồ đếm lại từ 0.
   nút xếp dọc, chữ 15, tối đa 3 dòng. Lần đầu đặt biển và nút riêng thì chúng đè lên nhau trên S20 Ultra (lề phải 48 dp).
 - Test màn hình và widget qua, analyze sạch.
 
+### 5.41 Giới hạn đánh giá sức khỏe và quyền riêng tư camera (28/11, yêu cầu cải tiến 1)
+
+- Yêu cầu: nêu rõ giới hạn hệ thống, không thay chuyên gia hay huấn luyện viên, hạn chế lưu video người tập; minh
+  chứng bằng màn hình thông báo và quyền lưu, xóa. Đối chiếu Apple 1.4.1 (app sức khỏe phải nêu giới hạn, nhắc hỏi
+  bác sĩ), Apple 5.1.1 và 5.1.2 (nói rõ dùng camera và gửi dữ liệu cho AI bên thứ ba), Google Play Health.
+- Hiện trạng trước khi sửa: app không quay, không lưu video (0 lệnh quay hay chụp trong `lib/`, `android/`, `ios/`;
+  iOS chỉ có `AVCaptureVideoDataOutput` bỏ khung trễ, Android chỉ `Preview` và `ImageAnalysis` giữ khung mới nhất).
+  Thiếu: lời giải thích điểm form, câu không thay chuyên gia, nút xóa nhật ký trên máy, đồng ý trước khi gửi ảnh món
+  ăn cho AI. Trang vikavn.app/privacy.html nói có "thông báo quyền riêng tư camera trước buổi tập đầu tiên" nhưng
+  app chưa có.
+- Sửa:
+  - `lib/widgets/limits_notice.dart` (mới): thẻ "Vika làm được gì và chưa làm được gì", 5 ý (điểm form là ước lượng
+    kỹ thuật, không thay bác sĩ, vật lý trị liệu hay huấn luyện viên, AI có thể đếm sai, camera xử lý trên máy và không
+    quay, không lưu, không gửi video, dừng khi đau) và link tới https://vikavn.app/privacy.html.
+  - `exercise_experience_screen.dart` `_beginWorkout`: mỗi buổi tập, bấm "Bắt đầu tập" phải bấm "Tôi đã hiểu" mới
+    vào tập (bản đầu chỉ hiện một lần; đổi theo yêu cầu chủ dự án ngày 28/11). Trong buổi nhiều bài chỉ hiện ở bài
+    đầu (`_isContinuationSlot`), không lưu trạng thái đã đọc. Bấm quay lại thì không vào tập. Thẻ xoay theo cảm biến
+    khi máy nằm ngang; ở màn ngang thu gọn cỡ chữ và khoảng cách để 5 ý, link và nút vừa một màn hình.
+  - `workout_summary_screen.dart`: dòng "Điểm form do AI ước lượng kỹ thuật động tác, không phải đánh giá sức khỏe."
+    dưới ô điểm (ẩn ở điều kiện control).
+  - `profile_screen.dart`: hàng "Giới hạn & quyền riêng tư" trong mục Hỗ trợ và chip camera mở cùng thẻ; câu cũ "Video
+    luôn ở trong điện thoại của bạn" (dễ hiểu là có lưu video) đã bỏ; link chính sách đổi sang `privacy.html`.
+  - `research_settings_screen.dart` và `ResearchLogStorage.deleteAllLogFiles`: nút "Xóa tất cả tệp nhật ký" có hộp
+    xác nhận, chỉ xóa tệp `vika_*.json`.
+  - `photo_food_screen.dart`: hộp đồng ý trước lần gửi ảnh món ăn đầu tiên, nêu tên Google Gemini hoặc Anthropic Claude
+    (hàm `food-photo` dùng Gemini nếu có khóa, không thì Claude; không ghi ảnh vào storage hay bảng nào). "Không gửi"
+    thì không mở camera hay thư viện. Dòng ghi chú cũ chỉ nêu Anthropic đã sửa cho khớp.
+  - `ios/Runner/Info.plist` `NSCameraUsageDescription`: nói rõ phân tích tư thế xử lý trên máy, không quay, không lưu
+    video, và camera còn dùng để chụp ảnh món ăn.
+  - `ios/Runner/PrivacyInfo.xcprivacy` (mới, gắn vào target Runner trong `project.pbxproj`): không tracking; 8 loại dữ
+    liệu thu thập theo mục 3 của privacy.html; lý do API: UserDefaults CA92.1 (`flutter_facebook_auth`), SystemBootTime
+    35F9.1 (`pedometer`), hai plugin này chưa tự kèm manifest. Bộ quét App Store Compliance chạy lại: critical=0.
+- Test: `limits_notice_test.dart` (hiện ở cả 2 lần bắt đầu), `research_log_storage_delete_test.dart` (xóa 2
+  tệp `vika_*.json`, giữ tệp khác), thêm kiểm tra dòng ghi chú trong `workout_summary_screen_test.dart`. Toàn bộ
+  `flutter test`: 893 qua, 14 bỏ qua, 0 lỗi; analyze không có lỗi mới.
+- Trên máy (S20 Ultra, bản debug cuối): bấm bắt đầu hiện thẻ giới hạn, đủ 5 ý và nút trong một màn hình ngang; link mở
+  đúng privacy.html; bấm quay lại thì ở lại màn giới thiệu bài; bấm "Tôi đã hiểu" vào màn tập; thoát về Trang chủ và
+  bắt đầu buổi mới thì thẻ hiện lại. Hộp xóa nhật ký hiện "Xóa 300 tệp", đã bấm Hủy, 300 tệp còn nguyên (đã sao lưu
+  trước ở `D:\VikaStudy\backup_phone_logs_20261128`). Hộp đồng ý gửi ảnh hiện, "Không gửi" không mở thư viện. Chưa
+  thử trên máy: màn tổng kết (ảnh dựng bằng widget test) và việc thẻ không hiện ở bài thứ 2 của buổi (cần tập xong
+  bài đầu).
+- Việc còn lại phía web và store: trang privacy.html mục 5 ghi "không gửi dữ liệu cá nhân tới dịch vụ AI của bên thứ ba",
+  trái với `food-photo`; cần cập nhật. Play Console mục Health apps, mô tả store thêm câu miễn trừ.
+- Minh chứng: `D:\VikaStudy\minh_chung_gioi_han\` (ảnh 02–10 và `bang_chung_ma_nguon.txt`).
+
 ## 6. Việc còn mở
 
 - Jumping Jack: 24% thời gian tập bị chặn, nhiều nhất là "quay mặt vào camera" (29 lần, 5,2 s). Chưa

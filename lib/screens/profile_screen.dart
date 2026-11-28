@@ -22,6 +22,7 @@ import '../services/workout_reminders.dart';
 import '../theme/app_colors.dart';
 import '../theme/vf_theme.dart';
 import '../utils/orientation_lock.dart';
+import '../widgets/limits_notice.dart';
 import '../widgets/profile/body_edit_sheet.dart';
 import '../widgets/profile/goal_edit_sheet.dart';
 import '../widgets/schedule/workout_schedule_sheet.dart';
@@ -74,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Support contact + legal links. /terms and /support are not live yet, so
   // only the live privacy page is linked; support is handled over email.
-  static const String _privacyUrl = 'https://vikavn.app/privacy';
+  static const String _privacyUrl = kPrivacyPolicyUrl;
   static const String _supportEmail = 'support@vikavn.app';
 
   @override
@@ -473,19 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ─── Camera privacy explainer ─────────────────────────────────────────
   Future<void> _showCameraInfoSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final c = VikaColors.of(sheetContext);
-        return _InfoSheet(
-          eyebrow: 'QUYỀN RIÊNG TƯ',
-          title: 'Camera xử lý ngay trên máy',
-          body: 'Video luôn ở trong điện thoại của bạn',
-          accent: c.phase4,
-        );
-      },
-    );
+    await showLimitsNotice(context);
   }
 
   // ─── Premium Ivory confirm dialog ─────────────────────────────────────
@@ -732,6 +721,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const _GroupLabel('HỖ TRỢ'),
             _TkGroup(children: [
               _TkRow(label: 'Liên hệ hỗ trợ', onTap: _openSupportMail),
+              _TkRow(
+                  label: 'Giới hạn & quyền riêng tư',
+                  onTap: _showCameraInfoSheet),
               _TkRow(
                   label: 'Chính sách quyền riêng tư',
                   onTap: () => _openExternal(_privacyUrl)),

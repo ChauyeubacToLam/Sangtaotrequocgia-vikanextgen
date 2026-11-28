@@ -7,6 +7,7 @@ import 'package:vika/screens/exercise/workout_summary_screen.dart';
 import 'package:vika/services/session_coach_builder.dart';
 import 'package:vika/services/session_summary_builder.dart';
 import 'package:vika/services/session_trophy_picker.dart';
+import 'package:vika/widgets/limits_notice.dart';
 
 void main() {
   testWidgets('multi-exercise session renders without overflow',
@@ -22,6 +23,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Hoàn thành buổi tập!'), findsOneWidget);
     expect(find.text('XONG'), findsOneWidget);
+    expect(find.text(kFormScoreDisclaimer), findsOneWidget);
     await _dispose(tester);
   });
 

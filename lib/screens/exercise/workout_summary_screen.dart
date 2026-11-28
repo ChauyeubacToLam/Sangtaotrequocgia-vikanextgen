@@ -8,6 +8,7 @@ import '../../services/session_trophy_picker.dart';
 import '../../nutrition/nutrition_store.dart';
 import '../../services/workout_reminders.dart';
 import '../../widgets/exercise/previous_exercise_rating_dialog.dart';
+import '../../widgets/limits_notice.dart';
 import '../../widgets/tk/tk.dart';
 import '../nutrition/post_workout_card.dart';
 import 'widgets/sensor_rotated_box.dart';
@@ -218,6 +219,14 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                                   ink: Tk.orangeInk),
                             ],
                     ),
+                    if (!control) ...[
+                      const SizedBox(height: 10),
+                      Text(kFormScoreDisclaimer,
+                          style: Tk.text(13,
+                              weight: FontWeight.w700,
+                              color: Tk.inkSoft,
+                              height: 1.4)),
+                    ],
                     const SizedBox(height: 18),
                     Text('CÁC BÀI ĐÃ TẬP', style: Tk.eyebrow()),
                     const SizedBox(height: 4),

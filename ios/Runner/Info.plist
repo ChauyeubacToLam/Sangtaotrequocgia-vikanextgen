@@ -65,7 +65,7 @@
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>NSCameraUsageDescription</key>
-		<string>Vika cần camera để theo dõi và phân tích tư thế tập luyện của bạn bằng AI.</string>
+		<string>Vika cần camera để phân tích tư thế khi bạn tập (xử lý ngay trên máy, không quay và không lưu video) và để chụp ảnh món ăn khi bạn muốn nhận diện món.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Vika cần quyền chọn ảnh để cập nhật ảnh đại diện và nhận diện món ăn từ ảnh.</string>
 		<key>NSMicrophoneUsageDescription</key>

@@ -124,6 +124,19 @@ class ResearchLogStorage {
     }
   }
 
+  Future<int> deleteAllLogFiles() async {
+    var deleted = 0;
+    for (final file in await listStoredLogFiles()) {
+      try {
+        await file.delete();
+        deleted++;
+      } catch (error) {
+        debugPrint('[ResearchLog] Failed to delete ${_fileNameOf(file)}: $error');
+      }
+    }
+    return deleted;
+  }
+
   Future<List<File>> resolveFilesByNames(List<String> fileNames) async {
     try {
       await _writeQueue;

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../nutrition/food_db.dart';
@@ -35,7 +36,40 @@ class _PhotoFoodScreenState extends State<PhotoFoodScreen> {
     });
   }
 
+  static const String _aiConsentKey = 'food_photo_ai_consent_v1';
+
+  Future<bool> _ensureAiConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_aiConsentKey) ?? false) return true;
+    if (!mounted) return false;
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Gửi ảnh cho AI nhận diện?'),
+        content: const Text(
+          'Để nhận diện món ăn, ảnh bạn chọn được gửi qua máy chủ Vika tới '
+          'dịch vụ AI của bên thứ ba: Google Gemini hoặc Anthropic Claude. '
+          'Ảnh chỉ dùng để nhận diện món, Vika không lưu ảnh này. Bạn vẫn có '
+          'thể nhập món bằng tay mà không cần gửi ảnh.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Không gửi'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Đồng ý gửi'),
+          ),
+        ],
+      ),
+    );
+    if (agreed == true) await prefs.setBool(_aiConsentKey, true);
+    return agreed == true;
+  }
+
   Future<void> _pick(ImageSource source) async {
+    if (!await _ensureAiConsent() || !mounted) return;
     final shot = await ImagePicker().pickImage(
       source: source,
       maxWidth: 1280,
@@ -161,7 +195,7 @@ class _PhotoFoodScreenState extends State<PhotoFoodScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Ảnh được gửi tới dịch vụ AI (Anthropic Claude) qua máy chủ Vika để nhận diện món, không lưu lại.',
+            'Ảnh được gửi tới dịch vụ AI (Google Gemini hoặc Anthropic Claude) qua máy chủ Vika để nhận diện món, không lưu lại.',
             style: Tk.text(12, weight: FontWeight.w600, color: Tk.inkMuted),
           ),
           if (_busy) ...[
